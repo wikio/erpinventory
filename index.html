@@ -44,6 +44,58 @@
 </head>
 
 <body class="theme-classic theme-light antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
+
+  <!-- Secure authentication gate -->
+  <div id="sari-auth-gate" class="hidden fixed inset-0 z-[100] overflow-y-auto auth-gate sari-grid-pattern" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <div class="min-h-full flex items-center justify-center p-4 sm:p-8">
+      <div class="auth-card w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+        <div class="auth-card-header px-7 pt-7 pb-6 text-white">
+          <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center">
+                <svg class="w-7 h-7 text-white" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true"><path d="M216 128h80v88h88v80h-88v88h-80v-88h-88v-80h88z"/></svg>
+              </div>
+              <div><div class="font-black tracking-tight">SARI SYSTÈME</div><div class="text-[10px] text-cyan-100 uppercase tracking-widest">Espace professionnel sécurisé</div></div>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-lime-300 text-slate-900">ALGÉRIE</span>
+          </div>
+          <h1 id="login-title" class="text-2xl font-extrabold tracking-tight">Bienvenue</h1>
+          <p class="text-sm text-cyan-100 mt-1">Connectez-vous pour accéder à votre espace ERP.</p>
+        </div>
+
+        <form onsubmit="auth.login(event)" class="px-7 py-7 space-y-4" autocomplete="on">
+          <div id="login-error" class="hidden p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs font-semibold" role="alert"></div>
+          <div>
+            <label for="login-username" class="block text-xs font-bold text-slate-700 mb-1.5">Identifiant</label>
+            <div class="auth-input-wrap"><i data-lucide="user" class="w-4 h-4"></i><input id="login-username" name="username" type="text" autocomplete="username" required placeholder="Votre identifiant" /></div>
+          </div>
+          <div>
+            <label for="login-password" class="block text-xs font-bold text-slate-700 mb-1.5">Mot de passe</label>
+            <div class="auth-input-wrap"><i data-lucide="lock-keyhole" class="w-4 h-4"></i><input id="login-password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••••" /><button type="button" onclick="auth.togglePassword()" class="auth-icon-button" aria-label="Afficher ou masquer le mot de passe"><i id="password-toggle-icon" data-lucide="eye" class="w-4 h-4"></i></button></div>
+          </div>
+          <fieldset>
+            <legend class="block text-xs font-bold text-slate-700 mb-1.5">Vérification CAPTCHA</legend>
+            <div class="flex gap-2 items-stretch">
+              <canvas id="captcha-canvas" width="190" height="52" class="auth-captcha flex-1" role="img"></canvas>
+              <button id="captcha-refresh" type="button" onclick="auth.refreshCaptcha()" class="auth-refresh" title="Nouveau CAPTCHA" aria-label="Générer un nouveau CAPTCHA"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+            </div>
+            <input id="captcha-answer" name="captcha" type="text" inputmode="numeric" autocomplete="off" required placeholder="Saisissez le résultat" class="auth-answer mt-2" />
+          </fieldset>
+          <button id="login-submit" type="submit" class="sari-btn w-full py-3 bg-sari-blue hover:bg-sari-blue-dark text-white text-sm shadow-lg"><i data-lucide="log-in" class="w-4 h-4"></i> Se connecter</button>
+
+          <details class="auth-demo rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+            <summary class="font-bold text-slate-600 cursor-pointer select-none">Comptes de démonstration par rôle</summary>
+            <p class="text-slate-500 mt-2 mb-2">Mot de passe commun : <code>Sari@2026</code></p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button type="button" onclick="auth.useDemoAccount('admin')">Admin</button><button type="button" onclick="auth.useDemoAccount('stock')">Stocks</button><button type="button" onclick="auth.useDemoAccount('import')">Import</button>
+              <button type="button" onclick="auth.useDemoAccount('tenders')">Offres</button><button type="button" onclick="auth.useDemoAccount('sales')">Ventes</button><button type="button" onclick="auth.useDemoAccount('viewer')">Lecture</button>
+            </div>
+          </details>
+          <p class="text-center text-[10px] text-slate-400 flex justify-center items-center gap-1"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i> Session protégée • CAPTCHA à usage unique • Accès par rôle</p>
+        </form>
+      </div>
+    </div>
+  </div>
   
   <!-- Read-Only / Permission Restricted Banner -->
   <div id="sari-readonly-banner" class="hidden bg-sari-amber text-slate-900 font-extrabold text-xs py-2 px-4 text-center shadow-md flex items-center justify-center gap-2 no-print z-50">
@@ -142,21 +194,14 @@
         <i data-lucide="palette" class="w-4 h-4 text-sari-blue"></i>
       </button>
 
-      <!-- Role-Based Access Control Switcher -->
-      <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
-        <i data-lucide="shield" class="w-3.5 h-3.5 text-sari-blue"></i>
-        <select 
-          id="sari-role-selector" 
-          onchange="auth.setRole(this.value)" 
-          class="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
-        >
-          <option value="admin">Administrateur (Complet)</option>
-          <option value="inventory">Gestionnaire des Stocks</option>
-          <option value="import_export">Responsable Import/Export</option>
-          <option value="tenders">Responsable Appels d'Offres</option>
-          <option value="sales">Employé Commercial (POS)</option>
-          <option value="readonly">Observateur (Lecture Seule)</option>
-        </select>
+      <!-- Authenticated user and server-issued role -->
+      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
+        <div class="w-7 h-7 rounded-full bg-sari-blue/15 flex items-center justify-center"><i data-lucide="user-round-check" class="w-3.5 h-3.5 text-sari-blue"></i></div>
+        <div class="hidden xl:block leading-tight max-w-40">
+          <div id="sari-active-user-name" class="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate"></div>
+          <div id="sari-active-role-badge" class="text-[9px] font-extrabold truncate"></div>
+        </div>
+        <button onclick="auth.logout()" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-slate-500 hover:text-red-600" title="Se déconnecter" aria-label="Se déconnecter"><i data-lucide="log-out" class="w-4 h-4"></i></button>
       </div>
     </div>
   </header>

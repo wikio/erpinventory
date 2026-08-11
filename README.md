@@ -53,7 +53,7 @@
 ## 🗄️ SQL Schema & Seed Data Files (`/sql`)
 
 For deployments using external relational databases (MySQL / PostgreSQL / MariaDB), SARI Système provides cleanly separated DDL and DML files in `/sql`:
-- **`sql/schema.sql`**: Complete database structure (11 tables: `warehouses`, `suppliers`, `products`, `shipments`, `tenders`, `customers`, `orders`, `order_items`, `notifications`, `audit_logs`, `app_settings`), indexes, and foreign keys.
+- **`sql/schema.sql`**: Complete database structure (12 tables: `users`, `warehouses`, `suppliers`, `products`, `shipments`, `tenders`, `customers`, `orders`, `order_items`, `notifications`, `audit_logs`, `app_settings`), indexes, and foreign keys.
 - **`sql/seed_data.sql`**: Separate DML file with sample Algerian medical distribution records (4 Depots, Suppliers in China/Germany/France/Algeria, 8 Medical Products, CHU Mustapha, DSP Blida, etc.).
 
 To initialize in MySQL / PostgreSQL:
@@ -63,6 +63,23 @@ mysql -u root -p sari_erp_prod < sql/seed_data.sql
 ```
 
 ---
+
+## 🔐 Secure connection, CAPTCHA & user roles
+
+The ERP is protected by a server-side login gate with a single-use arithmetic CAPTCHA. Passwords use salted **scrypt** hashes, sessions use `HttpOnly`/`SameSite` cookies, and repeated failures trigger a temporary lockout. A user's role is assigned by the server and can no longer be changed from the browser.
+
+Demo accounts use the password **`Sari@2026`**:
+
+| Username | Role |
+|---|---|
+| `admin` | Administrator (full access) |
+| `stock` | Inventory manager |
+| `import` | Import/export manager |
+| `tenders` | Tenders manager |
+| `sales` | Sales employee |
+| `viewer` | Read-only observer |
+
+These accounts are for demonstration. Replace the built-in repository in `server.js` with your production user database and rotate all credentials before deployment.
 
 ## 🚀 Quick Start (Node.js Server included)
 

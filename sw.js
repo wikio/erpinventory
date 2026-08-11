@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v1.0.0';
+const CACHE_NAME = 'sari-systeme-v1.1.0-auth';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -54,10 +54,15 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // We use Stale-While-Revalidate for app files to guarantee immediate offline rendering
-  if (event.request.method !== 'GET') {
+  // Authentication must always reach the server and must never be cached.
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
     return;
   }
+
+  // We use Stale-While-Revalidate for public app files to guarantee immediate offline rendering.
+  if (event.request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

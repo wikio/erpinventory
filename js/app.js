@@ -26,21 +26,25 @@ class SariApp {
   async init() {
     console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
 
-    // 1. Init DB Adapter & seed if empty
-    if (window.dbAdapter) {
-      await window.dbAdapter.init();
-    } else if (window.sariDB) {
-      await window.sariDB.init();
-    }
-
-    // 2. Init Internationalization (FR / AR / EN)
+    // 1. Init Internationalization (FR / AR / EN)
     if (window.i18n) {
       await window.i18n.init();
     }
 
-    // 3. Init Auth & RBAC
+    // 2. Authenticate before opening or rendering business data.
     if (window.auth) {
-      window.auth.init();
+      const authenticated = await window.auth.init();
+      if (!authenticated) {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+      }
+    }
+
+    // 3. Init DB Adapter & seed only for authenticated users
+    if (window.dbAdapter) {
+      await window.dbAdapter.init();
+    } else if (window.sariDB) {
+      await window.sariDB.init();
     }
 
     // 4. Init Sync Controller
