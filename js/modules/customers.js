@@ -1,0 +1,384 @@
+/**
+ * SARI Système - Customers Management Module
+ * Manage Algerian public hospitals, private clinics, pharmacies,
+ * Wilaya Health Directorates (DSP), credit limits, and NIF/RC tax numbers.
+ */
+
+const CustomersModule = {
+  state: {
+    customers: [],
+    filterType: 'all',
+    filterWilaya: 'all',
+    searchQuery: '',
+    editingId: null
+  },
+
+  async render(containerId = 'sari-main-view') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    this.state.customers = await window.sariDB.getAll('customers');
+    this.renderView(container);
+  },
+
+  renderView(container) {
+    const canWrite = window.auth && window.auth.canWrite('sales');
+    const filtered = this.getFilteredCustomers();
+
+    // Summary KPIs
+    let hospitalCount = 0;
+    let pharmacyCount = 0;
+    let totalCreditLimitDZD = 0;
+
+    this.state.customers.forEach(c => {
+      if (c.type === 'public_hospital' || c.type === 'private_clinic') hospitalCount++;
+      if (c.type === 'pharmacy') pharmacyCount++;
+      totalCreditLimitDZD += Number(c.creditLimit) || 0;
+    });
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        <!-- Header -->
+        <div class="sari-tile p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white" data-i18n="customers">
+              ${i18n.t('customers')}
+            </h2>
+            <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+              Gestion des hôpitaux CHU, cliniques privées, pharmacies d'officine et directions de la santé (DSP) des wilayas.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            ${canWrite ? `
+              <button onclick="CustomersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
+                <i class="fas fa-plus"></i>
+                <span data-i18n="addCustomer">${i18n.t('addCustomer')}</span>
+              </button>
+            ` : ''}
+            <button onclick="CustomersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
+              <i class="fas fa-file-export"></i>
+              <span>${i18n.t('exportCSV')}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-blue">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Hôpitaux & Cliniques</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${hospitalCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-blue/10 text-sari-blue px-2 py-1 rounded">
+              Institutions B2B
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-lime">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Pharmacies & Grossistes</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${pharmacyCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-lime/20 text-sari-lime-dark px-2 py-1 rounded">
+              Clients Officines
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-amber">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Plafond Crédit Cumulé</p>
+              <h4 class="text-xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${i18n.formatCurrency(totalCreditLimitDZD)}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-amber/10 text-sari-amber px-2 py-1 rounded">
+              Lignes Trésor/Banque
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Recherche (Nom, NIF, RC)</label>
+            <input 
+              type="text" 
+              value="${this.state.searchQuery}"
+              oninput="CustomersModule.handleSearch(this.value)"
+              placeholder="Ex: CHU Mustapha, El-Shifa, Ibn Sina, 000016..."
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Type de Client</label>
+            <select 
+              onchange="CustomersModule.handleTypeFilter(this.value)"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            >
+              <option value="all">Tous les Clients</option>
+              <option value="public_hospital" ${this.state.filterType === 'public_hospital' ? 'selected' : ''}>Hôpital Public (CHU/EHS)</option>
+              <option value="private_clinic" ${this.state.filterType === 'private_clinic' ? 'selected' : ''}>Clinique Privée</option>
+              <option value="pharmacy" ${this.state.filterType === 'pharmacy' ? 'selected' : ''}>Pharmacie d'Officine</option>
+              <option value="government" ${this.state.filterType === 'government' ? 'selected' : ''}>Organisme d'État / DSP</option>
+              <option value="wholesaler" ${this.state.filterType === 'wholesaler' ? 'selected' : ''}>Grossiste / Distributeur</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Wilaya (Algérie)</label>
+            <select 
+              onchange="CustomersModule.handleWilayaFilter(this.value)"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            >
+              <option value="all">Toutes les Wilayas</option>
+              ${SARI_CONFIG.ALGERIAN_WILAYAS.map(w => `
+                <option value="${w.code}" ${this.state.filterWilaya === w.code ? 'selected' : ''}>${w[i18n.currentLang] || w.fr}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+
+        <!-- Customers Table -->
+        <div class="sari-tile overflow-x-auto">
+          <table class="w-full text-left border-collapse sari-table text-sm">
+            <thead>
+              <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                <th class="p-3">Client / Établissement</th>
+                <th class="p-3">Type & Catégorie</th>
+                <th class="p-3">Wilaya & Localisation</th>
+                <th class="p-3">NIF / RC (Fiscalité)</th>
+                <th class="p-3">Conditions de Paiement</th>
+                <th class="p-3">Plafond Crédit (DA)</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.length === 0 ? `
+                <tr>
+                  <td colspan="7" class="p-8 text-center text-slate-500">
+                    <i class="fas fa-hospital-user text-2xl mb-2 block"></i>
+                    Aucun client ne correspond à vos filtres.
+                  </td>
+                </tr>
+              ` : filtered.map(c => {
+                let badgeClass = 'bg-slate-100 text-slate-700';
+                if (c.type === 'public_hospital') badgeClass = 'bg-sari-blue/10 text-sari-blue font-bold';
+                if (c.type === 'private_clinic') badgeClass = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+                if (c.type === 'pharmacy') badgeClass = 'bg-sari-lime/20 text-sari-lime-dark font-bold';
+                if (c.type === 'government') badgeClass = 'bg-sari-amber/10 text-sari-amber';
+
+                const typeLabel = c.type === 'public_hospital' ? 'Hôpital Public' : (c.type === 'private_clinic' ? 'Clinique Privée' : (c.type === 'pharmacy' ? 'Pharmacie' : 'DSP / État'));
+
+                return `
+                  <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3">
+                      <div class="font-bold text-slate-900 dark:text-white">${c.name}</div>
+                      <div class="text-xs text-slate-500 mt-0.5">${c.contactInfo || '-'}</div>
+                    </td>
+                    <td class="p-3">
+                      <span class="sari-badge ${badgeClass}">
+                        ${typeLabel}
+                      </span>
+                    </td>
+                    <td class="p-3 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      ${c.wilaya ? i18n.getWilayaName(c.wilaya) : '16 - Alger'}
+                    </td>
+                    <td class="p-3 font-mono-tech text-xs text-slate-600 dark:text-slate-300">
+                      <div>${c.taxId || 'NIF: Non renseigné'}</div>
+                    </td>
+                    <td class="p-3 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                      ${c.paymentTerms || '30 Jours'}
+                    </td>
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">
+                      ${i18n.formatCurrency(c.creditLimit)}
+                    </td>
+                    <td class="p-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
+                          <i class="fas fa-shopping-cart"></i>
+                        </button>
+                        ${canWrite ? `
+                          <button onclick="CustomersModule.openModal('${c.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button onclick="CustomersModule.deleteCustomer('${c.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        ` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Container for Add/Edit Customer -->
+      <div id="cust-modal-container"></div>
+    `;
+  },
+
+  getFilteredCustomers() {
+    return this.state.customers.filter(c => {
+      if (this.state.filterType !== 'all' && c.type !== this.state.filterType) {
+        return false;
+      }
+      if (this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
+        return false;
+      }
+      if (this.state.searchQuery) {
+        const q = this.state.searchQuery.toLowerCase();
+        const matchName = c.name && c.name.toLowerCase().includes(q);
+        const matchTax = c.taxId && c.taxId.toLowerCase().includes(q);
+        if (!matchName && !matchTax) return false;
+      }
+      return true;
+    });
+  },
+
+  handleSearch(val) {
+    this.state.searchQuery = val;
+    this.render();
+  },
+
+  handleTypeFilter(val) {
+    this.state.filterType = val;
+    this.render();
+  },
+
+  handleWilayaFilter(val) {
+    this.state.filterWilaya = val;
+    this.render();
+  },
+
+  async openModal(customerId = null) {
+    this.state.editingId = customerId;
+    const cust = customerId ? await window.sariDB.getById('customers', customerId) : {
+      name: '',
+      type: 'public_hospital',
+      wilaya: '16',
+      contactInfo: '',
+      taxId: 'NIF: 000000000000000 / RC: ',
+      paymentTerms: 'Virement Trésor Public - 60 Jours',
+      creditLimit: 10000000,
+      notes: ''
+    };
+
+    const modalEl = document.getElementById('cust-modal-container');
+    if (!modalEl) return;
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="font-bold text-lg text-slate-900 dark:text-white">
+              ${customerId ? 'Modifier le Client / Hôpital' : 'Nouveau Client ou Institution Algérie'}
+            </h3>
+            <button onclick="CustomersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <form onsubmit="CustomersModule.saveCustomer(event)" class="space-y-4 text-sm">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom Client / Établissement *</label>
+              <input type="text" id="cust-name" required value="${cust.name}" placeholder="Ex: CHU Mustapha Pacha, Pharmacie El-Shifa" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Type de Client *</label>
+                <select id="cust-type" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-semibold">
+                  <option value="public_hospital" ${cust.type === 'public_hospital' ? 'selected' : ''}>Hôpital Public (CHU / EHS)</option>
+                  <option value="private_clinic" ${cust.type === 'private_clinic' ? 'selected' : ''}>Clinique Privée</option>
+                  <option value="pharmacy" ${cust.type === 'pharmacy' ? 'selected' : ''}>Pharmacie d'Officine</option>
+                  <option value="government" ${cust.type === 'government' ? 'selected' : ''}>Organisme d'État / DSP Wilaya</option>
+                  <option value="wholesaler" ${cust.type === 'wholesaler' ? 'selected' : ''}>Grossiste / Distributeur</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Wilaya (Algérie) *</label>
+                <select id="cust-wilaya" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-bold">
+                  ${SARI_CONFIG.ALGERIAN_WILAYAS.map(w => `
+                    <option value="${w.code}" ${cust.wilaya === w.code ? 'selected' : ''}>${w.fr}</option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Fiscalité (NIF / RC / Article Imposition)</label>
+                <input type="text" id="cust-tax" value="${cust.taxId || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Plafond Crédit Autorisé (DZD) *</label>
+                <input type="number" step="1000" id="cust-credit" required value="${cust.creditLimit}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Conditions de Paiement & Échéance</label>
+              <input type="text" id="cust-payment" value="${cust.paymentTerms || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Coordonnées / Adresse Complète</label>
+              <input type="text" id="cust-contact" value="${cust.contactInfo || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onclick="CustomersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
+                ${i18n.t('cancel')}
+              </button>
+              <button type="submit" class="sari-btn px-5 py-2 bg-sari-blue text-white font-bold">
+                ${i18n.t('save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  closeModal() {
+    const modalEl = document.getElementById('cust-modal-container');
+    if (modalEl) modalEl.innerHTML = '';
+    this.state.editingId = null;
+  },
+
+  async saveCustomer(e) {
+    e.preventDefault();
+    const id = this.state.editingId || `cust-${Date.now()}`;
+    const payload = {
+      id,
+      name: document.getElementById('cust-name').value.trim(),
+      type: document.getElementById('cust-type').value,
+      wilaya: document.getElementById('cust-wilaya').value,
+      taxId: document.getElementById('cust-tax').value.trim(),
+      creditLimit: Number(document.getElementById('cust-credit').value),
+      paymentTerms: document.getElementById('cust-payment').value.trim(),
+      contactInfo: document.getElementById('cust-contact').value.trim()
+    };
+
+    await window.syncController.enqueueMutation('customers', 'save', payload);
+    this.closeModal();
+    window.app.showToast(i18n.t('savedSuccessfully'), 'success');
+    await this.render();
+  },
+
+  async deleteCustomer(id) {
+    if (!confirm('Supprimer ce client ?')) return;
+    await window.syncController.enqueueMutation('customers', 'delete', { id });
+    window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
+    await this.render();
+  },
+
+  exportCSV() {
+    SariUtils.exportToCSV(this.state.customers, 'sari-systeme-clients.csv');
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.CustomersModule = CustomersModule;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CustomersModule;
+}

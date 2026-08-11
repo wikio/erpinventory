@@ -1,0 +1,22 @@
+{
+  "name": "erpinventory-sari-systeme",
+  "version": "1.0.0",
+  "description": "SARI Système - Medical Equipment & Consumables Distribution Management System (Bilingual Arabic / French / English, Offline-First PWA)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "erp",
+    "medical",
+    "inventory",
+    "tenders",
+    "import-export",
+    "algeria",
+    "pwa",
+    "indexeddb"
+  ],
+  "author": "SARI Système Team",
+  "license": "MIT"
+}
