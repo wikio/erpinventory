@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>SARI Système – Medical Equipment & Consumables Distribution Management System</title>
-  
+
   <!-- PWA Manifest & Theme -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#009CC5" />
@@ -98,7 +98,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Read-Only / Permission Restricted Banner -->
   <div id="sari-readonly-banner" class="hidden bg-sari-amber text-slate-900 font-extrabold text-xs py-2 px-4 text-center shadow-md flex items-center justify-center gap-2 no-print z-50">
     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -109,8 +109,8 @@
   <header class="w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 sticky top-0 z-40 no-print flex items-center justify-between gap-4">
     <!-- Left: Brand Title & Mobile Menu Button -->
     <div class="flex items-center gap-3">
-      <button 
-        onclick="document.getElementById('mobile-sidebar').classList.toggle('hidden')" 
+      <button
+        onclick="window.app.toggleMobileSidebar()"
         class="lg:hidden p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
       >
         <i data-lucide="menu" class="w-5 h-5"></i>
@@ -118,9 +118,8 @@
 
       <div class="flex items-center gap-2.5 cursor-pointer" onclick="window.app.navigate('dashboard')">
         <div class="w-9 h-9 rounded-xl bg-sari-blue flex items-center justify-center shadow-sm text-white border-2 border-sari-lime">
-          <svg class="w-5 h-5" viewBox="0 0 512 512" fill="currentColor">
-            <path d="M 216 128 H 296 V 216 H 384 V 296 H 296 V 384 H 216 V 296 H 128 V 216 H 216 Z" />
-          </svg>
+          <img id="sari-site-logo" class="hidden w-7 h-7 object-contain" alt="Logo SARI" />
+          <svg id="sari-default-logo" class="w-5 h-5" viewBox="0 0 512 512" fill="currentColor"><path d="M 216 128 H 296 V 216 H 384 V 296 H 296 V 384 H 216 V 296 H 128 V 216 H 216 Z" /></svg>
         </div>
         <div>
           <div class="flex items-center gap-2">
@@ -137,8 +136,8 @@
     <!-- Right: Global Search, Network Badge, Sync, Notifications, Language, Themes, Role -->
     <div class="flex flex-wrap items-center gap-2 justify-end">
       <!-- Global Search Button -->
-      <button 
-        onclick="window.app.openGlobalSearchModal()" 
+      <button
+        onclick="window.app.openGlobalSearchModal()"
         title="Recherche Rapide (Ctrl+K)"
         class="sari-btn px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold"
       >
@@ -150,9 +149,9 @@
       <div id="sari-network-badge" class="flex items-center px-2.5 py-1 rounded-lg border text-xs font-bold border-sari-lime text-sari-lime-dark bg-slate-50 dark:bg-slate-800/80">
         <span id="sari-network-dot" class="w-2 h-2 rounded-full bg-sari-lime mr-1.5 animate-pulse"></span>
         <span id="sari-network-text" data-i18n="online">En Ligne</span>
-        <button 
-          onclick="window.syncController.setSimulatedOffline(!window.syncController.simulatedOffline)" 
-          title="Simuler انقطاع الاتصال / Hors Ligne" 
+        <button
+          onclick="window.syncController.setSimulatedOffline(!window.syncController.simulatedOffline)"
+          title="Simuler انقطاع الاتصال / Hors Ligne"
           class="ml-2 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
         >
           [Test Offline]
@@ -160,7 +159,7 @@
       </div>
 
       <!-- Sync Queue Button & Count -->
-      <button 
+      <button
         id="sari-sync-btn"
         onclick="window.syncController.processSyncQueue()"
         title="Synchroniser la file d'attente hors-ligne"
@@ -171,8 +170,8 @@
       </button>
 
       <!-- Notification Bell -->
-      <button 
-        onclick="window.app.openNotificationsModal()" 
+      <button
+        onclick="window.app.openNotificationsModal()"
         title="Centre de Notifications"
         class="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
       >
@@ -188,8 +187,8 @@
       </div>
 
       <!-- Native Theme Selector Quick Button -->
-      <button 
-        onclick="window.app.navigate('settings'); setTimeout(() => SettingsModule.setTab('themes'), 100);" 
+      <button
+        onclick="window.app.navigate('settings'); setTimeout(() => SettingsModule.setTab('themes'), 100);"
         title="4 Thèmes Natifs Apple Style"
         class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-xs font-semibold"
       >
@@ -209,79 +208,87 @@
   </header>
 
   <!-- Main Apple-Style Full-Width Layout (Sidebar + 100% Large Content) -->
-  <div class="flex-1 flex min-h-0 w-full">
-    <!-- Fixed Sidebar Menu (Lucide Icons) -->
-    <aside id="mobile-sidebar" class="hidden lg:flex w-64 flex-shrink-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 flex-col justify-between p-3 no-print z-30">
+  <div id="sari-app-layout" class="flex-1 flex min-h-0 w-full">
+    <!-- Fixed Sidebar Menu (responsive drawer + desktop collapsible rail) -->
+    <button id="sidebar-mobile-backdrop" onclick="window.app.closeMobileSidebar()" class="sidebar-mobile-backdrop" aria-label="Fermer le menu"></button>
+    <aside id="mobile-sidebar" class="sari-sidebar w-64 flex-shrink-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 flex-col justify-between p-3 no-print z-30">
       <div class="space-y-1">
-        <div class="px-3 py-2 text-[11px] font-black uppercase tracking-wider text-slate-400">
+        <div class="sidebar-section-label px-3 py-2 text-[11px] font-black uppercase tracking-wider text-slate-400">
           NAVIGATION PRINCIPALE
         </div>
 
-        <button onclick="window.app.navigate('dashboard'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="dashboard" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('dashboard'); window.app.closeMobileSidebar();" data-nav-item="dashboard" class="sari-sidebar-item w-full">
           <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-          <span data-i18n="dashboard">Tableau de Bord</span>
+          <span class="sari-nav-label" data-i18n="dashboard">Tableau de Bord</span>
         </button>
 
-        <button onclick="window.app.navigate('inventory'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="inventory" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('inventory'); window.app.closeMobileSidebar();" data-nav-item="inventory" class="sari-sidebar-item w-full">
           <i data-lucide="package" class="w-4 h-4"></i>
-          <span data-i18n="inventory">Stock & Consommables</span>
+          <span class="sari-nav-label" data-i18n="inventory">Stock & Consommables</span>
         </button>
 
-        <button onclick="window.app.navigate('tenders'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="tenders" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('tenders'); window.app.closeMobileSidebar();" data-nav-item="tenders" class="sari-sidebar-item w-full">
           <i data-lucide="file-check-2" class="w-4 h-4"></i>
-          <span data-i18n="tenders">Appels d'Offres</span>
+          <span class="sari-nav-label" data-i18n="tenders">Appels d'Offres</span>
         </button>
 
-        <button onclick="window.app.navigate('importExport'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="importExport" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('importExport'); window.app.closeMobileSidebar();" data-nav-item="importExport" class="sari-sidebar-item w-full">
           <i data-lucide="ship" class="w-4 h-4"></i>
-          <span data-i18n="importExport">Import / Export</span>
+          <span class="sari-nav-label" data-i18n="importExport">Import / Export</span>
         </button>
 
-        <button onclick="window.app.navigate('sales'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="sales" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('sales'); window.app.closeMobileSidebar();" data-nav-item="sales" class="sari-sidebar-item w-full">
           <i data-lucide="shopping-bag" class="w-4 h-4"></i>
-          <span data-i18n="sales">Ventes & POS (BL)</span>
+          <span class="sari-nav-label" data-i18n="sales">Ventes & POS (BL)</span>
         </button>
 
-        <button onclick="window.app.navigate('suppliers'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="suppliers" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('suppliers'); window.app.closeMobileSidebar();" data-nav-item="suppliers" class="sari-sidebar-item w-full">
           <i data-lucide="factory" class="w-4 h-4"></i>
-          <span data-i18n="suppliers">Fournisseurs</span>
+          <span class="sari-nav-label" data-i18n="suppliers">Fournisseurs</span>
         </button>
 
-        <button onclick="window.app.navigate('customers'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="customers" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('customers'); window.app.closeMobileSidebar();" data-nav-item="customers" class="sari-sidebar-item w-full">
           <i data-lucide="building-2" class="w-4 h-4"></i>
-          <span data-i18n="customers">Clients & Institutions</span>
+          <span class="sari-nav-label" data-i18n="customers">Clients & Institutions</span>
         </button>
 
-        <div class="pt-3 pb-1 px-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
+        <div class="sidebar-section-label pt-3 pb-1 px-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
           REPORTING & CONFIG
         </div>
 
-        <button onclick="window.app.navigate('hr'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="hr" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span data-i18n="hr">Ressources Humaines</span></button>
-        <button onclick="window.app.navigate('tasks'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="tasks" class="sari-sidebar-item w-full"><i data-lucide="square-kanban" class="w-4 h-4"></i><span data-i18n="tasks">Tâches & Kanban</span></button>
+        <button onclick="window.app.navigate('hr'); window.app.closeMobileSidebar();" data-nav-item="hr" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="hr">Ressources Humaines</span></button>
+        <button onclick="window.app.navigate('tasks'); window.app.closeMobileSidebar();" data-nav-item="tasks" class="sari-sidebar-item w-full"><i data-lucide="square-kanban" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="tasks">Tâches & Kanban</span></button>
+        <button onclick="window.app.navigate('portal'); window.app.closeMobileSidebar();" data-nav-item="portal" class="sari-sidebar-item w-full"><i data-lucide="messages-square" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="employeePortal">Espace Collaborateur</span></button>
 
-        <button onclick="window.app.navigate('reports'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="reports" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('reports'); window.app.closeMobileSidebar();" data-nav-item="reports" class="sari-sidebar-item w-full">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
-          <span data-i18n="reports">Rapports & Stats</span>
+          <span class="sari-nav-label" data-i18n="reports">Rapports & Stats</span>
         </button>
 
-        <button onclick="window.app.navigate('translations'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="translations" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('translations'); window.app.closeMobileSidebar();" data-nav-item="translations" class="sari-sidebar-item w-full">
           <i data-lucide="languages" class="w-4 h-4"></i>
-          <span>Traductions & i18n</span>
+          <span class="sari-nav-label">Traductions & i18n</span>
         </button>
 
-        <button onclick="window.app.navigate('auditLogs'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="auditLogs" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('auditLogs'); window.app.closeMobileSidebar();" data-nav-item="auditLogs" class="sari-sidebar-item w-full">
           <i data-lucide="history" class="w-4 h-4"></i>
-          <span data-i18n="auditLogs">Journal d'Audit</span>
+          <span class="sari-nav-label" data-i18n="auditLogs">Journal d'Audit</span>
         </button>
 
-        <button onclick="window.app.navigate('settings'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="settings" class="sari-sidebar-item w-full">
+        <button onclick="window.app.navigate('settings'); window.app.closeMobileSidebar();" data-nav-item="settings" class="sari-sidebar-item w-full">
           <i data-lucide="settings" class="w-4 h-4"></i>
-          <span data-i18n="settings">Paramètres & DB</span>
+          <span class="sari-nav-label" data-i18n="settings">Paramètres & DB</span>
+        </button>
+      </div>
+
+      <div class="mt-auto pt-3 border-t border-slate-200 dark:border-slate-700">
+        <button id="sidebar-collapse-button" onclick="window.app.toggleSidebarCollapse()" class="sari-sidebar-item w-full" title="Réduire ou développer le menu" aria-label="Réduire ou développer le menu">
+          <i data-lucide="panel-left-close" class="w-4 h-4 sidebar-toggle-icon"></i><span class="sari-nav-label">Réduire le menu</span>
         </button>
       </div>
 
       <!-- Bottom Sidebar Company Card -->
-      <div class="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+      <div class="sidebar-company-card p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
         <div class="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
           <i data-lucide="building" class="w-4 h-4 text-sari-blue"></i>
           <span>SARI SYSTÈMES ALGERIA</span>
@@ -331,14 +338,17 @@
   <!-- JavaScript App Scripts -->
   <script src="/js/config.js"></script>
   <script src="/js/db.js"></script>
+  <script src="/js/reference-codes.js"></script>
   <script src="/js/db-adapter.js"></script>
   <script src="/js/i18n.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/sync.js"></script>
   <script src="/js/utils.js"></script>
+  <script src="/js/rich-editor.js"></script>
+  <script src="/js/template-designer.js"></script>
   <script src="/js/documents.js"></script>
   <script src="/js/charts.js"></script>
-  
+
   <script src="/js/modules/dashboard.js"></script>
   <script src="/js/modules/inventory.js"></script>
   <script src="/js/modules/suppliers.js"></script>
@@ -352,7 +362,8 @@
   <script src="/js/modules/settings.js"></script>
   <script src="/js/modules/hr.js"></script>
   <script src="/js/modules/tasks.js"></script>
-  
+  <script src="/js/modules/portal.js"></script>
+
   <script src="/js/app.js"></script>
 </body>
 </html>

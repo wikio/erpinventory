@@ -21,7 +21,8 @@ class SariApp {
       auditLogs: window.AuditModule,
       settings: window.SettingsModule,
       hr: window.HRModule,
-      tasks: window.TasksModule
+      tasks: window.TasksModule,
+      portal: window.EmployeePortalModule
     };
   }
 
@@ -52,6 +53,8 @@ class SariApp {
 
     // 3. Initialize language after IndexedDB is available.
     if (window.i18n) await window.i18n.init();
+    const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
+    if (brandingSettings && window.SettingsModule?.applyBranding) window.SettingsModule.applyBranding(brandingSettings);
 
     // Load database-backed role permissions and optional employee overrides.
     if (window.auth?.loadPermissions) await window.auth.loadPermissions();
@@ -69,8 +72,9 @@ class SariApp {
     // 6. Register Service Worker for PWA
     this.registerServiceWorker();
 
-    // 7. Setup Event Listeners & Shortcuts
+    // 7. Setup navigation behavior and restore the desktop sidebar preference.
     this.setupEventListeners();
+    this.applySidebarPreference();
 
     // 8. Load initial route from URL hash or default to 'dashboard'
     const hash = window.location.hash.replace('#', '');
@@ -101,6 +105,27 @@ class SariApp {
       });
     }
   }
+
+  applySidebarPreference() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    if (!sidebar) return;
+    const collapsed = localStorage.getItem('sari_sidebar_collapsed') === 'true';
+    sidebar.classList.toggle('sidebar-collapsed', collapsed && window.innerWidth >= 1024);
+    const icon = sidebar.querySelector('.sidebar-toggle-icon');
+    if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+  }
+
+  toggleSidebarCollapse() {
+    const sidebar = document.getElementById('mobile-sidebar'); if (!sidebar) return;
+    const collapsed = !sidebar.classList.contains('sidebar-collapsed');
+    sidebar.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('sari_sidebar_collapsed', String(collapsed));
+    this.applySidebarPreference();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  toggleMobileSidebar() { document.body.classList.toggle('sidebar-mobile-open'); }
+  closeMobileSidebar() { document.body.classList.remove('sidebar-mobile-open'); }
 
   setupEventListeners() {
     // Re-render active view on language change
@@ -285,7 +310,8 @@ class SariApp {
   async updateNotificationsBadge() {
     if (!window.sariDB) return;
     try {
-      const notifs = await window.sariDB.getAll('notifications');
+      const allNotifs = await window.sariDB.getAll('notifications');
+      const notifs = allNotifs.filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
       const unread = notifs.filter(n => !n.isRead).length;
       const badge = document.getElementById('sari-notif-badge');
       if (badge) {
@@ -301,7 +327,7 @@ class SariApp {
     const modalEl = document.getElementById('sari-modal-root');
     if (!modalEl || !window.sariDB) return;
 
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     modalEl.innerHTML = `
@@ -360,7 +386,7 @@ class SariApp {
 
   async markAllNotificationsRead() {
     if (!window.sariDB) return;
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     for (const n of notifs) {
       if (!n.isRead) {
         n.isRead = true;

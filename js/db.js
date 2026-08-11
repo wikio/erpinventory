@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 3) {
+  constructor(dbName = 'SariSystemeDB', version = 4) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -43,7 +43,13 @@ class SariDB {
           'tasks',
           'taskStages',
           'roles',
-          'documentTemplates'
+          'documentTemplates',
+          'vatRates',
+          'documentCodes',
+          'sequenceCounters',
+          'conversations',
+          'messages',
+          'careerRecords'
         ];
 
         stores.forEach((storeName) => {
@@ -72,6 +78,10 @@ class SariDB {
             } else if (storeName === 'tasks') {
               store.createIndex('assigneeId', 'assigneeId', { unique: false });
               store.createIndex('stageId', 'stageId', { unique: false });
+            } else if (storeName === 'messages') {
+              store.createIndex('conversationId', 'conversationId', { unique: false });
+            } else if (storeName === 'careerRecords') {
+              store.createIndex('employeeId', 'employeeId', { unique: false });
             }
           }
         });
@@ -87,6 +97,8 @@ class SariDB {
         }
         const templateCount = await this.count('checklistTemplates');
         if (templateCount === 0) await this.seedFeatureData();
+        const vatCount = await this.count('vatRates');
+        if (vatCount === 0) await this.seedEnterpriseData();
         resolve(this.db);
       };
 
@@ -185,7 +197,8 @@ class SariDB {
       'settings',
       'auditLogs',
       'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions',
-      'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates'
+      'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates',
+      'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -216,6 +229,48 @@ class SariDB {
     }
     console.log('[SariDB] Successfully imported backup data');
     return true;
+  }
+
+  async seedEnterpriseData() {
+    const vats = [
+      { id: 'vat-0', label: 'Exonéré / 0%', percentage: 0, isDefault: false, isActive: true },
+      { id: 'vat-9', label: 'TVA réduite 9%', percentage: 9, isDefault: false, isActive: true },
+      { id: 'vat-19', label: 'TVA normale 19%', percentage: 19, isDefault: true, isActive: true }
+    ];
+    const standard = ['FAC|Purchase invoice','FAV|Sales invoice','BCA|Purchase order','CHA|Expense / Charge','REV|Revenue','MIS|Mission','CAT|Catalogue','DOC|Document','RAP|Report','LET|Letter','MOD|Model document','FIS|Fiscal record','DVV|Sales quote','BCV|Sales order','DVA|Purchase quote','LIV|Delivery note','REC|Goods receipt','STE|Stock entry','STS|Stock exit','CON|Consultation / Tender','EMP|Employee','ADM|Administration','REG|Trade register','PVE|Minutes','NIS|Statistical ID','NIF|Tax ID','NAI|Tax article','INV|Inventory'];
+    const subtypeLists = {
+      CLI: [{code:'01',label:'National / Public'},{code:'02',label:'National / Private'},{code:'03',label:'National / Organization'},{code:'04',label:'International'}],
+      FOU: [{code:'01',label:'National / Public'},{code:'02',label:'National / Private'},{code:'03',label:'National / Organization'},{code:'04',label:'International'}],
+      PRO: [{code:'01',label:'Standard product'},{code:'02',label:'Consumable product'},{code:'03',label:'Equipment'},{code:'04',label:'Spare part'},{code:'05',label:'Service'}],
+      BAN: [{code:'01',label:'Standard bank account'},{code:'02',label:'Petty cash'},{code:'03',label:'Online payment account'}]
+    };
+    const codes = standard.map(row => { const [code, designation] = row.split('|'); return { id: code, code, designation, description: designation, mask: `SARI-${code}{YY}-{SEQ}`, example: `SARI-${code}26-00001`, maskType: 'Standard', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }; });
+    Object.entries(subtypeLists).forEach(([code, subTypeOptions]) => codes.push({ id: code, code, designation: {CLI:'Client',FOU:'Supplier',PRO:'Product',BAN:'Bank account'}[code], description: 'Sub-type based reference', mask: `${code}{SUBTYPE}-{SEQ}`, example: `${code}01-00001`, maskType: 'SubTypeBased', sequenceMinDigits: 5, resetFrequency: 'never', isActive: true, subTypeOptions }));
+    ['IMP','EXP'].forEach(code => codes.push({ id: code, code, designation: code === 'IMP' ? 'Import' : 'Export', description: 'Country-based reference', mask: `${code}{YY}{COUNTRY3}-{SEQ}`, example: `${code}26DZA-00001`, maskType: 'CountryBased', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }));
+    codes.push({ id:'G50',code:'G50',designation:'G50 Algerian tax declaration',description:'Monthly registry reference',mask:'G50{YYYY}-{MM}-R{REGISTRY}',example:'G502026-08-R12',maskType:'DateBased',sequenceMinDigits:2,resetFrequency:'monthly',isActive:true,subTypeOptions:[] });
+    codes.push({ id:'TEM',code:'TEM',designation:'Document template',description:'Template type reference',mask:'TEM{TEMPLATE3}-{SEQ}',example:'TEMFAC-00001',maskType:'TemplateBased',sequenceMinDigits:5,resetFrequency:'never',isActive:true,subTypeOptions:[] });
+    for (const x of vats) await this.save('vatRates', x);
+    for (const x of codes) await this.save('documentCodes', x);
+    if (globalThis.ReferenceCodeManager) {
+      const mappings = [
+        ['products','PRO', item => ({ subType: item.category === 'consumables' ? '02' : ['diagnostic','furniture','sterilization'].includes(item.category) ? '03' : '01' })],
+        ['tenders','CON', item => ({ date: item.submissionDeadline })], ['orders','FAV', () => ({})],
+        ['customers','CLI', item => ({ subType: ['public_hospital','government'].includes(item.type) ? '01' : '02' })],
+        ['suppliers','FOU', item => ({ subType: ['international','manufacturer'].includes(item.type) ? '04' : '02' })],
+        ['shipments','IMP', item => ({ country: item.supplierName?.slice(0,3) || 'DZA' })],
+        ['employees','EMP', item => ({ date: item.hireDate })], ['missions','MIS', item => ({ date: item.startDate })]
+      ];
+      for (const [store, code, context] of mappings) for (const item of await this.getAll(store)) if (!item.referenceCode) { item.referenceCode = await globalThis.ReferenceCodeManager.generate(code, context(item)); await this.save(store, item); }
+    }
+    await this.save('careerRecords',  { id:'career-001', employeeId:'emp-sales', type:'promotion', date:'2025-01-15', title:'Promotion Commerciale B2B', description:'Évolution vers le portefeuille institutions de santé.', rating: 4 });
+    await this.save('careerRecords', { id:'career-002', employeeId:'emp-stock', type:'evaluation', date:'2026-06-30', title:'Évaluation semestrielle', description:'Excellente maîtrise de la traçabilité des lots.', rating: 5 });
+    await this.save('conversations', { id:'conv-hr-team', title:'RH • Équipe SARI', participantUserIds:['usr-admin','usr-stock','usr-sales'], updatedAt:new Date().toISOString() });
+    await this.save('messages', { id:'msg-welcome', conversationId:'conv-hr-team', senderUserId:'usr-admin', body:'Bienvenue dans votre nouvel espace collaborateur SARI.', createdAt:new Date().toISOString(), readBy:['usr-admin'] });
+    const roles = await this.getAll('roles');
+    for (const role of roles) {
+      if (role.id !== 'admin') role.permissions = [...new Set([...(role.permissions || []), 'portal.view', role.id === 'readonly' ? 'messages.view' : 'messages.*'])];
+      await this.save('roles', role);
+    }
   }
 
   async seedFeatureData() {
@@ -254,10 +309,10 @@ class SariDB {
       { id: 'task-002', title: 'Contrôler le lot de seringues', description: 'Vérifier date et traçabilité.', assigneeId: 'emp-stock', stageId: 'todo', priority: 'urgent', dueDate: '2026-08-15', relatedType: 'product', relatedId: 'prod-003', createdAt: new Date().toISOString() }
     ];
     const roles = Object.entries({
-      admin: ['*'], inventory: ['dashboard.view','inventory.view','inventory.create','inventory.edit','documents.*','tasks.*'],
-      import_export: ['dashboard.view','importExport.*','suppliers.*','documents.*','tasks.*'],
-      tenders: ['dashboard.view','tenders.*','documents.*','tasks.*'], sales: ['dashboard.view','sales.*','customers.*','documents.*','tasks.*'],
-      readonly: ['dashboard.view','inventory.view','tenders.view','importExport.view','sales.view','reports.view','tasks.view']
+      admin: ['*'], inventory: ['dashboard.view','inventory.view','inventory.create','inventory.edit','documents.*','tasks.*','portal.view','messages.*'],
+      import_export: ['dashboard.view','importExport.*','suppliers.*','documents.*','tasks.*','portal.view','messages.*'],
+      tenders: ['dashboard.view','tenders.*','documents.*','tasks.*','portal.view','messages.*'], sales: ['dashboard.view','sales.*','customers.*','documents.*','tasks.*','portal.view','messages.*'],
+      readonly: ['dashboard.view','inventory.view','tenders.view','importExport.view','sales.view','reports.view','tasks.view','portal.view','messages.view']
     }).map(([id, permissions]) => ({ id, name: SARI_CONFIG.USER_ROLES[id]?.fr || id, permissions }));
     const documentTemplates = [
       { id: 'doc-tpl-classic', name: 'SARI Classique', type: 'all', accent: '#009CC5', layout: 'classic', isDefault: true },

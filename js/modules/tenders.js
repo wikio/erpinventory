@@ -181,7 +181,8 @@ const TendersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${t.id}
+                      ${t.referenceCode || t.id}
+                      <div class="text-[9px] text-slate-400">${t.id}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${t.title}</div>
@@ -251,7 +252,7 @@ const TendersModule = {
       }
       if (this.state.searchQuery) {
         const q = this.state.searchQuery.toLowerCase();
-        const matchId = t.id && t.id.toLowerCase().includes(q);
+        const matchId = (t.id && t.id.toLowerCase().includes(q)) || (t.referenceCode && t.referenceCode.toLowerCase().includes(q));
         const matchTitle = t.title && t.title.toLowerCase().includes(q);
         const matchOrg = t.issuingOrganization && t.issuingOrganization.toLowerCase().includes(q);
         if (!matchId && !matchTitle && !matchOrg) return false;
@@ -287,15 +288,17 @@ const TendersModule = {
         { name: 'Offre Technique SARI.pdf', status: 'in_progress' },
         { name: 'Offre Financière & Soumission.pdf', status: 'in_progress' }
       ],
-      notes: ''
+      notes: '',
+      extendedDescription: ''
     };
+    const previewReference = ten.referenceCode || await ReferenceCodeManager.preview('CON', { date: ten.submissionDeadline });
 
     const modalEl = document.getElementById('tender-modal-container');
     if (!modalEl) return;
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div class="sari-tile w-full max-w-6xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[94vh] overflow-y-auto">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${tenderId ? 'Modifier l\'Appel d\'Offres / Consultation' : 'Nouvel Appel d\'Offres Médical'}
@@ -306,6 +309,7 @@ const TendersModule = {
           </div>
 
           <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm">
+            <div class="p-3 rounded-xl bg-sari-blue/5 border border-sari-blue/20"><label class="doc-label">Référence ERP automatique</label><input value="${previewReference}" readonly class="doc-input font-mono-tech font-bold text-sari-blue"><p class="text-[10px] text-slate-500 mt-1">La séquence définitive est réservée lors de l’enregistrement.</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Réf / Code Appel d'Offres *</label>
@@ -366,6 +370,8 @@ const TendersModule = {
               <input type="text" id="ten-notes" value="${ten.notes || ''}" placeholder="Ex: Soumission déposée au bureau des marchés, Caution de 1% prête" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
 
+            ${RichTextEditor.html('ten-rich-description', ten.extendedDescription || '', 'Description détaillée de la consultation / exigences techniques')}
+
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="TendersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -392,8 +398,10 @@ const TendersModule = {
     const id = document.getElementById('ten-id').value.trim();
     const orig = this.state.editingId ? await window.sariDB.getById('tenders', this.state.editingId) : {};
 
+    const referenceCode = orig.referenceCode || await ReferenceCodeManager.generate('CON', { date: document.getElementById('ten-deadline').value });
     const payload = {
       id,
+      referenceCode,
       issuingOrganization: document.getElementById('ten-org').value.trim(),
       title: document.getElementById('ten-title').value.trim(),
       category: document.getElementById('ten-category').value,
@@ -402,6 +410,7 @@ const TendersModule = {
       submissionDeadline: document.getElementById('ten-deadline').value,
       openingDate: document.getElementById('ten-opening').value,
       notes: document.getElementById('ten-notes').value.trim(),
+      extendedDescription: RichTextEditor.value('ten-rich-description'),
       linkedProductIds: orig.linkedProductIds || ['prod-001'],
       documents: orig.documents || [
         { name: 'Cahier des Charges Original.pdf', status: 'ready' },

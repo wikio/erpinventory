@@ -163,8 +163,8 @@ const ImportExportModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${s.id}
-                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.type || 'import'}</div>
+                      ${s.referenceCode || s.id}
+                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.id} • ${s.type || 'import'}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.supplierName}</div>
@@ -228,7 +228,7 @@ const ImportExportModule = {
       }
       if (this.state.searchQuery) {
         const q = this.state.searchQuery.toLowerCase();
-        const matchId = s.id && s.id.toLowerCase().includes(q);
+        const matchId = (s.id && s.id.toLowerCase().includes(q)) || (s.referenceCode && s.referenceCode.toLowerCase().includes(q));
         const matchSupplier = s.supplierName && s.supplierName.toLowerCase().includes(q);
         const matchIncoterm = s.incoterm && s.incoterm.toLowerCase().includes(q);
         if (!matchId && !matchSupplier && !matchIncoterm) return false;
@@ -278,7 +278,7 @@ const ImportExportModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
@@ -419,9 +419,14 @@ const ImportExportModule = {
 
     const purchaseDZD = Math.round(foreign * rate);
     const landedDZD = Math.round(purchaseDZD + freight + ins + customs);
+    const recordId = document.getElementById('sh-id').value.trim();
+    const original = this.state.editingId ? await sariDB.getById('shipments', this.state.editingId) : {};
+    const supplier = this.state.suppliers.find(item => item.id === supSplit[0]);
 
     const payload = {
-      id: document.getElementById('sh-id').value.trim(),
+      ...original,
+      id: recordId,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('IMP', { country: supplier?.country || 'DZA' }),
       supplierId: supSplit[0] || '',
       supplierName: supSplit[1] || 'Fournisseur International',
       type: 'import',

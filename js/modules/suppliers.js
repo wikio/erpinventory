@@ -116,7 +116,7 @@ const SuppliersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3">
-                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div>
+                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                         <i class="fas fa-map-marker-alt text-sari-blue"></i> ${s.country}
                       </div>
@@ -185,7 +185,8 @@ const SuppliersModule = {
         const q = this.state.searchQuery.toLowerCase();
         const matchName = s.name && s.name.toLowerCase().includes(q);
         const matchCountry = s.country && s.country.toLowerCase().includes(q);
-        if (!matchName && !matchCountry) return false;
+        const matchReference = s.referenceCode && s.referenceCode.toLowerCase().includes(q);
+        if (!matchName && !matchCountry && !matchReference) return false;
       }
       return true;
     });
@@ -219,7 +220,7 @@ const SuppliersModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${supplierId ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur Médical'}
@@ -304,11 +305,16 @@ const SuppliersModule = {
     if (!auth.can('suppliers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `sup-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('suppliers', id) : {};
+    const supplierType = document.getElementById('sup-type').value;
+    const subType = supplierType === 'international' || supplierType === 'manufacturer' ? '04' : supplierType === 'local' ? '02' : '03';
     const payload = {
+      ...original,
       id,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('FOU', { subType }),
       name: document.getElementById('sup-name').value.trim(),
       country: document.getElementById('sup-country').value.trim(),
-      type: document.getElementById('sup-type').value,
+      type: supplierType,
       currency: document.getElementById('sup-currency').value,
       incoterms: document.getElementById('sup-incoterm').value,
       certifications: document.getElementById('sup-cert').value.trim(),

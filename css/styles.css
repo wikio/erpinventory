@@ -295,6 +295,53 @@ body.theme-dark .sari-table tbody tr:nth-child(even) {
   box-shadow: 0 4px 10px -2px rgba(0, 156, 197, 0.4);
 }
 
+/* Responsive desktop rail / mobile drawer */
+#sari-app-layout { display: flex; flex: 1 1 auto; min-width: 0; }
+#main-content { flex: 1 1 auto; min-width: 0; }
+.sari-sidebar { display: flex; flex-direction: column; width: 16rem; transition: width .22s ease, transform .22s ease; overflow-x: hidden; }
+.sari-sidebar.sidebar-collapsed { width: 4.75rem; }
+.sari-sidebar.sidebar-collapsed .sari-nav-label,
+.sari-sidebar.sidebar-collapsed .sidebar-section-label,
+.sari-sidebar.sidebar-collapsed .sidebar-company-card { display: none; }
+.sari-sidebar.sidebar-collapsed .sari-sidebar-item { justify-content: center; padding-inline: .75rem; }
+.sidebar-mobile-backdrop { display: none; }
+@media (max-width: 1023px) {
+  .sari-sidebar, .sari-sidebar.sidebar-collapsed { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(18rem, 86vw); transform: translateX(-105%); z-index: 60; box-shadow: 12px 0 30px rgba(0,0,0,.22); }
+  .sari-sidebar.sidebar-collapsed .sari-nav-label, .sari-sidebar.sidebar-collapsed .sidebar-section-label, .sari-sidebar.sidebar-collapsed .sidebar-company-card { display: block; }
+  .sari-sidebar.sidebar-collapsed .sari-sidebar-item { justify-content: flex-start; padding-inline: 1rem; }
+  [dir="rtl"] .sari-sidebar { transform: translateX(105%); }
+  body.sidebar-mobile-open .sari-sidebar { transform: translateX(0); }
+  body.sidebar-mobile-open { overflow: hidden; }
+  body.sidebar-mobile-open .sidebar-mobile-backdrop { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(3,7,18,.55); backdrop-filter: blur(3px); }
+  #sidebar-collapse-button { display: none; }
+}
+@media (max-width: 640px) {
+  #main-content { padding: .75rem !important; }
+  .sari-tile { border-radius: 10px; }
+  .sari-modal-backdrop { padding: .5rem !important; align-items: flex-end !important; }
+  .sari-modal-backdrop > .sari-tile, .sari-modal-backdrop > form { max-height: 94vh !important; border-radius: 16px 16px 0 0 !important; }
+  table.sari-table { min-width: 720px; }
+}
+
+.designer-canvas { position: relative; width: 794px; min-height: 1123px; margin: 0 auto; background: white; color: #0f172a; box-shadow: 0 15px 45px rgba(0,0,0,.35); background-image: linear-gradient(rgba(0,156,197,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,156,197,.05) 1px,transparent 1px); background-size: 20px 20px; }
+.designer-element { position: absolute; min-width: 60px; min-height: 35px; border: 1px dashed #009cc5; resize: both; overflow: hidden; cursor: move; background-color: rgba(255,255,255,.92); }
+.designer-element:hover { outline: 2px solid #009cc5; }
+.designer-shape { opacity: .7; }
+.designer-delete { position: absolute; top: 1px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: white; line-height: 15px; font-weight: bold; }
+@media(max-width:900px){.designer-canvas{transform-origin:top left;transform:scale(.7);margin:0}.designer-canvas+*{display:none}}
+
+.logo-drop-zone { padding: 1.5rem; text-align: center; border: 2px dashed var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-card) 94%, var(--color-primary) 6%); transition: .2s; }
+.logo-drop-zone.dragging { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-card) 82%, var(--color-primary) 18%); transform: scale(1.01); }
+
+/* Offline rich-text editor */
+.rich-editor-wrap { border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; background: var(--color-card); }
+.rich-editor-wrap > .doc-label { padding: .65rem .75rem 0; }
+.rich-editor-toolbar { display: flex; flex-wrap: wrap; gap: .25rem; padding: .5rem .75rem; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-card) 90%, var(--color-primary) 10%); }
+.rich-editor-toolbar button { min-width: 2rem; padding: .3rem .55rem; border: 1px solid var(--color-border); border-radius: 5px; font-size: .7rem; font-weight: 700; }
+.rich-editor-toolbar button:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.rich-editor { min-height: 9rem; max-height: 20rem; overflow-y: auto; padding: .85rem; outline: none; font-size: .85rem; line-height: 1.6; color: var(--color-text); }
+.rich-editor:focus { box-shadow: inset 0 0 0 2px var(--color-primary); }
+
 /* Reusable rich detail / GED controls */
 .doc-label { display: block; margin-bottom: .3rem; font-size: .68rem; font-weight: 800; color: var(--color-text-muted); }
 .doc-input { width: 100%; min-height: 2.35rem; padding: .45rem .65rem; border: 1px solid var(--color-border); border-radius: .55rem; background: var(--color-card); color: var(--color-text); font-size: .75rem; outline: none; }
@@ -307,7 +354,7 @@ body.theme-dark .sari-table tbody tr:nth-child(even) {
 
 /* Secure authentication. Critical layout is self-contained so login remains
    usable even if the optional Tailwind CDN is unavailable. */
-.hidden { display: none !important; }
+.auth-gate.hidden, #sari-site-logo.hidden { display: none; }
 body.auth-locked { overflow: hidden; }
 .auth-gate {
   position: fixed; inset: 0; z-index: 100; overflow-y: auto;

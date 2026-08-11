@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v1.2.1-login-fix';
+const CACHE_NAME = 'sari-systeme-v1.3.0-enterprise';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -9,11 +9,14 @@ const ASSETS_TO_CACHE = [
   '/assets/icon-512.svg',
   '/js/config.js',
   '/js/db.js',
+  '/js/reference-codes.js',
   '/js/i18n.js',
   '/js/auth.js',
   '/js/sync.js',
   '/js/charts.js',
   '/js/utils.js',
+  '/js/rich-editor.js',
+  '/js/template-designer.js',
   '/js/documents.js',
   '/js/modules/dashboard.js',
   '/js/modules/inventory.js',
@@ -27,6 +30,7 @@ const ASSETS_TO_CACHE = [
   '/js/modules/settings.js',
   '/js/modules/hr.js',
   '/js/modules/tasks.js',
+  '/js/modules/portal.js',
   '/js/app.js'
 ];
 

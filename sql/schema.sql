@@ -17,6 +17,11 @@ DROP TABLE IF EXISTS `warehouses`;
 DROP TABLE IF EXISTS `notifications`;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `app_settings`;
+DROP TABLE IF EXISTS `messages`;
+DROP TABLE IF EXISTS `conversations`;
+DROP TABLE IF EXISTS `sequence_counters`;
+DROP TABLE IF EXISTS `document_codes`;
+DROP TABLE IF EXISTS `vat_rates`;
 DROP TABLE IF EXISTS `users`;
 
 -- USERS TABLE (Authentication identities and server-assigned roles)
@@ -242,5 +247,54 @@ CREATE TABLE `app_settings` (
   `custom_translations_json` JSON NULL COMMENT 'Custom trilingual dictionary overrides (FR/AR/EN)',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Global Company Details, Tax Settings and Native Themes';
+
+-- ENTERPRISE CONFIGURATION: VAT, ERP REFERENCES & INTERNAL MESSAGING
+CREATE TABLE `vat_rates` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY, `label` VARCHAR(100) NOT NULL,
+  `percentage` DECIMAL(6,3) NOT NULL, `is_default` BOOLEAN NOT NULL DEFAULT FALSE,
+  `is_active` BOOLEAN NOT NULL DEFAULT TRUE, `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `document_codes` (
+  `code` VARCHAR(10) NOT NULL PRIMARY KEY, `designation` VARCHAR(150) NOT NULL,
+  `description` TEXT NULL, `mask` VARCHAR(150) NOT NULL, `example` VARCHAR(150) NULL,
+  `mask_type` VARCHAR(32) NOT NULL DEFAULT 'Standard', `sequence_min_digits` INT NOT NULL DEFAULT 5,
+  `reset_frequency` VARCHAR(16) NOT NULL DEFAULT 'yearly', `sub_type_options_json` JSON NULL,
+  `is_active` BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `sequence_counters` (
+  `id` VARCHAR(255) NOT NULL PRIMARY KEY, `document_code` VARCHAR(10) NOT NULL,
+  `period_key` VARCHAR(32) NOT NULL, `counter_value` BIGINT NOT NULL DEFAULT 0,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_counter_document_code` FOREIGN KEY (`document_code`) REFERENCES `document_codes` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `conversations` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY, `title` VARCHAR(200) NOT NULL,
+  `participant_user_ids_json` JSON NOT NULL, `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `messages` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY, `conversation_id` VARCHAR(64) NOT NULL,
+  `sender_user_id` VARCHAR(64) NOT NULL, `body` TEXT NOT NULL, `read_by_user_ids_json` JSON NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_message_conversation` FOREIGN KEY (`conversation_id`) REFERENCES `conversations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_message_sender` FOREIGN KEY (`sender_user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  INDEX `idx_message_conversation` (`conversation_id`), INDEX `idx_message_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ERP-wide generated references on existing relational entities.
+ALTER TABLE `products` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `suppliers` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `shipments` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `tenders` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `customers` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `orders` ADD COLUMN `reference_code` VARCHAR(150) NULL UNIQUE AFTER `id`;
+ALTER TABLE `products` ADD COLUMN `vat_rate_id` VARCHAR(64) NULL,
+  ADD COLUMN `discount_percent` DECIMAL(5,2) NOT NULL DEFAULT 0,
+  ADD COLUMN `additional_fees` DECIMAL(15,2) NOT NULL DEFAULT 0,
+  ADD COLUMN `extended_description` TEXT NULL,
+  ADD CONSTRAINT `fk_product_vat_rate` FOREIGN KEY (`vat_rate_id`) REFERENCES `vat_rates` (`id`);
 
 -- End of DDL Schema

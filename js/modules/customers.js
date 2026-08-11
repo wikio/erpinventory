@@ -167,7 +167,7 @@ const CustomersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3">
-                      <div class="font-bold text-slate-900 dark:text-white">${c.name}</div>
+                      <div class="font-bold text-slate-900 dark:text-white">${c.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${c.referenceCode||c.id}</div>
                       <div class="text-xs text-slate-500 mt-0.5">${c.contactInfo || '-'}</div>
                     </td>
                     <td class="p-3">
@@ -228,7 +228,8 @@ const CustomersModule = {
         const q = this.state.searchQuery.toLowerCase();
         const matchName = c.name && c.name.toLowerCase().includes(q);
         const matchTax = c.taxId && c.taxId.toLowerCase().includes(q);
-        if (!matchName && !matchTax) return false;
+        const matchReference = c.referenceCode && c.referenceCode.toLowerCase().includes(q);
+        if (!matchName && !matchTax && !matchReference) return false;
       }
       return true;
     });
@@ -267,7 +268,7 @@ const CustomersModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${customerId ? 'Modifier le Client / Hôpital' : 'Nouveau Client ou Institution Algérie'}
@@ -349,10 +350,15 @@ const CustomersModule = {
     if (!auth.can('customers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `cust-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('customers', id) : {};
+    const customerType = document.getElementById('cust-type').value;
+    const subType = customerType === 'public_hospital' || customerType === 'government' ? '01' : customerType === 'private_clinic' || customerType === 'pharmacy' ? '02' : '03';
     const payload = {
+      ...original,
       id,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('CLI', { subType }),
       name: document.getElementById('cust-name').value.trim(),
-      type: document.getElementById('cust-type').value,
+      type: customerType,
       wilaya: document.getElementById('cust-wilaya').value,
       taxId: document.getElementById('cust-tax').value.trim(),
       creditLimit: Number(document.getElementById('cust-credit').value),

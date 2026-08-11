@@ -24,7 +24,9 @@ const SalesModule = {
     qrContent: 'https://sarisysteme.dz/verify',
     hideBLAmounts: true,
     selectedTemplateId: 'doc-tpl-classic',
-    documentTemplates: []
+    documentTemplates: [],
+    vatRates: [],
+    globalVatRateId: ''
   },
 
   async render(containerId = 'sari-main-view') {
@@ -36,6 +38,7 @@ const SalesModule = {
     this.state.customers = await window.sariDB.getAll('customers');
     this.state.warehouses = await window.sariDB.getAll('warehouses');
     this.state.documentTemplates = await window.sariDB.getAll('documentTemplates');
+    this.state.vatRates = (await window.sariDB.getAll('vatRates')).filter(rate => rate.isActive);
 
     if (!this.state.selectedCustomerId && this.state.customers[0]) {
       this.state.selectedCustomerId = this.state.customers[0].id;
@@ -57,7 +60,7 @@ const SalesModule = {
 
     const discountAmount = Math.round(subtotal * (this.state.discountPercent / 100));
     const taxableAmount = subtotal - discountAmount + Number(this.state.shippingFee || 0);
-    const taxAmount = Math.round(this.state.cart.reduce((sum, item) => sum + Number(item.total) * (1 - this.state.discountPercent / 100) * Number(item.vatRate ?? .19), 0) + Number(this.state.shippingFee || 0) * .19);
+    const taxAmount = Math.round(this.state.cart.reduce((sum, item) => sum + Number(item.total) * (1 - this.state.discountPercent / 100) * this.getVatRate(item), 0) + Number(this.state.shippingFee || 0) * this.getVatRate({ vatRate: .19 }));
     const grandTotal = taxableAmount + taxAmount;
 
     container.innerHTML = `
@@ -194,7 +197,7 @@ const SalesModule = {
                         class="w-14 px-1.5 py-1 border rounded text-center font-mono-tech font-bold"
                       />
                       <label class="text-[9px] text-slate-400">Rem.%<input type="number" min="0" max="100" value="${item.discountPercent||0}" onchange="SalesModule.updateLineDiscount('${item.productId}',this.value)" class="block w-12 px-1 py-1 border rounded text-center"></label>
-                      <label class="text-[9px] text-slate-400">TVA<select onchange="SalesModule.updateLineVat('${item.productId}',this.value)" class="block w-14 px-1 py-1 border rounded"><option value="0.19" ${(item.vatRate??.19)==.19?'selected':''}>19%</option><option value="0.09" ${item.vatRate==.09?'selected':''}>9%</option><option value="0" ${item.vatRate===0?'selected':''}>0%</option></select></label>
+                      <label class="text-[9px] text-slate-400">TVA<select onchange="SalesModule.updateLineVat('${item.productId}',this.value)" class="block w-16 px-1 py-1 border rounded">${this.state.vatRates.map(rate=>`<option value="${rate.percentage/100}" ${Number(item.vatRate??.19)===rate.percentage/100?'selected':''}>${rate.percentage}%</option>`).join('')}</select></label>
                       <span class="font-mono-tech font-extrabold text-sari-blue w-20 text-right">${i18n.formatCurrency(item.total)}</span>
                       <button onclick="SalesModule.removeFromCart('${item.productId}')" class="text-red-500 hover:text-red-700 p-1">
                         <i class="fas fa-times"></i>
@@ -209,6 +212,7 @@ const SalesModule = {
                 <div><label class="block font-bold mb-1">Type document</label><select onchange="SalesModule.setDocumentField('documentType',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800"><option value="invoice">Facture</option><option value="quote">Devis</option><option value="purchase_order">Bon de commande</option><option value="delivery_note">Bon de livraison</option></select></div>
                 <div><label class="block font-bold mb-1">Devise</label><select onchange="SalesModule.setDocumentField('currency',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${['DZD','EUR','USD'].map(c=>`<option ${c===this.state.currency?'selected':''}>${c}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Frais livraison</label><input type="number" value="${this.state.shippingFee}" onchange="SalesModule.setDocumentField('shippingFee',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
+                <div><label class="block font-bold mb-1">TVA globale optionnelle</label><select onchange="SalesModule.setDocumentField('globalVatRateId',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800"><option value="">Taux par produit</option>${this.state.vatRates.map(rate=>`<option value="${rate.id}" ${rate.id===this.state.globalVatRateId?'selected':''}>${rate.label}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Modèle visuel</label><select onchange="SalesModule.setDocumentField('selectedTemplateId',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.state.documentTemplates.map(t=>`<option value="${t.id}" ${t.id===this.state.selectedTemplateId?'selected':''}>${t.name}</option>`).join('')}</select></div>
                 <div class="col-span-2"><label class="block font-bold mb-1">Note document</label><input value="${SariUtils.escapeHtml(this.state.documentNote)}" onchange="SalesModule.setDocumentField('documentNote',this.value)" class="w-full px-2 py-1.5 border rounded" placeholder="Conditions, instructions…"></div>
                 <div class="col-span-2"><label class="block font-bold mb-1">Contenu QR</label><input value="${SariUtils.escapeHtml(this.state.qrContent)}" onchange="SalesModule.setDocumentField('qrContent',this.value)" class="w-full px-2 py-1.5 border rounded" placeholder="URL de vérification ou paiement"></div>
@@ -328,7 +332,8 @@ const SalesModule = {
                   return `
                     <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                        ${o.id}
+                        ${o.referenceCode || o.id}
+                        <div class="text-[9px] text-slate-400">${o.id}</div>
                       </td>
                       <td class="p-3">
                         <div class="font-bold text-slate-900 dark:text-white">${o.customerName}</div>
@@ -429,6 +434,7 @@ const SalesModule = {
   },
 
   setDocumentField(field, value) { this.state[field] = value; this.render(); },
+  getVatRate(item) { const selected=this.state.vatRates.find(rate=>rate.id===this.state.globalVatRateId); return selected ? selected.percentage/100 : Number(item.vatRate ?? .19); },
   updateLineDiscount(productId, value) { const item=this.state.cart.find(x=>x.productId===productId); if(item){item.discountPercent=Math.min(100,Math.max(0,Number(value)||0));item.total=Math.round(item.qty*item.unitPrice*(1-item.discountPercent/100));this.render();} },
   updateLineVat(productId, value) { const item=this.state.cart.find(x=>x.productId===productId); if(item){item.vatRate=Number(value);this.render();} },
 
@@ -444,10 +450,10 @@ const SalesModule = {
       this.state.cart.push({
         productId: p.id,
         name: p.name,
-        unitPrice: Number(p.sellingPrice) || 0,
+        unitPrice: (Number(p.sellingPrice) || 0) + Number(p.additionalFees || 0),
         qty: 1,
-        discountPercent: 0,
-        vatRate: 0.19,
+        discountPercent: Number(p.discountPercent || 0),
+        vatRate: Number(this.state.vatRates.find(rate => rate.id === p.vatRateId)?.percentage ?? 19) / 100,
         total: Number(p.sellingPrice) || 0
       });
     }
@@ -488,17 +494,20 @@ const SalesModule = {
 
     const discountAmount = Math.round(subtotal * (this.state.discountPercent / 100));
     const taxableAmount = subtotal - discountAmount + Number(this.state.shippingFee || 0);
-    const taxAmount = Math.round(this.state.cart.reduce((sum, item) => sum + Number(item.total) * (1 - this.state.discountPercent / 100) * Number(item.vatRate ?? .19), 0) + Number(this.state.shippingFee || 0) * .19);
+    const taxAmount = Math.round(this.state.cart.reduce((sum, item) => sum + Number(item.total) * (1 - this.state.discountPercent / 100) * this.getVatRate(item), 0) + Number(this.state.shippingFee || 0) * this.getVatRate({ vatRate: .19 }));
     const grandTotal = taxableAmount + taxAmount;
 
+    const referenceType = ({ invoice:'FAV', quote:'DVV', purchase_order:'BCA', delivery_note:'LIV' })[this.state.documentType] || 'FAV';
+    const referenceCode = await ReferenceCodeManager.generate(referenceType);
     const conversionRate = Number(SARI_CONFIG.CURRENCIES[this.state.currency]?.rate || 1);
     const toDocumentCurrency = value => Math.round((Number(value) / conversionRate) * 100) / 100;
     const newOrder = {
-      id: `ORD-2026-${Math.floor(100 + Math.random() * 900)}`,
+      id: `ORD-${Date.now()}`,
+      referenceCode,
       customerId: customer.id,
       customerName: customer.name,
       warehouseId: this.state.selectedWarehouseId,
-      items: this.state.cart.map(item => ({ ...item, unitPrice: toDocumentCurrency(item.unitPrice), total: toDocumentCurrency(item.total) })),
+      items: this.state.cart.map(item => ({ ...item, vatRate: this.getVatRate(item), unitPrice: toDocumentCurrency(item.unitPrice), total: toDocumentCurrency(item.total) })),
       subtotal: toDocumentCurrency(subtotal),
       discountPercent: this.state.discountPercent,
       discountAmount: toDocumentCurrency(discountAmount),
@@ -608,6 +617,7 @@ const SalesModule = {
   async openPrintModal(orderId, docType = 'facture') {
     const o = await window.sariDB.getById('orders', orderId);
     if (!o) return;
+    const companySettings = await window.sariDB.getById('settings', 'app-settings') || {};
 
     const modalEl = document.getElementById('sales-print-modal');
     if (!modalEl) return;
@@ -621,7 +631,7 @@ const SalesModule = {
     const hideAmounts = docType === 'bl' && (o.hideBLAmounts !== false);
     const template = this.state.documentTemplates.find(t => t.id === o.documentTemplateId) || this.state.documentTemplates[0] || { accent: '#009CC5', layout: 'classic' };
     const amountWords = SariUtils.amountInWords(o.total, currency, i18n.currentLang === 'ar' ? 'ar' : 'fr');
-    const vatMap = (o.items || []).reduce((acc, item) => { const rate=Number(item.vatRate ?? .19); const base=Number(item.total||0)*(1-Number(o.discountPercent||0)/100); const key=String(rate); acc[key] ||= { rate, base: 0, tax: 0 }; acc[key].base += base; acc[key].tax += base*rate; return acc; }, {});
+    const vatMap = (o.items || []).reduce((acc, item) => { const rate=this.getVatRate(item); const base=Number(item.total||0)*(1-Number(o.discountPercent||0)/100); const key=String(rate); acc[key] ||= { rate, base: 0, tax: 0 }; acc[key].base += base; acc[key].tax += base*rate; return acc; }, {});
     if (o.shippingFee) { vatMap['0.19'] ||= { rate: .19, base: 0, tax: 0 }; vatMap['0.19'].base += Number(o.shippingFee); vatMap['0.19'].tax += Number(o.shippingFee)*.19; }
     const vatBreakdown = Object.values(vatMap);
     const formatMoney = value => new Intl.NumberFormat(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-DZ', { style: 'currency', currency }).format(Number(value || 0));
@@ -642,17 +652,20 @@ const SalesModule = {
           </div>
 
           <!-- Printable SARI Système Template -->
-          <div class="bg-white text-slate-900 p-4 border border-slate-300" style="border-top:8px solid ${template.accent}">
+          ${template.elements?.length ? this.renderDesignerOutput(template, o, customer, docCode, formatMoney, amountWords, vatBreakdown, companySettings) : ''}
+          <div class="${template.elements?.length ? 'hidden' : ''} bg-white text-slate-900 p-4 border border-slate-300" style="border-top:8px solid ${template.accent}">
             <!-- Header -->
             <div class="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
-              <div>
-                <h1 class="text-2xl font-black text-sari-blue tracking-tight">SARI SYSTÈME</h1>
+              <div class="flex items-start gap-3">
+                ${companySettings.documentLogo?`<img src="${companySettings.documentLogo}" class="w-16 h-16 object-contain" alt="Logo document">`:''}
+                <div><h1 class="text-2xl font-black text-sari-blue tracking-tight">SARI SYSTÈME</h1>
                 <p class="text-xs font-bold uppercase mt-0.5">Distribution & Import Équipements Médicaux</p>
                 <p class="text-xs text-slate-600 mt-1">${SARI_CONFIG.COMPANY_ADDRESS}</p>
                 <p class="text-xs text-slate-600">Tél: ${SARI_CONFIG.COMPANY_PHONE}</p>
                 <p class="text-xs text-slate-600 font-mono-tech mt-1">
                   <strong>NIF:</strong> ${SARI_CONFIG.COMPANY_NIF} | <strong>RC:</strong> ${SARI_CONFIG.COMPANY_RC}
                 </p>
+                </div>
               </div>
               <div class="text-right">
                 <span class="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-sm uppercase tracking-wider mb-2">
@@ -704,6 +717,18 @@ const SalesModule = {
       </div>
     `;
     setTimeout(() => SariUtils.drawQRCode(document.getElementById('commercial-qr'), o.qrContent || docCode, 88), 0);
+  },
+
+  renderDesignerOutput(template, order, customer, docCode, formatMoney, amountWords, vatBreakdown, companySettings) {
+    const values = {
+      customerName: SariUtils.escapeHtml(customer.name || order.customerName), documentNumber: docCode,
+      documentDate: i18n.formatDate(order.createdAt), totals: `TOTAL TTC : ${formatMoney(order.total)}`,
+      amountInWords: SariUtils.escapeHtml(amountWords), documentLogo: companySettings.documentLogo ? `<img src="${companySettings.documentLogo}" style="max-width:100%;max-height:100%">` : '<b>SARI SYSTÈME</b>',
+      qrCode: `<div class="font-mono-tech text-center text-2xl">▦<small class="block text-[8px]">${SariUtils.escapeHtml(order.qrContent || docCode)}</small></div>`,
+      lineItems: `<table class="w-full text-[10px] border"><tbody>${order.items.map(item=>`<tr><td>${SariUtils.escapeHtml(item.name)}</td><td>${item.qty}</td><td>${formatMoney(item.total)}</td></tr>`).join('')}</tbody></table>`,
+      vatBreakdown: `<table class="w-full text-[10px]">${vatBreakdown.map(v=>`<tr><td>TVA ${v.rate*100}%</td><td>${formatMoney(v.tax)}</td></tr>`).join('')}</table>`
+    };
+    return `<div class="relative bg-white text-slate-900 mx-auto overflow-hidden border" style="width:794px;min-height:1123px;transform-origin:top left">${template.elements.map(el=>`<div style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;overflow:hidden;${el.background?`background:${el.background};`:''}">${el.kind==='image'?`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`:el.kind==='field'?(values[el.field]||SariUtils.escapeHtml(el.content||'')):RichTextEditor.sanitize(el.content||'')}</div>`).join('')}</div>`;
   },
 
   closePrintModal() {

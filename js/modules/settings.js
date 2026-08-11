@@ -28,7 +28,9 @@ const SettingsModule = {
     dbTestResult: null,
     checklistTemplates: [],
     roles: [],
-    documentTemplates: []
+    documentTemplates: [],
+    vatRates: [],
+    documentCodes: []
   },
 
   async render(containerId = 'sari-main-view') {
@@ -44,8 +46,8 @@ const SettingsModule = {
       // ignore
     }
 
-    [this.state.checklistTemplates, this.state.roles, this.state.documentTemplates] = await Promise.all([
-      sariDB.getAll('checklistTemplates'), sariDB.getAll('roles'), sariDB.getAll('documentTemplates')
+    [this.state.checklistTemplates, this.state.roles, this.state.documentTemplates, this.state.vatRates, this.state.documentCodes] = await Promise.all([
+      sariDB.getAll('checklistTemplates'), sariDB.getAll('roles'), sariDB.getAll('documentTemplates'), sariDB.getAll('vatRates'), sariDB.getAll('documentCodes')
     ]);
     this.renderView(container);
     if (typeof lucide !== 'undefined') {
@@ -105,6 +107,9 @@ const SettingsModule = {
           >
             <i data-lucide="database" class="w-4 h-4"></i> Connecteur DB (Agnostic DB)
           </button>
+          <button onclick="SettingsModule.setTab('branding')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'branding' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="image" class="w-4 h-4"></i> Logos</button>
+          <button onclick="SettingsModule.setTab('vatRates')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'vatRates' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="percent" class="w-4 h-4"></i> Taux TVA</button>
+          <button onclick="SettingsModule.setTab('documentCodes')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'documentCodes' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="binary" class="w-4 h-4"></i> Types & Numérotation</button>
           <button onclick="SettingsModule.setTab('checklists')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'checklists' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="list-checks" class="w-4 h-4"></i> Modèles Checklist</button>
           <button onclick="SettingsModule.setTab('permissions')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'permissions' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="shield-check" class="w-4 h-4"></i> Rôles & Permissions</button>
           <button onclick="SettingsModule.setTab('documentTemplates')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'documentTemplates' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="layout-template" class="w-4 h-4"></i> Modèles Documents</button>
@@ -345,17 +350,29 @@ const SettingsModule = {
       `;
     }
 
+    if (tab === 'branding') {
+      return `<div class="grid md:grid-cols-2 gap-5"><section class="sari-tile p-6"><h3 class="font-extrabold text-lg">Logo de l’application</h3><p class="text-xs text-slate-500">Utilisé dans l’en-tête et l’espace collaborateur.</p>${this.logoUploader('siteLogo','logo-site-preview',s.siteLogo)}</section><section class="sari-tile p-6"><h3 class="font-extrabold text-lg">Logo des documents financiers</h3><p class="text-xs text-slate-500">Logo indépendant pour factures, devis, commandes et BL.</p>${this.logoUploader('documentLogo','logo-document-preview',s.documentLogo)}</section></div>`;
+    }
+
+    if (tab === 'vatRates') {
+      return `<section class="sari-tile p-6"><header class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Gestionnaire des taux TVA</h3><p class="text-xs text-slate-500">Source unique utilisée par les produits et documents commerciaux.</p></div><button onclick="SettingsModule.editVatRate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">+ Nouveau taux</button></header><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">${this.state.vatRates.map(rate=>`<article class="p-4 border rounded-xl ${rate.isActive?'':'opacity-50'}"><div class="flex justify-between"><b>${SariUtils.escapeHtml(rate.label)}</b>${rate.isDefault?'<span class="sari-badge bg-sari-lime/20 text-sari-lime-dark">Défaut</span>':''}</div><div class="text-3xl font-black text-sari-blue my-3">${rate.percentage}%</div><div class="flex gap-2"><button onclick="SettingsModule.editVatRate('${rate.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.toggleVatRate('${rate.id}')" class="doc-action">${rate.isActive?'Désactiver':'Activer'}</button><button onclick="SettingsModule.deleteVatRate('${rate.id}')" class="doc-action text-red-600">Supprimer</button></div></article>`).join('')}</div></section>`;
+    }
+
+    if (tab === 'documentCodes') {
+      return `<section class="sari-tile p-6"><header class="flex flex-col md:flex-row justify-between gap-3 border-b pb-4"><div><h3 class="font-extrabold text-lg">Types de documents & numérotation</h3><p class="text-xs text-slate-500">Masques, séquences, réinitialisation et sous-types ERP.</p></div><button onclick="SettingsModule.editDocumentCode()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">+ Nouveau type</button></header><div class="overflow-x-auto mt-4"><table class="w-full sari-table text-xs min-w-[900px]"><thead><tr class="border-b text-left uppercase text-slate-500"><th class="p-2">Code</th><th>Désignation</th><th>Type</th><th>Masque</th><th>Exemple</th><th>Reset</th><th>Actions</th></tr></thead><tbody>${this.state.documentCodes.sort((a,b)=>a.code.localeCompare(b.code)).map(def=>`<tr class="border-b"><td class="p-2 font-black text-sari-blue">${def.code}</td><td><b>${SariUtils.escapeHtml(def.designation)}</b><div class="text-[10px] text-slate-400">${SariUtils.escapeHtml(def.description||'')}</div></td><td>${def.maskType}</td><td><code>${SariUtils.escapeHtml(def.mask)}</code></td><td class="font-mono-tech">${SariUtils.escapeHtml(def.example)}</td><td>${def.resetFrequency}</td><td><button onclick="SettingsModule.editDocumentCode('${def.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteDocumentCode('${def.id}')" class="doc-action text-red-600">Supprimer</button></td></tr>`).join('')}</tbody></table></div><div class="mt-4 p-3 bg-sari-blue/5 rounded text-xs"><b>Jetons :</b> {YY}, {YYYY}, {MM}, {SEQ}, {SUBTYPE}, {COUNTRY3}, {TEMPLATE3}, {REGISTRY}. La séquence grandit automatiquement au-delà du minimum configuré.</div></section>`;
+    }
+
     if (tab === 'checklists') {
       return `<div class="sari-tile p-6"><div class="flex justify-between items-center border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles de checklist</h3><p class="text-xs text-slate-500">Les modèles sont copiés lors de la création d’un appel d’offres.</p></div><button onclick="SettingsModule.editChecklistTemplate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus" class="w-4 h-4"></i>Nouveau modèle</button></div><div class="grid md:grid-cols-2 gap-4 mt-5">${this.state.checklistTemplates.map(tpl=>`<article class="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/60"><div class="flex justify-between"><div><h4 class="font-extrabold">${SariUtils.escapeHtml(tpl.name)}</h4><p class="text-xs text-slate-500">${SariUtils.escapeHtml(tpl.description||'')}</p></div><span class="sari-badge">${tpl.items.length} lignes</span></div><ol class="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">${tpl.items.map(i=>`<li>• ${SariUtils.escapeHtml(i.label)}</li>`).join('')}</ol><div class="flex justify-end gap-2 mt-4 pt-3 border-t"><button onclick="SettingsModule.editChecklistTemplate('${tpl.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteChecklistTemplate('${tpl.id}')" class="doc-action text-red-600">Supprimer</button></div></article>`).join('')}</div></div>`;
     }
 
     if (tab === 'permissions') {
-      const modules=['dashboard','inventory','tenders','importExport','suppliers','sales','customers','reports','documents','hr','tasks','settings']; const actions=['view','create','edit','delete'];
+      const modules=['dashboard','inventory','tenders','importExport','suppliers','sales','customers','reports','documents','hr','tasks','portal','messages','vatRates','documentCodes','settings']; const actions=['view','create','edit','delete'];
       return `<div class="sari-tile p-6"><div class="border-b pb-4"><h3 class="font-extrabold text-lg">Matrice des rôles & permissions</h3><p class="text-xs text-slate-500">Contrôle granulaire par module et action. Les modifications prennent effet à la prochaine navigation.</p></div><div class="overflow-x-auto mt-4"><table class="w-full text-xs"><thead><tr class="border-b"><th class="p-2 text-left">Module</th>${this.state.roles.map(r=>`<th class="p-2 min-w-32">${SariUtils.escapeHtml(r.name)}</th>`).join('')}</tr></thead><tbody>${modules.map(mod=>`<tr class="border-b"><td class="p-2 font-bold">${mod}</td>${this.state.roles.map(r=>`<td class="p-2"><div class="grid grid-cols-2 gap-1">${actions.map(a=>{const checked=r.permissions.includes('*')||r.permissions.includes(`${mod}.*`)||r.permissions.includes(`${mod}.${a}`);return `<label class="flex items-center gap-1" title="${mod}.${a}"><input type="checkbox" ${checked?'checked':''} ${r.id==='admin'?'disabled':''} onchange="SettingsModule.togglePermission('${r.id}','${mod}','${a}',this.checked)"><span>${a[0].toUpperCase()}</span></label>`}).join('')}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="text-[10px] text-slate-400 mt-3">V = view, C = create, E = edit, D = delete. Des dérogations individuelles peuvent être stockées sur la fiche employé.</p></div>`;
     }
 
     if (tab === 'documentTemplates') {
-      return `<div class="sari-tile p-6"><div class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles Facture / Devis / BL</h3><p class="text-xs text-slate-500">Designs réutilisables avec aperçu instantané.</p></div><button onclick="SettingsModule.editDocumentTemplate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">Nouveau design</button></div><div class="grid md:grid-cols-3 gap-4 mt-5">${this.state.documentTemplates.map(t=>`<article class="rounded-xl border overflow-hidden"><div class="h-28 p-4 bg-white text-slate-900" style="border-top:8px solid ${t.accent}"><div class="flex justify-between"><b style="color:${t.accent}">SARI SYSTÈME</b><span class="text-xs">FACTURE</span></div><div class="mt-4 h-1 bg-slate-200"></div><div class="mt-2 h-1 bg-slate-100 w-2/3"></div></div><div class="p-3 bg-slate-50 dark:bg-slate-800"><b>${SariUtils.escapeHtml(t.name)}</b><p class="text-xs text-slate-500">${t.layout} • ${t.type}</p><div class="flex gap-2 mt-2"><button onclick="SettingsModule.editDocumentTemplate('${t.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteDocumentTemplate('${t.id}')" class="doc-action text-red-600">Supprimer</button></div></div></article>`).join('')}</div></div>`;
+      return `<div class="sari-tile p-6"><div class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles Facture / Devis / BL</h3><p class="text-xs text-slate-500">Designs réutilisables avec aperçu instantané.</p></div><button onclick="TemplateDesigner.open()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">Nouveau design visuel</button></div><div class="grid md:grid-cols-3 gap-4 mt-5">${this.state.documentTemplates.map(t=>`<article class="rounded-xl border overflow-hidden"><div class="h-28 p-4 bg-white text-slate-900" style="border-top:8px solid ${t.accent}"><div class="flex justify-between"><b style="color:${t.accent}">SARI SYSTÈME</b><span class="text-xs">FACTURE</span></div><div class="mt-4 h-1 bg-slate-200"></div><div class="mt-2 h-1 bg-slate-100 w-2/3"></div></div><div class="p-3 bg-slate-50 dark:bg-slate-800"><b>${SariUtils.escapeHtml(t.name)}</b><p class="text-xs text-slate-500">${t.layout} • ${t.type}</p><div class="flex gap-2 mt-2"><button onclick="TemplateDesigner.open('${t.id}')" class="doc-action">Designer</button><button onclick="SettingsModule.editDocumentTemplate('${t.id}')" class="doc-action">Propriétés</button><button onclick="SettingsModule.deleteDocumentTemplate('${t.id}')" class="doc-action text-red-600">Supprimer</button></div></div></article>`).join('')}</div></div>`;
     }
 
     if (tab === 'database') {
@@ -468,7 +485,7 @@ const SettingsModule = {
         <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">Outils de Données, Exports CSV & Sauvegardes Système</h3>
           <p class="text-xs text-slate-500 mt-0.5">
-            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 11 stores ou restaurez votre système.
+            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 28 stores ou restaurez votre système.
           </p>
         </div>
 
@@ -713,18 +730,33 @@ const SettingsModule = {
       return;
     }
     try {
-      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates'];
+      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates', 'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords'];
       for (const s of stores) {
         await window.sariDB.clearStore(s);
       }
       await window.sariDB.seedDemoData();
       await window.sariDB.seedFeatureData();
+      await window.sariDB.seedEnterpriseData();
       window.app.showToast('Données de démonstration chargées !', 'success');
       setTimeout(() => window.location.reload(), 1200);
     } catch (e) {
       window.app.showToast('Erreur lors de la réinitialisation.', 'error');
     }
   },
+
+  logoUploader(field, previewId, value='') {
+    return `<div class="logo-drop-zone mt-5" ondragover="event.preventDefault();this.classList.add('dragging')" ondragleave="this.classList.remove('dragging')" ondrop="SettingsModule.dropLogo(event,'${field}','${previewId}')"><img id="${previewId}" src="${value||'/assets/sari-logo.svg'}" class="h-28 max-w-full mx-auto object-contain" alt="Aperçu logo"><p class="text-xs font-bold mt-3">Glissez une image ici</p><p class="text-[10px] text-slate-400">PNG, JPEG, WEBP ou SVG • 2 Mo max.</p><label class="sari-btn px-4 py-2 mt-3 bg-sari-blue text-white text-xs cursor-pointer">Choisir un fichier<input type="file" accept="image/*" class="hidden" onchange="SettingsModule.selectLogo(this.files[0],'${field}','${previewId}')"></label>${value?`<button onclick="SettingsModule.removeLogo('${field}')" class="doc-action text-red-600 block mx-auto mt-2">Supprimer le logo</button>`:''}</div>`;
+  },
+  dropLogo(event,field,previewId){event.preventDefault();event.currentTarget.classList.remove('dragging');this.selectLogo(event.dataTransfer.files[0],field,previewId);},
+  selectLogo(file,field,previewId){if(!file||!file.type.startsWith('image/'))return app.showToast('Sélectionnez une image valide.','error');if(file.size>2*1024*1024)return app.showToast('Le logo ne doit pas dépasser 2 Mo.','error');const reader=new FileReader();reader.onload=async()=>{document.getElementById(previewId).src=reader.result;this.state.settings[field]=reader.result;await sariDB.save('settings',this.state.settings);this.applyBranding(this.state.settings);app.showToast('Logo enregistré.','success');};reader.readAsDataURL(file);},
+  async removeLogo(field){this.state.settings[field]='';await sariDB.save('settings',this.state.settings);this.applyBranding(this.state.settings);this.render();},
+  applyBranding(settings=this.state.settings){const img=document.getElementById('sari-site-logo');const fallback=document.getElementById('sari-default-logo');if(img){img.src=settings.siteLogo||'';img.classList.toggle('hidden',!settings.siteLogo);}if(fallback)fallback.classList.toggle('hidden',!!settings.siteLogo);},
+
+  async editVatRate(id=''){const old=this.state.vatRates.find(r=>r.id===id);const label=prompt('Libellé du taux :',old?.label||'Nouveau taux TVA');if(!label)return;const percentage=Number(prompt('Pourcentage :',old?.percentage??19));if(!Number.isFinite(percentage)||percentage<0)return;const isDefault=confirm('Définir comme taux par défaut ?');if(isDefault){for(const rate of this.state.vatRates){rate.isDefault=false;await sariDB.save('vatRates',rate);}}await sariDB.save('vatRates',{id:id||`vat-${crypto.randomUUID()}`,label,percentage,isDefault,isActive:old?.isActive??true});await this.render();},
+  async toggleVatRate(id){const rate=await sariDB.getById('vatRates',id);rate.isActive=!rate.isActive;await sariDB.save('vatRates',rate);await this.render();},
+  async deleteVatRate(id){if(confirm('Supprimer ce taux ? Les documents existants conserveront leur valeur.')){await sariDB.delete('vatRates',id);await this.render();}},
+  async editDocumentCode(id=''){const old=this.state.documentCodes.find(d=>d.id===id)||{};const code=(prompt('Code court :',old.code||'NEW')||'').toUpperCase().trim();if(!code)return;const designation=prompt('Désignation :',old.designation||'')||code;const maskType=prompt('Type (Standard, CountryBased, SubTypeBased, DateBased, TemplateBased) :',old.maskType||'Standard')||'Standard';const mask=prompt('Masque :',old.mask||`SARI-${code}{YY}-{SEQ}`);if(!mask)return;const digits=Math.max(1,Number(prompt('Nombre minimum de chiffres de séquence :',old.sequenceMinDigits||5))||5);const reset=prompt('Réinitialisation (yearly, monthly, never) :',old.resetFrequency||'yearly')||'yearly';const subtypeText=prompt('Sous-types code:libellé, séparés par des virgules :',(old.subTypeOptions||[]).map(x=>`${x.code}:${x.label}`).join(','))??'';const subTypeOptions=subtypeText.split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [code,...label]=x.split(':');return{code,label:label.join(':')||code}});const record={...old,id:old.id||code,code,designation,description:prompt('Description :',old.description||'')||'',mask,maskType,sequenceMinDigits:digits,resetFrequency:reset,subTypeOptions,isActive:true};record.example=ReferenceCodeManager.render(record,1,{subType:subTypeOptions[0]?.code});await sariDB.save('documentCodes',record);await this.render();},
+  async deleteDocumentCode(id){if(confirm('Supprimer ce type de référence ?')){await sariDB.delete('documentCodes',id);await this.render();}},
 
   async editChecklistTemplate(id = '') {
     const existing = this.state.checklistTemplates.find(t => t.id === id);

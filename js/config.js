@@ -150,6 +150,12 @@ const TRANSLATIONS = {
     tasks: "Tâches & Kanban",
     documents: "Gestion documentaire",
     checklist: "Checklist interactive",
+    employeePortal: "Espace Collaborateur",
+    internalMessages: "Messagerie interne",
+    vatRates: "Taux de TVA",
+    documentNumbering: "Types & Numérotation",
+    branding: "Gestion des logos",
+    richDescription: "Description détaillée",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation
@@ -277,6 +283,12 @@ const TRANSLATIONS = {
     tasks: "المهام ولوحة كانبان",
     documents: "إدارة الوثائق",
     checklist: "قائمة تحقق تفاعلية",
+    employeePortal: "فضاء الموظف",
+    internalMessages: "الرسائل الداخلية",
+    vatRates: "نسب الضريبة على القيمة المضافة",
+    documentNumbering: "أنواع وترقيم الوثائق",
+    branding: "إدارة الشعارات",
+    richDescription: "الوصف المفصل",
     helpDoc: "البنية والوثائق الإرشادية",
 
     // Header & Navigation
@@ -404,6 +416,12 @@ const TRANSLATIONS = {
     tasks: "Tasks & Kanban",
     documents: "Document Management",
     checklist: "Interactive Checklist",
+    employeePortal: "Employee Portal",
+    internalMessages: "Internal Messaging",
+    vatRates: "VAT Rates",
+    documentNumbering: "Document Types & Numbering",
+    branding: "Logo Management",
+    richDescription: "Detailed Description",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation

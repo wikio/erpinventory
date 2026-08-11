@@ -46,7 +46,9 @@
 - **Tasks & supervision:** personal/team Kanban with configurable stages, priorities, linked ERP records and Day/Week/Month/Year planning scopes.
 - **Granular permissions:** database-backed role permission matrix for view/create/edit/delete plus optional employee-level overrides.
 
-New offline stores are created automatically by IndexedDB schema version 3 and are included in JSON backups.
+IndexedDB schema version 4 now includes 28 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
+
+Additional administration tools include responsive/collapsible navigation, separate site and financial-document logos, a dependency-free rich text editor, an employee self-service portal, internal messaging, and a visual drag/resize document-template designer with live merge-field previews.
 
 ## 🏥 Core Functional Modules
 
@@ -64,7 +66,7 @@ New offline stores are created automatically by IndexedDB schema version 3 and a
 ## 🗄️ SQL Schema & Seed Data Files (`/sql`)
 
 For deployments using external relational databases (MySQL / PostgreSQL / MariaDB), SARI Système provides cleanly separated DDL and DML files in `/sql`:
-- **`sql/schema.sql`**: Complete database structure (12 tables: `users`, `warehouses`, `suppliers`, `products`, `shipments`, `tenders`, `customers`, `orders`, `order_items`, `notifications`, `audit_logs`, `app_settings`), indexes, and foreign keys.
+- **`sql/schema.sql`**: Complete database structure (including `users`, core ERP entities, `vat_rates`, `document_codes`, `sequence_counters`, `conversations`, and `messages`), indexes, and foreign keys.
 - **`sql/seed_data.sql`**: Separate DML file with sample Algerian medical distribution records (4 Depots, Suppliers in China/Germany/France/Algeria, 8 Medical Products, CHU Mustapha, DSP Blida, etc.).
 
 To initialize in MySQL / PostgreSQL:
