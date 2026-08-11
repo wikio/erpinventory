@@ -7,6 +7,8 @@ class AuthController {
     this.currentUser = null;
     this.currentRole = null;
     this.captchaId = null;
+    this.permissions = [];
+    this.employee = null;
   }
 
   async init() {
@@ -178,16 +180,24 @@ class AuthController {
     }
   }
 
-  canWrite(moduleName) {
+  async loadPermissions() {
+    if (!window.sariDB || !this.currentUser) return;
+    const role = await window.sariDB.getById('roles', this.currentRole);
+    const employees = await window.sariDB.getAll('employees');
+    this.employee = employees.find(item => item.userId === this.currentUser.id) || null;
+    this.permissions = this.employee?.permissionOverrides?.length ? this.employee.permissionOverrides : (role?.permissions || []);
+  }
+
+  can(moduleName, action = 'view') {
     if (!this.currentUser) return false;
-    if (this.currentRole === 'admin') return true;
-    if (this.currentRole === 'readonly') return false;
-    const permissions = {
-      inventory: ['inventory'], products: ['inventory'], warehouses: ['inventory'],
-      importExport: ['import_export'], shipments: ['import_export'], suppliers: ['import_export'],
-      tenders: ['tenders'], sales: ['sales'], orders: ['sales'], customers: ['sales']
-    };
-    return (permissions[moduleName] || []).includes(this.currentRole);
+    if (this.currentRole === 'admin' || this.permissions.includes('*')) return true;
+    const key = `${moduleName}.${action}`;
+    return this.permissions.includes(key) || this.permissions.includes(`${moduleName}.*`);
+  }
+
+  canWrite(moduleName) {
+    const aliases = { products: 'inventory', warehouses: 'inventory', shipments: 'importExport', orders: 'sales' };
+    return this.can(aliases[moduleName] || moduleName, 'edit') || this.can(aliases[moduleName] || moduleName, 'create');
   }
 
   applyRole() {

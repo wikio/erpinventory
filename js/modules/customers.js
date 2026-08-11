@@ -192,6 +192,7 @@ const CustomersModule = {
                         <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
                           <i class="fas fa-shopping-cart"></i>
                         </button>
+                        <button onclick="DocumentManager.open('customer','${c.id}','${SariUtils.escapeHtml(c.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="CustomersModule.openModal('${c.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -345,6 +346,7 @@ const CustomersModule = {
   },
 
   async saveCustomer(e) {
+    if (!auth.can('customers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `cust-${Date.now()}`;
     const payload = {
@@ -365,6 +367,7 @@ const CustomersModule = {
   },
 
   async deleteCustomer(id) {
+    if (!auth.can('customers','delete')) return window.app.showToast('Action non autorisée', 'error');
     if (!confirm('Supprimer ce client ?')) return;
     await window.syncController.enqueueMutation('customers', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');

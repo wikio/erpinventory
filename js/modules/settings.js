@@ -25,7 +25,10 @@ const SettingsModule = {
       nis: '001616012345678',
       bankRib: 'BNA Agence 001 - RIB 00100161609876543209'
     },
-    dbTestResult: null
+    dbTestResult: null,
+    checklistTemplates: [],
+    roles: [],
+    documentTemplates: []
   },
 
   async render(containerId = 'sari-main-view') {
@@ -41,6 +44,9 @@ const SettingsModule = {
       // ignore
     }
 
+    [this.state.checklistTemplates, this.state.roles, this.state.documentTemplates] = await Promise.all([
+      sariDB.getAll('checklistTemplates'), sariDB.getAll('roles'), sariDB.getAll('documentTemplates')
+    ]);
     this.renderView(container);
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -99,6 +105,9 @@ const SettingsModule = {
           >
             <i data-lucide="database" class="w-4 h-4"></i> Connecteur DB (Agnostic DB)
           </button>
+          <button onclick="SettingsModule.setTab('checklists')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'checklists' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="list-checks" class="w-4 h-4"></i> Modèles Checklist</button>
+          <button onclick="SettingsModule.setTab('permissions')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'permissions' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="shield-check" class="w-4 h-4"></i> Rôles & Permissions</button>
+          <button onclick="SettingsModule.setTab('documentTemplates')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'documentTemplates' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="layout-template" class="w-4 h-4"></i> Modèles Documents</button>
           <button 
             onclick="SettingsModule.setTab('dataTools')" 
             class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'dataTools' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}"
@@ -334,6 +343,19 @@ const SettingsModule = {
           </div>
         </div>
       `;
+    }
+
+    if (tab === 'checklists') {
+      return `<div class="sari-tile p-6"><div class="flex justify-between items-center border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles de checklist</h3><p class="text-xs text-slate-500">Les modèles sont copiés lors de la création d’un appel d’offres.</p></div><button onclick="SettingsModule.editChecklistTemplate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus" class="w-4 h-4"></i>Nouveau modèle</button></div><div class="grid md:grid-cols-2 gap-4 mt-5">${this.state.checklistTemplates.map(tpl=>`<article class="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/60"><div class="flex justify-between"><div><h4 class="font-extrabold">${SariUtils.escapeHtml(tpl.name)}</h4><p class="text-xs text-slate-500">${SariUtils.escapeHtml(tpl.description||'')}</p></div><span class="sari-badge">${tpl.items.length} lignes</span></div><ol class="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">${tpl.items.map(i=>`<li>• ${SariUtils.escapeHtml(i.label)}</li>`).join('')}</ol><div class="flex justify-end gap-2 mt-4 pt-3 border-t"><button onclick="SettingsModule.editChecklistTemplate('${tpl.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteChecklistTemplate('${tpl.id}')" class="doc-action text-red-600">Supprimer</button></div></article>`).join('')}</div></div>`;
+    }
+
+    if (tab === 'permissions') {
+      const modules=['dashboard','inventory','tenders','importExport','suppliers','sales','customers','reports','documents','hr','tasks','settings']; const actions=['view','create','edit','delete'];
+      return `<div class="sari-tile p-6"><div class="border-b pb-4"><h3 class="font-extrabold text-lg">Matrice des rôles & permissions</h3><p class="text-xs text-slate-500">Contrôle granulaire par module et action. Les modifications prennent effet à la prochaine navigation.</p></div><div class="overflow-x-auto mt-4"><table class="w-full text-xs"><thead><tr class="border-b"><th class="p-2 text-left">Module</th>${this.state.roles.map(r=>`<th class="p-2 min-w-32">${SariUtils.escapeHtml(r.name)}</th>`).join('')}</tr></thead><tbody>${modules.map(mod=>`<tr class="border-b"><td class="p-2 font-bold">${mod}</td>${this.state.roles.map(r=>`<td class="p-2"><div class="grid grid-cols-2 gap-1">${actions.map(a=>{const checked=r.permissions.includes('*')||r.permissions.includes(`${mod}.*`)||r.permissions.includes(`${mod}.${a}`);return `<label class="flex items-center gap-1" title="${mod}.${a}"><input type="checkbox" ${checked?'checked':''} ${r.id==='admin'?'disabled':''} onchange="SettingsModule.togglePermission('${r.id}','${mod}','${a}',this.checked)"><span>${a[0].toUpperCase()}</span></label>`}).join('')}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="text-[10px] text-slate-400 mt-3">V = view, C = create, E = edit, D = delete. Des dérogations individuelles peuvent être stockées sur la fiche employé.</p></div>`;
+    }
+
+    if (tab === 'documentTemplates') {
+      return `<div class="sari-tile p-6"><div class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles Facture / Devis / BL</h3><p class="text-xs text-slate-500">Designs réutilisables avec aperçu instantané.</p></div><button onclick="SettingsModule.editDocumentTemplate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">Nouveau design</button></div><div class="grid md:grid-cols-3 gap-4 mt-5">${this.state.documentTemplates.map(t=>`<article class="rounded-xl border overflow-hidden"><div class="h-28 p-4 bg-white text-slate-900" style="border-top:8px solid ${t.accent}"><div class="flex justify-between"><b style="color:${t.accent}">SARI SYSTÈME</b><span class="text-xs">FACTURE</span></div><div class="mt-4 h-1 bg-slate-200"></div><div class="mt-2 h-1 bg-slate-100 w-2/3"></div></div><div class="p-3 bg-slate-50 dark:bg-slate-800"><b>${SariUtils.escapeHtml(t.name)}</b><p class="text-xs text-slate-500">${t.layout} • ${t.type}</p><div class="flex gap-2 mt-2"><button onclick="SettingsModule.editDocumentTemplate('${t.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteDocumentTemplate('${t.id}')" class="doc-action text-red-600">Supprimer</button></div></div></article>`).join('')}</div></div>`;
     }
 
     if (tab === 'database') {
@@ -691,17 +713,44 @@ const SettingsModule = {
       return;
     }
     try {
-      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue'];
+      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates'];
       for (const s of stores) {
         await window.sariDB.clearStore(s);
       }
       await window.sariDB.seedDemoData();
+      await window.sariDB.seedFeatureData();
       window.app.showToast('Données de démonstration chargées !', 'success');
       setTimeout(() => window.location.reload(), 1200);
     } catch (e) {
       window.app.showToast('Erreur lors de la réinitialisation.', 'error');
     }
   },
+
+  async editChecklistTemplate(id = '') {
+    const existing = this.state.checklistTemplates.find(t => t.id === id);
+    const name = prompt('Nom du modèle :', existing?.name || 'Nouvelle checklist'); if (!name) return;
+    const description = prompt('Description :', existing?.description || '') ?? '';
+    const lines = prompt('Éléments (un par ligne) :', (existing?.items || []).map(i => i.label).join('\n')); if (lines === null) return;
+    const items = lines.split('\n').map(label => label.trim()).filter(Boolean).map((label, index) => ({ label, dueOffsetDays: -(index + 1) }));
+    await sariDB.save('checklistTemplates', { id: id || `tpl-${crypto.randomUUID()}`, name: name.trim(), description: description.trim(), items, updatedAt: new Date().toISOString() });
+    await this.render();
+  },
+  async deleteChecklistTemplate(id) { if (confirm('Supprimer ce modèle ? Les checklists déjà créées resteront intactes.')) { await sariDB.delete('checklistTemplates', id); await this.render(); } },
+  async togglePermission(roleId, moduleName, action, checked) {
+    const role = await sariDB.getById('roles', roleId); if (!role || roleId === 'admin') return;
+    const key = `${moduleName}.${action}`; const wildcard = `${moduleName}.*`; let permissions = [...role.permissions];
+    if (permissions.includes(wildcard)) { permissions = permissions.filter(p => p !== wildcard); ['view','create','edit','delete'].filter(a => a !== action).forEach(a => permissions.push(`${moduleName}.${a}`)); }
+    if (checked && !permissions.includes(key)) permissions.push(key); if (!checked) permissions = permissions.filter(p => p !== key);
+    role.permissions = [...new Set(permissions)]; await sariDB.save('roles', role); await auth.loadPermissions(); window.app.showToast('Permissions mises à jour.', 'success');
+  },
+  async editDocumentTemplate(id = '') {
+    const old = this.state.documentTemplates.find(t => t.id === id);
+    const name = prompt('Nom du design :', old?.name || 'Nouveau modèle'); if (!name) return;
+    const accent = prompt('Couleur accent (hex) :', old?.accent || '#009CC5'); if (!accent) return;
+    const layout = prompt('Disposition (classic / compact / modern) :', old?.layout || 'classic') || 'classic';
+    await sariDB.save('documentTemplates', { id: id || `doc-tpl-${crypto.randomUUID()}`, name, accent, layout, type: 'all', isDefault: old?.isDefault || false }); await this.render();
+  },
+  async deleteDocumentTemplate(id) { if (confirm('Supprimer ce modèle visuel ?')) { await sariDB.delete('documentTemplates', id); await this.render(); } },
 
   openHelpDoc() {
     const modalEl = document.getElementById('settings-help-modal');

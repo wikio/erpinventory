@@ -200,6 +200,7 @@ const InventoryModule = {
                         <button onclick="InventoryModule.openBarcodeModal('${p.id}')" title="Imprimer Barcode/QR" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
                           <i class="fas fa-barcode"></i>
                         </button>
+                        <button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="InventoryModule.openModal('${p.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -446,6 +447,7 @@ const InventoryModule = {
   },
 
   async saveProduct(e) {
+    if (!auth.can('inventory', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `prod-${Date.now()}`;
     const payload = {
@@ -477,6 +479,7 @@ const InventoryModule = {
   },
 
   async deleteProduct(id) {
+    if (!auth.can('inventory','delete')) return window.app.showToast('Action non autorisée', 'error');
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit médical ?')) return;
     await window.syncController.enqueueMutation('products', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');

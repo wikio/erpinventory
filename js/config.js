@@ -146,6 +146,10 @@ const TRANSLATIONS = {
     reports: "Rapports & Stats",
     auditLogs: "Journal d'Audit",
     settings: "Paramètres & Doc",
+    hr: "Ressources Humaines",
+    tasks: "Tâches & Kanban",
+    documents: "Gestion documentaire",
+    checklist: "Checklist interactive",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation
@@ -269,6 +273,10 @@ const TRANSLATIONS = {
     reports: "التقارير والإحصائيات",
     auditLogs: "سجل الأنشطة والتدقيق",
     settings: "الإعدادات والوثائق",
+    hr: "الموارد البشرية",
+    tasks: "المهام ولوحة كانبان",
+    documents: "إدارة الوثائق",
+    checklist: "قائمة تحقق تفاعلية",
     helpDoc: "البنية والوثائق الإرشادية",
 
     // Header & Navigation
@@ -392,6 +400,10 @@ const TRANSLATIONS = {
     reports: "Reports & Analytics",
     auditLogs: "Audit Logs",
     settings: "Settings & Docs",
+    hr: "Human Resources",
+    tasks: "Tasks & Kanban",
+    documents: "Document Management",
+    checklist: "Interactive Checklist",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation

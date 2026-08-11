@@ -37,6 +37,17 @@
 
 ---
 
+## 🆕 Operations, GED, HR & Collaboration
+
+- **Interactive tender checklists:** IndexedDB-backed checklist lines with inline status, deadlines, notes, attachments, progress indicators, and independent template instances.
+- **Central GED:** reusable offline document records linked through generic `recordType` + `recordId` associations; upload, preview, version replacement, metadata, expiry, unlink/delete, and multi-record linking.
+- **Enhanced commercial documents:** invoices, quotes, purchase orders and BL with DZD/EUR/USD, French/Arabic amounts in words, line/global discounts, delivery fees, per-rate VAT breakdown, configurable QR data, price-free BLs, notes, and visual templates.
+- **Human Resources:** employee profiles, employee documents, missions, vacancies and candidate Kanban pipeline.
+- **Tasks & supervision:** personal/team Kanban with configurable stages, priorities, linked ERP records and Day/Week/Month/Year planning scopes.
+- **Granular permissions:** database-backed role permission matrix for view/create/edit/delete plus optional employee-level overrides.
+
+New offline stores are created automatically by IndexedDB schema version 3 and are included in JSON backups.
+
 ## 🏥 Core Functional Modules
 
 - **Dashboard Home**: Interactive KPI summary cards, Low-Stock / Near-Expiry alerts, 5 Chart.js analytics charts, Active Tenders & Deadlines, Import Shipments in Transit, and Audit Log timeline.

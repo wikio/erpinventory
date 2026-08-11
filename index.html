@@ -254,6 +254,9 @@
           REPORTING & CONFIG
         </div>
 
+        <button onclick="window.app.navigate('hr'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="hr" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span data-i18n="hr">Ressources Humaines</span></button>
+        <button onclick="window.app.navigate('tasks'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="tasks" class="sari-sidebar-item w-full"><i data-lucide="square-kanban" class="w-4 h-4"></i><span data-i18n="tasks">Tâches & Kanban</span></button>
+
         <button onclick="window.app.navigate('reports'); document.getElementById('mobile-sidebar').classList.add('hidden', 'lg:flex');" data-nav-item="reports" class="sari-sidebar-item w-full">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
           <span data-i18n="reports">Rapports & Stats</span>
@@ -331,6 +334,7 @@
   <script src="/js/auth.js"></script>
   <script src="/js/sync.js"></script>
   <script src="/js/utils.js"></script>
+  <script src="/js/documents.js"></script>
   <script src="/js/charts.js"></script>
   
   <script src="/js/modules/dashboard.js"></script>
@@ -344,6 +348,8 @@
   <script src="/js/modules/translations.js"></script>
   <script src="/js/modules/audit.js"></script>
   <script src="/js/modules/settings.js"></script>
+  <script src="/js/modules/hr.js"></script>
+  <script src="/js/modules/tasks.js"></script>
   
   <script src="/js/app.js"></script>
 </body>

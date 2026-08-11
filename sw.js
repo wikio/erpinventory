@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v1.1.0-auth';
+const CACHE_NAME = 'sari-systeme-v1.2.0-operations';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -14,6 +14,7 @@ const ASSETS_TO_CACHE = [
   '/js/sync.js',
   '/js/charts.js',
   '/js/utils.js',
+  '/js/documents.js',
   '/js/modules/dashboard.js',
   '/js/modules/inventory.js',
   '/js/modules/suppliers.js',
@@ -24,6 +25,8 @@ const ASSETS_TO_CACHE = [
   '/js/modules/reports.js',
   '/js/modules/audit.js',
   '/js/modules/settings.js',
+  '/js/modules/hr.js',
+  '/js/modules/tasks.js',
   '/js/app.js'
 ];
 

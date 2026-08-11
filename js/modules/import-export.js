@@ -187,8 +187,8 @@ const ImportExportModule = {
                       ${i18n.formatCurrency(s.totalLandedCostDZD)}
                     </td>
                     <td class="p-3">
-                      <button onclick="ImportExportModule.openDocsModal('${s.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
-                        <i class="fas fa-folder-open"></i> ${docsCount} documents &rarr;
+                      <button onclick="DocumentManager.open('shipment','${s.id}','${SariUtils.escapeHtml(s.id)}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i> GED documents &rarr;
                       </button>
                       <div class="text-[10px] text-slate-500 mt-0.5">Arrivée: ${i18n.formatDate(s.expectedArrival)}</div>
                     </td>
@@ -408,6 +408,7 @@ const ImportExportModule = {
   },
 
   async saveShipment(e) {
+    if (!auth.can('importExport', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const supSplit = document.getElementById('sh-supplier').value.split('|');
     const foreign = Number(document.getElementById('sh-foreign').value) || 0;
@@ -446,6 +447,7 @@ const ImportExportModule = {
   },
 
   async deleteShipment(id) {
+    if (!auth.can('importExport','delete')) return window.app.showToast('Action non autorisée', 'error');
     if (!confirm('Supprimer cette expédition ?')) return;
     await window.syncController.enqueueMutation('shipments', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');

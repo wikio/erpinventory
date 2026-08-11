@@ -150,6 +150,7 @@ const SuppliersModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="DocumentManager.open('supplier','${s.id}','${SariUtils.escapeHtml(s.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="SuppliersModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -300,6 +301,7 @@ const SuppliersModule = {
   },
 
   async saveSupplier(e) {
+    if (!auth.can('suppliers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `sup-${Date.now()}`;
     const payload = {
@@ -320,6 +322,7 @@ const SuppliersModule = {
   },
 
   async deleteSupplier(id) {
+    if (!auth.can('suppliers','delete')) return window.app.showToast('Action non autorisée', 'error');
     if (!confirm('Supprimer ce fournisseur médical ?')) return;
     await window.syncController.enqueueMutation('suppliers', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');

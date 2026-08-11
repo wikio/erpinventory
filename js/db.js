@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 2) {
+  constructor(dbName = 'SariSystemeDB', version = 3) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -32,7 +32,18 @@ class SariDB {
           'notifications',
           'settings',
           'auditLogs',
-          'syncQueue'
+          'syncQueue',
+          'checklistItems',
+          'checklistTemplates',
+          'documents',
+          'employees',
+          'missions',
+          'jobPostings',
+          'candidates',
+          'tasks',
+          'taskStages',
+          'roles',
+          'documentTemplates'
         ];
 
         stores.forEach((storeName) => {
@@ -49,6 +60,18 @@ class SariDB {
               store.createIndex('status', 'status', { unique: false });
             } else if (storeName === 'orders') {
               store.createIndex('customerId', 'customerId', { unique: false });
+            } else if (storeName === 'checklistItems') {
+              store.createIndex('tenderId', 'tenderId', { unique: false });
+              store.createIndex('status', 'status', { unique: false });
+            } else if (storeName === 'documents') {
+              store.createIndex('name', 'name', { unique: false });
+            } else if (storeName === 'missions') {
+              store.createIndex('employeeId', 'employeeId', { unique: false });
+            } else if (storeName === 'candidates') {
+              store.createIndex('jobPostingId', 'jobPostingId', { unique: false });
+            } else if (storeName === 'tasks') {
+              store.createIndex('assigneeId', 'assigneeId', { unique: false });
+              store.createIndex('stageId', 'stageId', { unique: false });
             }
           }
         });
@@ -62,6 +85,8 @@ class SariDB {
           console.log('[SariDB] Empty IndexedDB detected. Seeding Algerian demo dataset...');
           await this.seedDemoData();
         }
+        const templateCount = await this.count('checklistTemplates');
+        if (templateCount === 0) await this.seedFeatureData();
         resolve(this.db);
       };
 
@@ -158,7 +183,9 @@ class SariDB {
       'orders',
       'notifications',
       'settings',
-      'auditLogs'
+      'auditLogs',
+      'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions',
+      'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -189,6 +216,66 @@ class SariDB {
     }
     console.log('[SariDB] Successfully imported backup data');
     return true;
+  }
+
+  async seedFeatureData() {
+    const checklistTemplates = [{
+      id: 'tpl-tender-standard', name: 'Dossier standard appel d’offres', description: 'Pièces administratives et techniques usuelles en Algérie',
+      items: [
+        { label: 'Cahier des charges lu, paraphé et signé', dueOffsetDays: -10 },
+        { label: 'Déclaration de candidature', dueOffsetDays: -9 },
+        { label: 'Fiches techniques et catalogues', dueOffsetDays: -7 },
+        { label: 'Agrément MSPRH à jour', dueOffsetDays: -7 },
+        { label: 'Offre financière et BPU', dueOffsetDays: -3 },
+        { label: 'Caution de soumission bancaire', dueOffsetDays: -2 }
+      ], createdAt: new Date().toISOString()
+    }];
+    const checklistLabels = ['Cahier des charges lu, paraphé et signé', 'Déclaration de candidature', 'Fiches techniques et catalogues', 'Agrément MSPRH à jour', 'Offre financière et BPU', 'Caution de soumission bancaire'];
+    const tenderChecklistStates = {
+      'AO-2026-CHU-01': ['done','done','done','done','done','done'],
+      'AO-2026-DSP-04': ['done','done','in_progress','done','in_progress','todo'],
+      'AO-2025-EHS-09': ['done','done','done','done','done','not_applicable'],
+      'AO-2026-MIL-02': ['todo','todo','todo','todo','todo','todo']
+    };
+    const checklistItems = Object.entries(tenderChecklistStates).flatMap(([tenderId, states]) => checklistLabels.map((label, index) => ({ id: `chk-${tenderId}-${index + 1}`, tenderId, label, status: states[index], dueDate: `2026-08-${20 + index}`, notes: '', createdAt: new Date().toISOString() })));
+    const employees = [
+      { id: 'emp-admin', userId: 'usr-admin', firstName: 'Amel', lastName: 'Bensaïd', email: 'amel@sarisysteme.dz', phone: '+213 550 10 20 30', position: 'Directrice générale', department: 'Direction', contractType: 'CDI', salary: 180000, hireDate: '2021-03-01', status: 'active', managerId: '' },
+      { id: 'emp-stock', userId: 'usr-stock', firstName: 'Nadir', lastName: 'Khelifi', email: 'nadir@sarisysteme.dz', phone: '+213 550 22 33 44', position: 'Gestionnaire stocks', department: 'Logistique', contractType: 'CDI', salary: 95000, hireDate: '2023-06-12', status: 'active', managerId: 'emp-admin' },
+      { id: 'emp-sales', userId: 'usr-sales', firstName: 'Lina', lastName: 'Mansouri', email: 'lina@sarisysteme.dz', phone: '+213 550 55 66 77', position: 'Commerciale B2B', department: 'Commercial', contractType: 'CDI', salary: 105000, hireDate: '2024-01-15', status: 'active', managerId: 'emp-admin' }
+    ];
+    const stages = [
+      { id: 'todo', label: { fr: 'À faire', ar: 'للإنجاز', en: 'To Do' }, color: '#64748B', order: 1 },
+      { id: 'in_progress', label: { fr: 'En cours', ar: 'قيد التنفيذ', en: 'In Progress' }, color: '#009CC5', order: 2 },
+      { id: 'review', label: { fr: 'Révision', ar: 'مراجعة', en: 'Review' }, color: '#EBB51A', order: 3 },
+      { id: 'done', label: { fr: 'Terminé', ar: 'مكتمل', en: 'Done' }, color: '#9BB024', order: 4 }
+    ];
+    const tasks = [
+      { id: 'task-001', title: 'Finaliser le BPU DSP Blida', description: 'Vérifier les prix et la TVA.', assigneeId: 'emp-sales', stageId: 'in_progress', priority: 'high', dueDate: '2026-08-27', relatedType: 'tender', relatedId: 'AO-2026-DSP-04', createdAt: new Date().toISOString() },
+      { id: 'task-002', title: 'Contrôler le lot de seringues', description: 'Vérifier date et traçabilité.', assigneeId: 'emp-stock', stageId: 'todo', priority: 'urgent', dueDate: '2026-08-15', relatedType: 'product', relatedId: 'prod-003', createdAt: new Date().toISOString() }
+    ];
+    const roles = Object.entries({
+      admin: ['*'], inventory: ['dashboard.view','inventory.view','inventory.create','inventory.edit','documents.*','tasks.*'],
+      import_export: ['dashboard.view','importExport.*','suppliers.*','documents.*','tasks.*'],
+      tenders: ['dashboard.view','tenders.*','documents.*','tasks.*'], sales: ['dashboard.view','sales.*','customers.*','documents.*','tasks.*'],
+      readonly: ['dashboard.view','inventory.view','tenders.view','importExport.view','sales.view','reports.view','tasks.view']
+    }).map(([id, permissions]) => ({ id, name: SARI_CONFIG.USER_ROLES[id]?.fr || id, permissions }));
+    const documentTemplates = [
+      { id: 'doc-tpl-classic', name: 'SARI Classique', type: 'all', accent: '#009CC5', layout: 'classic', isDefault: true },
+      { id: 'doc-tpl-clinical', name: 'SARI Clinique', type: 'all', accent: '#0D9488', layout: 'compact', isDefault: false }
+    ];
+    const missions = [{ id: 'mission-001', employeeId: 'emp-sales', destination: 'Oran', startDate: '2026-09-03', endDate: '2026-09-05', purpose: 'Visite clients et prospection pharmacies', expenses: 45000, status: 'approved' }];
+    const jobs = [{ id: 'job-001', title: 'Responsable qualité dispositifs médicaux', department: 'Qualité', location: 'Alger', status: 'open', publishedAt: '2026-08-01' }];
+    const candidates = [{ id: 'cand-001', jobPostingId: 'job-001', name: 'Samir Haddad', email: 'samir@example.dz', stage: 'interviewing', notes: 'Entretien technique planifié.' }];
+    for (const x of checklistTemplates) await this.save('checklistTemplates', x);
+    for (const x of checklistItems) await this.save('checklistItems', x);
+    for (const x of employees) await this.save('employees', x);
+    for (const x of stages) await this.save('taskStages', x);
+    for (const x of tasks) await this.save('tasks', x);
+    for (const x of roles) await this.save('roles', x);
+    for (const x of documentTemplates) await this.save('documentTemplates', x);
+    for (const x of missions) await this.save('missions', x);
+    for (const x of jobs) await this.save('jobPostings', x);
+    for (const x of candidates) await this.save('candidates', x);
   }
 
   async seedDemoData() {

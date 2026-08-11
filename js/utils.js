@@ -128,6 +128,24 @@ const SariUtils = {
     };
   },
 
+  amountInWords(amount, currency = 'DZD', language = 'fr') {
+    const value = Math.round(Number(amount) || 0);
+    const currencyNames = {
+      fr: { DZD: ['dinar algérien', 'dinars algériens'], EUR: ['euro', 'euros'], USD: ['dollar américain', 'dollars américains'] },
+      ar: { DZD: ['دينار جزائري', 'دينار جزائري'], EUR: ['يورو', 'يورو'], USD: ['دولار أمريكي', 'دولار أمريكي'] }
+    };
+    const frUnder100 = n => {
+      const u=['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize'];
+      if(n<17)return u[n]; if(n<20)return `dix-${u[n-10]}`; const tens=['','','vingt','trente','quarante','cinquante','soixante','soixante','quatre-vingt','quatre-vingt'];
+      if(n<70)return tens[Math.floor(n/10)]+(n%10===1?' et un':n%10?`-${u[n%10]}`:''); if(n<80)return 'soixante-'+frUnder100(n-60); return 'quatre-vingt'+(n===80?'s':`-${frUnder100(n-80)}`);
+    };
+    const fr = n => { if(n<100)return frUnder100(n); if(n<1000)return (n<200?'cent':`${frUnder100(Math.floor(n/100))} cent`)+(n%100?` ${frUnder100(n%100)}`:''); if(n<1e6)return (n<2000?'mille':`${fr(Math.floor(n/1000))} mille`)+(n%1000?` ${fr(n%1000)}`:''); if(n<1e9)return (n<2e6?'un million':`${fr(Math.floor(n/1e6))} millions`)+(n%1e6?` ${fr(n%1e6)}`:''); return String(n); };
+    const arUnits=['صفر','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة','عشرة','أحد عشر','اثنا عشر','ثلاثة عشر','أربعة عشر','خمسة عشر','ستة عشر','سبعة عشر','ثمانية عشر','تسعة عشر'];
+    const ar = n => { if(n<20)return arUnits[n]; if(n<100){const t=['','','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'][Math.floor(n/10)];return n%10?`${arUnits[n%10]} و${t}`:t;} if(n<1000){const h=['','مائة','مائتان','ثلاثمائة','أربعمائة','خمسمائة','ستمائة','سبعمائة','ثمانمائة','تسعمائة'][Math.floor(n/100)];return n%100?`${h} و${ar(n%100)}`:h;} if(n<1e6){const q=Math.floor(n/1000);const lead=q===1?'ألف':q===2?'ألفان':`${ar(q)} ألف`;return n%1000?`${lead} و${ar(n%1000)}`:lead;} if(n<1e9){const q=Math.floor(n/1e6);const lead=q===1?'مليون':q===2?'مليونان':`${ar(q)} مليون`;return n%1e6?`${lead} و${ar(n%1e6)}`:lead;}return String(n);};
+    const lang = language === 'ar' ? 'ar' : 'fr'; const words = lang === 'ar' ? ar(value) : fr(value); const names=currencyNames[lang][currency]||[currency,currency];
+    return `${words} ${value === 1 ? names[0] : names[1]}`;
+  },
+
   /**
    * Export an array of objects to a CSV file and trigger browser download
    */

@@ -19,7 +19,9 @@ class SariApp {
       reports: window.ReportsModule,
       translations: window.TranslationsModule,
       auditLogs: window.AuditModule,
-      settings: window.SettingsModule
+      settings: window.SettingsModule,
+      hr: window.HRModule,
+      tasks: window.TasksModule
     };
   }
 
@@ -46,6 +48,9 @@ class SariApp {
     } else if (window.sariDB) {
       await window.sariDB.init();
     }
+
+    // Load database-backed role permissions and optional employee overrides.
+    if (window.auth?.loadPermissions) await window.auth.loadPermissions();
 
     // 4. Init Sync Controller
     if (window.syncController) {
@@ -142,6 +147,14 @@ class SariApp {
   async navigate(moduleName, updateHash = true) {
     if (!this.modules[moduleName]) {
       moduleName = 'dashboard';
+    }
+
+    const permissionModule = ({ suppliers: 'suppliers', customers: 'customers', auditLogs: 'settings', translations: 'settings', settings: 'settings' })[moduleName] || moduleName;
+    if (window.auth && !window.auth.can(permissionModule, 'view')) {
+      const view = document.getElementById('sari-main-view');
+      if (view) view.innerHTML = `<div class="sari-tile p-10 text-center max-w-2xl mx-auto"><i data-lucide="shield-x" class="w-12 h-12 text-red-500 mx-auto mb-3"></i><h2 class="text-xl font-extrabold text-slate-900 dark:text-white">Accès non autorisé</h2><p class="text-sm text-slate-500 mt-2">Votre rôle ne dispose pas de l’autorisation <code>${permissionModule}.view</code>.</p><button onclick="window.app.navigate('dashboard')" class="sari-btn px-4 py-2 mt-5 bg-sari-blue text-white">Retour au tableau de bord</button></div>`;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      return;
     }
 
     this.activeModule = moduleName;
