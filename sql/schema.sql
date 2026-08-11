@@ -1,0 +1,230 @@
+-- ==============================================================================
+-- SARI SYSTÈME – Medical Equipment & Consumables Distribution Management System
+-- DATABASE SCHEMA (DDL - Structure Only)
+-- Compatible with MySQL 8.0+ / MariaDB / PostgreSQL / SQLite
+-- Date: 2026-08-11
+-- ==============================================================================
+
+-- Drop existing tables if re-initializing schema (in reverse order of foreign keys)
+DROP TABLE IF EXISTS `order_items`;
+DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `products`;
+DROP TABLE IF EXISTS `shipments`;
+DROP TABLE IF EXISTS `tenders`;
+DROP TABLE IF EXISTS `customers`;
+DROP TABLE IF EXISTS `suppliers`;
+DROP TABLE IF EXISTS `warehouses`;
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `app_settings`;
+
+-- 1. WAREHOUSES TABLE (Dépôts de Stockage / المخازن)
+CREATE TABLE `warehouses` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `name` VARCHAR(150) NOT NULL,
+  `wilaya` VARCHAR(10) NOT NULL COMMENT 'Algerian Wilaya Code (01-58, e.g., 16 for Alger)',
+  `address` VARCHAR(255) NOT NULL,
+  `type` VARCHAR(100) NOT NULL COMMENT 'Type: Central / Chaine Froid / Régional Consommables',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Algerian Regional Warehouses and Cold Chain Depots';
+
+-- 2. SUPPLIERS TABLE (Fournisseurs Locaux & Internationaux / الموردون)
+CREATE TABLE `suppliers` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `name` VARCHAR(150) NOT NULL,
+  `country` VARCHAR(100) NOT NULL,
+  `type` VARCHAR(50) NOT NULL COMMENT 'local, international, manufacturer, distributor',
+  `contact_info` VARCHAR(255) NULL,
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'DZD' COMMENT 'DZD, EUR, USD, CNY',
+  `incoterms` VARCHAR(20) NOT NULL DEFAULT 'FOB' COMMENT 'FOB, CIF, EXW, DDP, CFR, FCA',
+  `certifications` VARCHAR(255) NULL COMMENT 'ISO 13485, CE marking, TÜV, MSPRH DZ Homologation',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_supplier_type` (`type`),
+  INDEX `idx_supplier_country` (`country`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Medical Equipment Manufacturers & Local Distributors';
+
+-- 3. PRODUCTS TABLE (Dispositifs Médicaux & Consommables / المنتجات الطبية)
+CREATE TABLE `products` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `sku` VARCHAR(100) NOT NULL UNIQUE,
+  `barcode` VARCHAR(100) NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `category` VARCHAR(64) NOT NULL COMMENT 'diagnostic, consumables, furniture, sterilization, ppe, surgical',
+  `manufacturer` VARCHAR(150) NULL,
+  `country_of_origin` VARCHAR(100) NULL,
+  `unit` VARCHAR(32) NOT NULL DEFAULT 'piece' COMMENT 'piece, box, carton, pack, liter, set',
+  `purchase_price` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Purchase price in DZD',
+  `selling_price` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Selling price in DZD',
+  `stock` INT NOT NULL DEFAULT 0,
+  `minimum_stock` INT NOT NULL DEFAULT 5,
+  `lot_number` VARCHAR(100) NULL COMMENT 'Medical Batch / Lot number for traceability',
+  `manufacturing_date` DATE NULL,
+  `expiration_date` DATE NULL COMMENT 'Critical for medical consumables expiration tracking',
+  `certification_ref` VARCHAR(150) NULL COMMENT 'CE marking or MSPRH DZ registration number',
+  `storage_conditions` VARCHAR(255) NULL COMMENT 'Storage conditions e.g., Cold Chain < 25C',
+  `warehouse_id` VARCHAR(64) NOT NULL,
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_product_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX `idx_product_category` (`category`),
+  INDEX `idx_product_lot` (`lot_number`),
+  INDEX `idx_product_expiry` (`expiration_date`),
+  INDEX `idx_product_warehouse` (`warehouse_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Medical Inventory Catalog & Consumable Traceability';
+
+-- 4. SHIPMENTS TABLE (Expéditions Import / Export / الشحنات والجمارك)
+CREATE TABLE `shipments` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `supplier_id` VARCHAR(64) NOT NULL,
+  `supplier_name` VARCHAR(150) NOT NULL,
+  `type` VARCHAR(32) NOT NULL DEFAULT 'import' COMMENT 'import, export',
+  `status` VARCHAR(64) NOT NULL DEFAULT 'inTransit' COMMENT 'orderPlaced, inTransit, customsClearance, received',
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'USD',
+  `foreign_amount` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `exchange_rate` DECIMAL(10, 4) NOT NULL DEFAULT 1.0000,
+  `purchase_cost_dzd` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `freight_cost` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Maritime / Air Freight cost in DZD',
+  `insurance_cost` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Transport Insurance in DZD',
+  `customs_cost` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Algerian Customs Duty (D10) in DZD',
+  `total_landed_cost_dzd` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Total Landed DZD Cost',
+  `incoterm` VARCHAR(20) NOT NULL DEFAULT 'CIF',
+  `expected_arrival` DATE NULL,
+  `actual_arrival` DATE NULL,
+  `documents_json` JSON NULL COMMENT 'Checklist array of documents (Invoice, PL, BL, D10, CE)',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_shipment_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX `idx_shipment_status` (`status`),
+  INDEX `idx_shipment_supplier` (`supplier_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='International Import Shipments & Landed Cost Breakdown';
+
+-- 5. TENDERS TABLE (Appels d\'Offres Hospitaliers / المناقصات والعقود)
+CREATE TABLE `tenders` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `title` VARCHAR(255) NOT NULL,
+  `issuing_organization` VARCHAR(200) NOT NULL COMMENT 'e.g., CHU Mustapha Pacha, DSP Blida, EHS CPMC',
+  `category` VARCHAR(64) NOT NULL,
+  `estimated_value` DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT 'Estimated Budget in DZD',
+  `submission_deadline` DATE NOT NULL,
+  `opening_date` DATE NULL,
+  `status` VARCHAR(64) NOT NULL DEFAULT 'watching' COMMENT 'watching, inPreparation, submitted, underEvaluation, won, lost, cancelled',
+  `linked_product_ids_json` JSON NULL COMMENT 'Array of linked product IDs in Bid Preparation Workspace (BPU)',
+  `documents_json` JSON NULL COMMENT 'Array of required administrative and technical documents',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_tender_status` (`status`),
+  INDEX `idx_tender_deadline` (`submission_deadline`),
+  INDEX `idx_tender_org` (`issuing_organization`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Public & Private Algerian Medical Consultations / Tenders';
+
+-- 6. CUSTOMERS TABLE (Clients, Hôpitaux CHU/EHS & Pharmacies / العملاء والمستشفيات)
+CREATE TABLE `customers` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `name` VARCHAR(200) NOT NULL,
+  `type` VARCHAR(64) NOT NULL COMMENT 'public_hospital, private_clinic, pharmacy, government, wholesaler',
+  `wilaya` VARCHAR(10) NOT NULL COMMENT 'Algerian Wilaya Code (01-58)',
+  `contact_info` VARCHAR(255) NULL,
+  `tax_id` VARCHAR(150) NULL COMMENT 'Fiscal NIF and Register of Commerce RC numbers',
+  `payment_terms` VARCHAR(150) NULL COMMENT 'e.g., Virement Trésor Public - 60 Jours',
+  `credit_limit` DECIMAL(18, 2) NOT NULL DEFAULT 10000000.00 COMMENT 'Authorized Credit Limit in DZD',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_customer_type` (`type`),
+  INDEX `idx_customer_wilaya` (`wilaya`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hospitals, Clinics, Pharmacies and Wilaya Health Directorates';
+
+-- 7. ORDERS TABLE (Commandes B2B & Ventes POS / الطلبيات والفواتير)
+CREATE TABLE `orders` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `customer_id` VARCHAR(64) NOT NULL,
+  `customer_name` VARCHAR(200) NOT NULL,
+  `warehouse_id` VARCHAR(64) NOT NULL,
+  `subtotal` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `discount_percent` DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
+  `discount_amount` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `tax_rate` DECIMAL(5, 4) NOT NULL DEFAULT 0.1900 COMMENT 'Algerian 19% TVA Tax',
+  `tax_amount` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `total` DECIMAL(15, 2) NOT NULL DEFAULT 0.00 COMMENT 'Total TTC in DZD',
+  `payment_method` VARCHAR(32) NOT NULL DEFAULT 'bank_transfer' COMMENT 'bank_transfer, check, cash, credit',
+  `status` VARCHAR(64) NOT NULL DEFAULT 'delivered' COMMENT 'quoted, confirmed, delivered, invoiced, paid',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_order_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_order_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX `idx_order_customer` (`customer_id`),
+  INDEX `idx_order_status` (`status`),
+  INDEX `idx_order_date` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='B2B Orders, Counter Sales, and Printed Invoices / BL';
+
+-- 8. ORDER_ITEMS TABLE (Lignes de Commande Normalisées / بنود الطلبيات)
+CREATE TABLE `order_items` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `order_id` VARCHAR(64) NOT NULL,
+  `product_id` VARCHAR(64) NOT NULL,
+  `product_name` VARCHAR(255) NOT NULL,
+  `qty` INT NOT NULL DEFAULT 1,
+  `unit_price` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  `total` DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  CONSTRAINT `fk_order_item_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_order_item_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX `idx_order_item_order` (`order_id`),
+  INDEX `idx_order_item_product` (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Line Items for Orders and Delivery Notes';
+
+-- 9. NOTIFICATIONS TABLE (Alertes Péremptions & Stock / التنبيهات والإشعارات)
+CREATE TABLE `notifications` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `type` VARCHAR(64) NOT NULL COMMENT 'near_expiry, tender_deadline, shipment, low_stock',
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `is_read` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_notification_read` (`is_read`),
+  INDEX `idx_notification_type` (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='System Alerts for Expiring Consumables and Tender Deadlines';
+
+-- 10. AUDIT_LOGS TABLE (Journal d\'Audit & Traçabilité / سجل النشاطات)
+CREATE TABLE `audit_logs` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `user_name` VARCHAR(100) NOT NULL,
+  `user_role` VARCHAR(64) NOT NULL COMMENT 'admin, inventory, import_export, tenders, sales, readonly',
+  `action` VARCHAR(100) NOT NULL,
+  `module` VARCHAR(100) NOT NULL,
+  `description` TEXT NOT NULL,
+  `timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_audit_role` (`user_role`),
+  INDEX `idx_audit_module` (`module`),
+  INDEX `idx_audit_timestamp` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Immutable Activity Trail of System and Inventory Mutations';
+
+-- 11. APP_SETTINGS TABLE (Configuration Globale & Fiscalité Algérie / الإعدادات)
+CREATE TABLE `app_settings` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `language` VARCHAR(10) NOT NULL DEFAULT 'fr' COMMENT 'fr, ar, en',
+  `theme` VARCHAR(32) NOT NULL DEFAULT 'classic' COMMENT 'classic, clinical, sunset, midnight',
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'DZD',
+  `tax_rate` DECIMAL(5, 4) NOT NULL DEFAULT 0.1900 COMMENT 'Algerian 19% TVA',
+  `company_name` VARCHAR(150) NOT NULL DEFAULT 'SARI SYSTÈMES',
+  `company_subtitle` VARCHAR(200) NOT NULL DEFAULT 'Distribution Matériel Médical & Consommables Algérie',
+  `address` VARCHAR(255) NOT NULL DEFAULT 'Lotissement Medical, Bab Ezzouar, 16024 Alger, Algérie',
+  `phone` VARCHAR(150) NOT NULL DEFAULT '+213 21 24 88 90 / +213 550 99 12 34',
+  `email` VARCHAR(150) NOT NULL DEFAULT 'contact@sarisysteme.dz',
+  `website` VARCHAR(150) NOT NULL DEFAULT 'www.sarisysteme.dz',
+  `nif` VARCHAR(100) NOT NULL DEFAULT '001616098765432',
+  `rc` VARCHAR(100) NOT NULL DEFAULT '16/00-0987654B19',
+  `ai` VARCHAR(100) NOT NULL DEFAULT '1602409876',
+  `nis` VARCHAR(100) NOT NULL DEFAULT '001616012345678',
+  `bank_rib` VARCHAR(200) NOT NULL DEFAULT 'BNA Agence 001 - RIB 00100161609876543209',
+  `custom_translations_json` JSON NULL COMMENT 'Custom trilingual dictionary overrides (FR/AR/EN)',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Global Company Details, Tax Settings and Native Themes';
+
+-- End of DDL Schema

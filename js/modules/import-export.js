@@ -1,0 +1,643 @@
+/**
+ * SARI Système - Import / Export Management Module
+ * Shipment tracking (Order -> In Transit -> Customs -> Received),
+ * Multi-currency Landed Cost calculator, Incoterms, and Customs documentation checklist.
+ */
+
+const ImportExportModule = {
+  state: {
+    shipments: [],
+    suppliers: [],
+    filterStatus: 'all',
+    searchQuery: '',
+    editingId: null
+  },
+
+  async render(containerId = 'sari-main-view') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    this.state.shipments = await window.sariDB.getAll('shipments');
+    this.state.suppliers = await window.sariDB.getAll('suppliers');
+
+    this.renderView(container);
+  },
+
+  renderView(container) {
+    const canWrite = window.auth && window.auth.canWrite('importExport');
+    const filtered = this.getFilteredShipments();
+
+    // Summary KPIs
+    let activeCount = 0;
+    let totalLandedDZD = 0;
+    let customsPendingCount = 0;
+
+    this.state.shipments.forEach(sh => {
+      if (sh.status !== 'received') activeCount++;
+      if (sh.status === 'customsClearance') customsPendingCount++;
+      totalLandedDZD += Number(sh.totalLandedCostDZD) || 0;
+    });
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        <!-- Header & Action Toolbar -->
+        <div class="sari-tile p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white" data-i18n="importExport">
+              ${i18n.t('importExport')}
+            </h2>
+            <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+              Suivi des expéditions maritimes/aériennes, dédouanement au Port d'Alger, calcul du coût de revient et Incoterms.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            ${canWrite ? `
+              <button onclick="ImportExportModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
+                <i class="fas fa-plus"></i>
+                <span data-i18n="addShipment">${i18n.t('addShipment')}</span>
+              </button>
+            ` : ''}
+            <button onclick="ImportExportModule.openLandedCostModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
+              <i class="fas fa-calculator"></i>
+              <span>${i18n.t('landedCostCalc')}</span>
+            </button>
+            <button onclick="ImportExportModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
+              <i class="fas fa-file-export"></i>
+              <span>${i18n.t('exportCSV')}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Mini Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-blue">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Expéditions en Cours</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${activeCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-blue/10 text-sari-blue px-2 py-1 rounded">
+              Mer & Air
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-amber">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">En Dédouanement (Port/Aéroport)</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${customsPendingCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-amber/10 text-sari-amber px-2 py-1 rounded animate-sari-pulse">
+              Documents D10 Requis
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-lime">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Valeur Cumulée Coût Revient</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${i18n.formatCurrency(totalLandedDZD)}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-lime/20 text-sari-lime-dark px-2 py-1 rounded">
+              Achat + Douane
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Recherche Expédition</label>
+            <input 
+              type="text" 
+              value="${this.state.searchQuery}"
+              oninput="ImportExportModule.handleSearch(this.value)"
+              placeholder="Ex: SHIP-2026, MediCare, BioMed, CIF, D10..."
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Filtrer par Statut Logistique</label>
+            <select 
+              onchange="ImportExportModule.handleStatusFilter(this.value)"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            >
+              <option value="all">Tous les Statuts</option>
+              <option value="orderPlaced" ${this.state.filterStatus === 'orderPlaced' ? 'selected' : ''}>Commande Passée (Order Placed)</option>
+              <option value="inTransit" ${this.state.filterStatus === 'inTransit' ? 'selected' : ''}>En Transit / Expédié (In Transit)</option>
+              <option value="customsClearance" ${this.state.filterStatus === 'customsClearance' ? 'selected' : ''}>Dédouanement en Cours (Customs)</option>
+              <option value="received" ${this.state.filterStatus === 'received' ? 'selected' : ''}>Réceptionné au Dépôt (Received)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Shipments Table -->
+        <div class="sari-tile overflow-x-auto">
+          <table class="w-full text-left border-collapse sari-table text-sm">
+            <thead>
+              <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                <th class="p-3">N° Expédition / Réf</th>
+                <th class="p-3">Fournisseur & Incoterm</th>
+                <th class="p-3">Statut Logistique</th>
+                <th class="p-3">Montant Devise</th>
+                <th class="p-3">Coût d'Achat (DA)</th>
+                <th class="p-3">Douane & Fret (DA)</th>
+                <th class="p-3">Coût de Revient Total (DA)</th>
+                <th class="p-3">Documents & Échéance</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.length === 0 ? `
+                <tr>
+                  <td colspan="9" class="p-8 text-center text-slate-500">
+                    <i class="fas fa-ship text-2xl mb-2 block"></i>
+                    Aucune expédition ne correspond à vos filtres.
+                  </td>
+                </tr>
+              ` : filtered.map(s => {
+                let statusBadge = '';
+                if (s.status === 'orderPlaced') statusBadge = `<span class="sari-badge bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">${i18n.t('orderPlaced')}</span>`;
+                else if (s.status === 'inTransit') statusBadge = `<span class="sari-badge bg-sari-blue/10 text-sari-blue border-sari-blue">${i18n.t('inTransit')}</span>`;
+                else if (s.status === 'customsClearance') statusBadge = `<span class="sari-badge bg-sari-amber/10 text-sari-amber border-sari-amber animate-sari-pulse">${i18n.t('customsClearance')}</span>`;
+                else if (s.status === 'received') statusBadge = `<span class="sari-badge bg-sari-lime/20 text-sari-lime-dark">${i18n.t('received')}</span>`;
+
+                const docsCount = Array.isArray(s.documents) ? s.documents.length : 0;
+                const customsTotal = (Number(s.freightCost) || 0) + (Number(s.customsCost) || 0) + (Number(s.insuranceCost) || 0);
+
+                return `
+                  <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">
+                      ${s.id}
+                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.type || 'import'}</div>
+                    </td>
+                    <td class="p-3">
+                      <div class="font-bold text-slate-900 dark:text-white">${s.supplierName}</div>
+                      <div class="text-xs text-slate-500">Incoterm: <strong class="text-sari-blue">${s.incoterm || 'CIF'}</strong></div>
+                    </td>
+                    <td class="p-3">
+                      ${statusBadge}
+                    </td>
+                    <td class="p-3 font-mono-tech font-bold text-slate-800 dark:text-slate-200">
+                      ${Number(s.foreignAmount || 0).toLocaleString()} ${s.currency}
+                      <div class="text-[10px] text-slate-400">Taux: ${s.exchangeRate} DA</div>
+                    </td>
+                    <td class="p-3 font-mono-tech text-slate-700 dark:text-slate-300">
+                      ${i18n.formatCurrency(s.purchaseCostDZD)}
+                    </td>
+                    <td class="p-3 font-mono-tech text-sari-amber font-medium">
+                      ${i18n.formatCurrency(customsTotal)}
+                    </td>
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">
+                      ${i18n.formatCurrency(s.totalLandedCostDZD)}
+                    </td>
+                    <td class="p-3">
+                      <button onclick="ImportExportModule.openDocsModal('${s.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
+                        <i class="fas fa-folder-open"></i> ${docsCount} documents &rarr;
+                      </button>
+                      <div class="text-[10px] text-slate-500 mt-0.5">Arrivée: ${i18n.formatDate(s.expectedArrival)}</div>
+                    </td>
+                    <td class="p-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        ${canWrite ? `
+                          <button onclick="ImportExportModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button onclick="ImportExportModule.deleteShipment('${s.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        ` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Container for Add/Edit Shipment -->
+      <div id="ship-modal-container"></div>
+      <!-- Modal Container for Landed Cost Calculator -->
+      <div id="ship-landed-modal"></div>
+      <!-- Modal Container for Customs Documents Checklist -->
+      <div id="ship-docs-modal"></div>
+    `;
+  },
+
+  getFilteredShipments() {
+    return this.state.shipments.filter(s => {
+      if (this.state.filterStatus !== 'all' && s.status !== this.state.filterStatus) {
+        return false;
+      }
+      if (this.state.searchQuery) {
+        const q = this.state.searchQuery.toLowerCase();
+        const matchId = s.id && s.id.toLowerCase().includes(q);
+        const matchSupplier = s.supplierName && s.supplierName.toLowerCase().includes(q);
+        const matchIncoterm = s.incoterm && s.incoterm.toLowerCase().includes(q);
+        if (!matchId && !matchSupplier && !matchIncoterm) return false;
+      }
+      return true;
+    });
+  },
+
+  handleSearch(val) {
+    this.state.searchQuery = val;
+    this.render();
+  },
+
+  handleStatusFilter(val) {
+    this.state.filterStatus = val;
+    this.render();
+  },
+
+  /**
+   * Open modal to create or edit an import/export shipment
+   */
+  async openModal(shipmentId = null) {
+    this.state.editingId = shipmentId;
+    const sh = shipmentId ? await window.sariDB.getById('shipments', shipmentId) : {
+      id: `SHIP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+      supplierId: this.state.suppliers[0] ? this.state.suppliers[0].id : '',
+      supplierName: this.state.suppliers[0] ? this.state.suppliers[0].name : '',
+      type: 'import',
+      status: 'inTransit',
+      currency: 'USD',
+      foreignAmount: 20000,
+      exchangeRate: 134.20,
+      purchaseCostDZD: 2684000,
+      freightCost: 250000,
+      customsCost: 350000,
+      insuranceCost: 80000,
+      totalLandedCostDZD: 3364000,
+      incoterm: 'CIF',
+      expectedArrival: new Date().toISOString().split('T')[0],
+      actualArrival: '',
+      documents: ['Facture Pro-forma', 'Packing List', 'Certificat d\'Origine'],
+      notes: ''
+    };
+
+    const modalEl = document.getElementById('ship-modal-container');
+    if (!modalEl) return;
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="font-bold text-lg text-slate-900 dark:text-white">
+              ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
+            </h3>
+            <button onclick="ImportExportModule.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Expédition / Dossier *</label>
+                <input type="text" id="sh-id" required value="${sh.id}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Fournisseur / Expéditeur *</label>
+                <select id="sh-supplier" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
+                  ${this.state.suppliers.map(sup => `
+                    <option value="${sup.id}|${sup.name}" ${sh.supplierId === sup.id ? 'selected' : ''}>${sup.name} (${sup.country})</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Statut Logistique *</label>
+                <select id="sh-status" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
+                  <option value="orderPlaced" ${sh.status === 'orderPlaced' ? 'selected' : ''}>Commande Passée</option>
+                  <option value="inTransit" ${sh.status === 'inTransit' ? 'selected' : ''}>En Transit / Expédié</option>
+                  <option value="customsClearance" ${sh.status === 'customsClearance' ? 'selected' : ''}>Dédouanement en Cours</option>
+                  <option value="received" ${sh.status === 'received' ? 'selected' : ''}>Réceptionné au Dépôt</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Devise *</label>
+                <select id="sh-curr" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
+                  <option value="USD" ${sh.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+                  <option value="EUR" ${sh.currency === 'EUR' ? 'selected' : ''}>EUR (€)</option>
+                  <option value="CNY" ${sh.currency === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Montant Devise *</label>
+                <input type="number" step="0.01" id="sh-foreign" required value="${sh.foreignAmount}" oninput="ImportExportModule.recalculateForm()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Taux Change (DA) *</label>
+                <input type="number" step="0.01" id="sh-rate" required value="${sh.exchangeRate}" oninput="ImportExportModule.recalculateForm()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Incoterm *</label>
+                <select id="sh-incoterm" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
+                  ${SARI_CONFIG.INCOTERMS.map(i => `
+                    <option value="${i.code}" ${sh.incoterm === i.code ? 'selected' : ''}>${i.code}</option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Landed Cost Breakdown inputs -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+              <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-3">Décomposition Coût de Revient (Dinar Algérien DA)</h4>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Fret Maritime/Aérien (DA)</label>
+                  <input type="number" id="sh-freight" value="${sh.freightCost}" oninput="ImportExportModule.recalculateForm()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Assurance (DA)</label>
+                  <input type="number" id="sh-ins" value="${sh.insuranceCost}" oninput="ImportExportModule.recalculateForm()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Droits de Douane D10 (DA)</label>
+                  <input type="number" id="sh-customs" value="${sh.customsCost}" oninput="ImportExportModule.recalculateForm()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-sari-blue mb-1">Coût Revient TOTAL (DA)</label>
+                  <input type="number" id="sh-landed" readonly value="${sh.totalLandedCostDZD}" class="w-full px-3 py-2 border rounded bg-slate-200 dark:bg-slate-700 font-mono-tech font-extrabold text-sari-blue" />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Date Arrivée Prévue Port/Dépôt *</label>
+                <input type="date" id="sh-arrival" required value="${sh.expectedArrival}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Notes / Port de Déchargement</label>
+                <input type="text" id="sh-notes" value="${sh.notes || ''}" placeholder="Ex: Port d'Alger, Dédouanement par Transit Benali" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onclick="ImportExportModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
+                ${i18n.t('cancel')}
+              </button>
+              <button type="submit" class="sari-btn px-5 py-2 bg-sari-blue text-white font-bold">
+                ${i18n.t('save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  recalculateForm() {
+    const foreign = Number(document.getElementById('sh-foreign').value) || 0;
+    const rate = Number(document.getElementById('sh-rate').value) || 1;
+    const freight = Number(document.getElementById('sh-freight').value) || 0;
+    const ins = Number(document.getElementById('sh-ins').value) || 0;
+    const customs = Number(document.getElementById('sh-customs').value) || 0;
+
+    const purchaseDZD = foreign * rate;
+    const landedDZD = Math.round(purchaseDZD + freight + ins + customs);
+    const landedEl = document.getElementById('sh-landed');
+    if (landedEl) landedEl.value = landedDZD;
+  },
+
+  closeModal() {
+    const modalEl = document.getElementById('ship-modal-container');
+    if (modalEl) modalEl.innerHTML = '';
+    this.state.editingId = null;
+  },
+
+  async saveShipment(e) {
+    e.preventDefault();
+    const supSplit = document.getElementById('sh-supplier').value.split('|');
+    const foreign = Number(document.getElementById('sh-foreign').value) || 0;
+    const rate = Number(document.getElementById('sh-rate').value) || 1;
+    const freight = Number(document.getElementById('sh-freight').value) || 0;
+    const ins = Number(document.getElementById('sh-ins').value) || 0;
+    const customs = Number(document.getElementById('sh-customs').value) || 0;
+
+    const purchaseDZD = Math.round(foreign * rate);
+    const landedDZD = Math.round(purchaseDZD + freight + ins + customs);
+
+    const payload = {
+      id: document.getElementById('sh-id').value.trim(),
+      supplierId: supSplit[0] || '',
+      supplierName: supSplit[1] || 'Fournisseur International',
+      type: 'import',
+      status: document.getElementById('sh-status').value,
+      currency: document.getElementById('sh-curr').value,
+      foreignAmount: foreign,
+      exchangeRate: rate,
+      purchaseCostDZD: purchaseDZD,
+      freightCost: freight,
+      insuranceCost: ins,
+      customsCost: customs,
+      totalLandedCostDZD: landedDZD,
+      incoterm: document.getElementById('sh-incoterm').value,
+      expectedArrival: document.getElementById('sh-arrival').value,
+      notes: document.getElementById('sh-notes').value.trim(),
+      documents: ['Facture Commerciale', 'Packing List', 'Certificat d\'Origine', 'Déclaration en Douane D10']
+    };
+
+    await window.syncController.enqueueMutation('shipments', 'save', payload);
+    this.closeModal();
+    window.app.showToast(i18n.t('savedSuccessfully'), 'success');
+    await this.render();
+  },
+
+  async deleteShipment(id) {
+    if (!confirm('Supprimer cette expédition ?')) return;
+    await window.syncController.enqueueMutation('shipments', 'delete', { id });
+    window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
+    await this.render();
+  },
+
+  exportCSV() {
+    SariUtils.exportToCSV(this.state.shipments, 'sari-systeme-shipments-import.csv');
+  },
+
+  /**
+   * Dedicated Landed Cost Calculator Modal
+   */
+  openLandedCostModal() {
+    const modalEl = document.getElementById('ship-landed-modal');
+    if (!modalEl) return;
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <div>
+              <span class="text-xs font-bold text-sari-blue uppercase">Calculateur DZD SARI</span>
+              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">
+                Calculateur de Coût de Revient Unitaire (Landed Cost)
+              </h3>
+            </div>
+            <button onclick="ImportExportModule.closeLandedCostModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="space-y-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Montant Achat en Devise (€ / $)</label>
+                <input type="number" id="calc-foreign" value="10000" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Taux Change Devise/DA</label>
+                <input type="number" id="calc-rate" value="145.50" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nombre d'Unités / Pcs</label>
+                <input type="number" id="calc-units" value="50" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">Frais Fret (DA)</label>
+                <input type="number" id="calc-freight" value="150000" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">Assurance Transport (DA)</label>
+                <input type="number" id="calc-ins" value="45000" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">Droits de Douane D10 (DA)</label>
+                <input type="number" id="calc-customs" value="280000" oninput="ImportExportModule.updateLandedCalculator()" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+            </div>
+
+            <div id="landed-result-box" class="p-5 bg-sari-blue/10 rounded border-2 border-sari-blue"></div>
+          </div>
+
+          <div class="mt-4 flex justify-end">
+            <button onclick="ImportExportModule.closeLandedCostModal()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.updateLandedCalculator();
+  },
+
+  closeLandedCostModal() {
+    const modalEl = document.getElementById('ship-landed-modal');
+    if (modalEl) modalEl.innerHTML = '';
+  },
+
+  updateLandedCalculator() {
+    const foreign = Number(document.getElementById('calc-foreign').value) || 0;
+    const rate = Number(document.getElementById('calc-rate').value) || 1;
+    const units = Number(document.getElementById('calc-units').value) || 1;
+    const freight = Number(document.getElementById('calc-freight').value) || 0;
+    const ins = Number(document.getElementById('calc-ins').value) || 0;
+    const customs = Number(document.getElementById('calc-customs').value) || 0;
+
+    const res = SariUtils.calculateLandedCost({
+      foreignAmount: foreign,
+      exchangeRate: rate,
+      freightDZD: freight,
+      insuranceDZD: ins,
+      customsDZD: customs,
+      unitsCount: units
+    });
+
+    const box = document.getElementById('landed-result-box');
+    if (!box) return;
+
+    box.innerHTML = `
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+        <div class="p-3 bg-white dark:bg-slate-900 rounded shadow-sm">
+          <p class="text-xs text-slate-500 font-bold uppercase">Coût de Revient TOTAL (DZD)</p>
+          <h3 class="text-2xl font-extrabold font-mono-tech text-sari-blue mt-1">${i18n.formatCurrency(res.totalLandedDZD)}</h3>
+          <p class="text-xs text-slate-500 mt-1">Achat: ${i18n.formatCurrency(res.purchaseDZD)} + Fret/Douane: ${i18n.formatCurrency(res.freightDZD + res.insuranceDZD + res.customsDZD)}</p>
+        </div>
+        <div class="p-3 bg-sari-lime/20 rounded shadow-sm">
+          <p class="text-xs text-slate-700 dark:text-slate-300 font-bold uppercase">Coût Revient par Unité / Pièce</p>
+          <h3 class="text-2xl font-extrabold font-mono-tech text-sari-lime-dark mt-1">${i18n.formatCurrency(res.perUnitDZD)}</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">Sur la base de ${units} unités importées</p>
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * Customs documentation checklist modal
+   */
+  async openDocsModal(shipmentId) {
+    const sh = await window.sariDB.getById('shipments', shipmentId);
+    if (!sh) return;
+
+    const modalEl = document.getElementById('ship-docs-modal');
+    if (!modalEl) return;
+
+    const requiredDocs = [
+      { name: 'Facture Commerciale / Pro-forma Originale', req: true },
+      { name: 'Packing List (Liste de Colisage Détaillée)', req: true },
+      { name: 'Certificat d\'Origine (Visé Chambre de Commerce)', req: true },
+      { name: 'Bill of Lading (B/L) / Lettre de Transport Aérien (LTA)', req: true },
+      { name: 'Déclaration en Douane D10 (Port d\'Alger/Oran)', req: true },
+      { name: 'Certificat de Conformité CE / Agrément MSPRH Algérie', req: true }
+    ];
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <div>
+              <span class="text-xs font-bold text-sari-blue uppercase">Dossier Douane Algérie</span>
+              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">
+                Checklist Documents : ${sh.id}
+              </h3>
+            </div>
+            <button onclick="ImportExportModule.closeDocsModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-sm">
+            <p class="text-xs text-slate-500">
+              Vérifiez la présence des documents douaniers et sanitaires obligatoires pour le dédouanement.
+            </p>
+            <div class="space-y-2">
+              ${requiredDocs.map((doc, idx) => {
+                const checked = idx < 4 ? 'checked' : '';
+                return `
+                  <label class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded border cursor-pointer hover:border-sari-blue">
+                    <input type="checkbox" ${checked} class="w-4 h-4 text-sari-blue rounded" />
+                    <span class="text-sm font-semibold text-slate-800 dark:text-slate-200">${doc.name}</span>
+                    <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded ${checked ? 'bg-sari-lime/20 text-sari-lime-dark' : 'bg-sari-amber/20 text-sari-amber'}">
+                      ${checked ? 'Présent' : 'À Vérifier'}
+                    </span>
+                  </label>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="mt-5 flex justify-end gap-2">
+            <button onclick="ImportExportModule.closeDocsModal()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
+              Valider le Dossier
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeDocsModal() {
+    const modalEl = document.getElementById('ship-docs-modal');
+    if (modalEl) modalEl.innerHTML = '';
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.ImportExportModule = ImportExportModule;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = ImportExportModule;
+}

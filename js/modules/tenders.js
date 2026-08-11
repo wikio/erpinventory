@@ -1,0 +1,725 @@
+/**
+ * SARI Système - Tenders & Consultations (Appels d'Offres) Module
+ * Manage Algerian public/private hospital tenders, required documents checklist,
+ * Cahier des charges, and interactive Bid Preparation Workspace (Pricing Worksheet).
+ */
+
+const TendersModule = {
+  state: {
+    tenders: [],
+    products: [],
+    filterStatus: 'all',
+    searchQuery: '',
+    editingId: null,
+    activeBidTenderId: null
+  },
+
+  async render(containerId = 'sari-main-view') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    this.state.tenders = await window.sariDB.getAll('tenders');
+    this.state.products = await window.sariDB.getAll('products');
+
+    this.renderView(container);
+  },
+
+  renderView(container) {
+    const canWrite = window.auth && window.auth.canWrite('tenders');
+    const filtered = this.getFilteredTenders();
+
+    // Stats
+    let wonCount = 0;
+    let submittedCount = 0;
+    let totalWonValueDZD = 0;
+    let pipelineValueDZD = 0;
+
+    this.state.tenders.forEach(t => {
+      if (t.status === 'won') {
+        wonCount++;
+        totalWonValueDZD += Number(t.estimatedValue) || 0;
+      }
+      if (t.status === 'submitted' || t.status === 'inPreparation' || t.status === 'underEvaluation') {
+        submittedCount++;
+        pipelineValueDZD += Number(t.estimatedValue) || 0;
+      }
+    });
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        <!-- Header & Action Toolbar -->
+        <div class="sari-tile p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white" data-i18n="tenders">
+              ${i18n.t('tenders')}
+            </h2>
+            <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+              Suivi des consultations hospitalières, cahiers des charges, et préparation des offres techniques et financières.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            ${canWrite ? `
+              <button onclick="TendersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
+                <i class="fas fa-plus"></i>
+                <span data-i18n="addTender">${i18n.t('addTender')}</span>
+              </button>
+            ` : ''}
+            <button onclick="TendersModule.openBidWorkspace('${this.state.tenders[0] ? this.state.tenders[0].id : ''}')" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
+              <i class="fas fa-edit"></i>
+              <span>${i18n.t('bidCalculator')}</span>
+            </button>
+            <button onclick="TendersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
+              <i class="fas fa-file-export"></i>
+              <span>${i18n.t('exportCSV')}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tender KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-blue">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Appels d'Offres Actifs (Pipeline)</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${submittedCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-blue/10 text-sari-blue px-2 py-1 rounded">
+              CHU & DSP Algérie
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-lime">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Marchés Remportés (Won)</p>
+              <h4 class="text-2xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${wonCount}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-lime/20 text-sari-lime-dark px-2 py-1 rounded">
+              Contrats Actifs
+            </div>
+          </div>
+          <div class="sari-tile p-4 flex items-center justify-between border-l-4 border-l-sari-amber">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase">Valeur Pipeline en Soumission</p>
+              <h4 class="text-xl font-extrabold font-mono-tech text-slate-900 dark:text-white mt-1">${i18n.formatCurrency(pipelineValueDZD)}</h4>
+            </div>
+            <div class="text-xs font-bold bg-sari-amber/10 text-sari-amber px-2 py-1 rounded font-mono-tech">
+              Estimatif DA
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Rechercher un Appel d'Offres</label>
+            <input 
+              type="text" 
+              value="${this.state.searchQuery}"
+              oninput="TendersModule.handleSearch(this.value)"
+              placeholder="Ex: CHU Mustapha, DSP Blida, EHS, Moniteurs, AO-2026..."
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Filtrer par Statut de Soumission</label>
+            <select 
+              onchange="TendersModule.handleStatusFilter(this.value)"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue font-semibold"
+            >
+              <option value="all">Tous les Statuts d'Appels d'Offres</option>
+              <option value="watching" ${this.state.filterStatus === 'watching' ? 'selected' : ''}>Sous Surveillance (Watching)</option>
+              <option value="inPreparation" ${this.state.filterStatus === 'inPreparation' ? 'selected' : ''}>En Préparation (In Preparation)</option>
+              <option value="submitted" ${this.state.filterStatus === 'submitted' ? 'selected' : ''}>Soumission Déposée (Submitted)</option>
+              <option value="underEvaluation" ${this.state.filterStatus === 'underEvaluation' ? 'selected' : ''}>En Évaluation (Under Evaluation)</option>
+              <option value="won" ${this.state.filterStatus === 'won' ? 'selected' : ''}>Attribué / Gagné (Won)</option>
+              <option value="lost" ${this.state.filterStatus === 'lost' ? 'selected' : ''}>Non Retenu / Perdu (Lost)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tenders Table -->
+        <div class="sari-tile overflow-x-auto">
+          <table class="w-full text-left border-collapse sari-table text-sm">
+            <thead>
+              <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                <th class="p-3">Réf / Code AO</th>
+                <th class="p-3">Objet du Marché & Institution</th>
+                <th class="p-3">Catégorie</th>
+                <th class="p-3">Montant Estimatif (DA)</th>
+                <th class="p-3">Échéance Dépôt</th>
+                <th class="p-3">Statut Soumission</th>
+                <th class="p-3">Cahier des Charges & Docs</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.length === 0 ? `
+                <tr>
+                  <td colspan="8" class="p-8 text-center text-slate-500">
+                    <i class="fas fa-file-contract text-2xl mb-2 block"></i>
+                    Aucun appel d'offres ne correspond à vos filtres.
+                  </td>
+                </tr>
+              ` : filtered.map(t => {
+                let badgeClass = 'bg-slate-100 text-slate-700';
+                if (t.status === 'watching') badgeClass = 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white';
+                if (t.status === 'inPreparation') badgeClass = 'bg-sari-blue/10 text-sari-blue border-sari-blue';
+                if (t.status === 'submitted') badgeClass = 'bg-sari-amber/10 text-sari-amber border-sari-amber';
+                if (t.status === 'won') badgeClass = 'bg-sari-lime/20 text-sari-lime-dark border-sari-lime-dark font-bold';
+                if (t.status === 'lost') badgeClass = 'bg-red-500/10 text-red-600 dark:text-red-400';
+
+                const docsCount = Array.isArray(t.documents) ? t.documents.length : 0;
+                const productsCount = Array.isArray(t.linkedProductIds) ? t.linkedProductIds.length : 0;
+
+                return `
+                  <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">
+                      ${t.id}
+                    </td>
+                    <td class="p-3">
+                      <div class="font-bold text-slate-900 dark:text-white">${t.title}</div>
+                      <div class="text-xs text-slate-500 mt-0.5">
+                        <i class="fas fa-hospital text-sari-blue"></i> ${t.issuingOrganization}
+                      </div>
+                    </td>
+                    <td class="p-3 text-xs">
+                      <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                        ${i18n.getCategoryName(t.category)}
+                      </span>
+                    </td>
+                    <td class="p-3 font-mono-tech font-bold text-slate-800 dark:text-slate-200">
+                      ${i18n.formatCurrency(t.estimatedValue)}
+                    </td>
+                    <td class="p-3 font-mono-tech font-semibold ${new Date(t.submissionDeadline) <= new Date() ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}">
+                      ${i18n.formatDate(t.submissionDeadline)}
+                    </td>
+                    <td class="p-3">
+                      <span class="sari-badge ${badgeClass}">
+                        ${i18n.t(t.status)}
+                      </span>
+                    </td>
+                    <td class="p-3">
+                      <button onclick="TendersModule.openDocsModal('${t.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
+                        <i class="fas fa-check-square"></i> ${docsCount} pièces au dossier &rarr;
+                      </button>
+                      <div class="text-[10px] text-slate-500 mt-0.5">${productsCount} produits au devis</div>
+                    </td>
+                    <td class="p-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <button onclick="TendersModule.openBidWorkspace('${t.id}')" title="Espace Préparation Offre (Devis)" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
+                          <i class="fas fa-calculator"></i>
+                        </button>
+                        ${canWrite ? `
+                          <button onclick="TendersModule.openModal('${t.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button onclick="TendersModule.deleteTender('${t.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        ` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Container for Add/Edit Tender -->
+      <div id="tender-modal-container"></div>
+      <!-- Modal Container for Bid Preparation Workspace -->
+      <div id="tender-workspace-modal"></div>
+      <!-- Modal Container for Documents Checklist -->
+      <div id="tender-docs-modal"></div>
+    `;
+  },
+
+  getFilteredTenders() {
+    return this.state.tenders.filter(t => {
+      if (this.state.filterStatus !== 'all' && t.status !== this.state.filterStatus) {
+        return false;
+      }
+      if (this.state.searchQuery) {
+        const q = this.state.searchQuery.toLowerCase();
+        const matchId = t.id && t.id.toLowerCase().includes(q);
+        const matchTitle = t.title && t.title.toLowerCase().includes(q);
+        const matchOrg = t.issuingOrganization && t.issuingOrganization.toLowerCase().includes(q);
+        if (!matchId && !matchTitle && !matchOrg) return false;
+      }
+      return true;
+    });
+  },
+
+  handleSearch(val) {
+    this.state.searchQuery = val;
+    this.render();
+  },
+
+  handleStatusFilter(val) {
+    this.state.filterStatus = val;
+    this.render();
+  },
+
+  async openModal(tenderId = null) {
+    this.state.editingId = tenderId;
+    const ten = tenderId ? await window.sariDB.getById('tenders', tenderId) : {
+      id: `AO-${new Date().getFullYear()}-CHU-${Math.floor(10 + Math.random() * 90)}`,
+      title: '',
+      issuingOrganization: 'CHU Mustapha Pacha - Alger',
+      category: 'diagnostic',
+      estimatedValue: 5000000,
+      submissionDeadline: new Date().toISOString().split('T')[0],
+      openingDate: new Date().toISOString().split('T')[0],
+      status: 'inPreparation',
+      linkedProductIds: [],
+      documents: [
+        { name: 'Cahier des Charges Original.pdf', status: 'ready' },
+        { name: 'Offre Technique SARI.pdf', status: 'in_progress' },
+        { name: 'Offre Financière & Soumission.pdf', status: 'in_progress' }
+      ],
+      notes: ''
+    };
+
+    const modalEl = document.getElementById('tender-modal-container');
+    if (!modalEl) return;
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="font-bold text-lg text-slate-900 dark:text-white">
+              ${tenderId ? 'Modifier l\'Appel d\'Offres / Consultation' : 'Nouvel Appel d\'Offres Médical'}
+            </h3>
+            <button onclick="TendersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Réf / Code Appel d'Offres *</label>
+                <input type="text" id="ten-id" required value="${ten.id}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Institution Émettrice *</label>
+                <input type="text" id="ten-org" required value="${ten.issuingOrganization}" placeholder="Ex: CHU Mustapha Pacha, DSP Blida, EHS CPMC" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Objet du Marché / Titre de la Consultation *</label>
+              <input type="text" id="ten-title" required value="${ten.title}" placeholder="Ex: Acquisition de 20 Moniteurs Patients & Lits d'Hospitalisation" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Catégorie Médicale</label>
+                <select id="ten-category" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
+                  ${SARI_CONFIG.PRODUCT_CATEGORIES.map(c => `
+                    <option value="${c.id}" ${ten.category === c.id ? 'selected' : ''}>${i18n.getCategoryName(c.id)}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Budget Estimé (DZD) *</label>
+                <input type="number" step="0.01" id="ten-value" required value="${ten.estimatedValue}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Statut Soumission *</label>
+                <select id="ten-status" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-semibold">
+                  <option value="watching" ${ten.status === 'watching' ? 'selected' : ''}>Sous Surveillance</option>
+                  <option value="inPreparation" ${ten.status === 'inPreparation' ? 'selected' : ''}>En Préparation</option>
+                  <option value="submitted" ${ten.status === 'submitted' ? 'selected' : ''}>Soumission Déposée</option>
+                  <option value="underEvaluation" ${ten.status === 'underEvaluation' ? 'selected' : ''}>En Évaluation</option>
+                  <option value="won" ${ten.status === 'won' ? 'selected' : ''}>Attribué / Gagné (Won)</option>
+                  <option value="lost" ${ten.status === 'lost' ? 'selected' : ''}>Non Retenu / Perdu (Lost)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Date Limite de Dépôt des Offres *</label>
+                <input type="date" id="ten-deadline" required value="${ten.submissionDeadline}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Date d'Ouverture des Plis</label>
+                <input type="date" id="ten-opening" required value="${ten.openingDate}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Notes Internes / Concurrence</label>
+              <input type="text" id="ten-notes" value="${ten.notes || ''}" placeholder="Ex: Soumission déposée au bureau des marchés, Caution de 1% prête" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onclick="TendersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
+                ${i18n.t('cancel')}
+              </button>
+              <button type="submit" class="sari-btn px-5 py-2 bg-sari-blue text-white font-bold">
+                ${i18n.t('save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  closeModal() {
+    const modalEl = document.getElementById('tender-modal-container');
+    if (modalEl) modalEl.innerHTML = '';
+    this.state.editingId = null;
+  },
+
+  async saveTender(e) {
+    e.preventDefault();
+    const id = document.getElementById('ten-id').value.trim();
+    const orig = this.state.editingId ? await window.sariDB.getById('tenders', this.state.editingId) : {};
+
+    const payload = {
+      id,
+      issuingOrganization: document.getElementById('ten-org').value.trim(),
+      title: document.getElementById('ten-title').value.trim(),
+      category: document.getElementById('ten-category').value,
+      estimatedValue: Number(document.getElementById('ten-value').value),
+      status: document.getElementById('ten-status').value,
+      submissionDeadline: document.getElementById('ten-deadline').value,
+      openingDate: document.getElementById('ten-opening').value,
+      notes: document.getElementById('ten-notes').value.trim(),
+      linkedProductIds: orig.linkedProductIds || ['prod-001'],
+      documents: orig.documents || [
+        { name: 'Cahier des Charges Original.pdf', status: 'ready' },
+        { name: 'Offre Technique SARI.pdf', status: 'ready' },
+        { name: 'Offre Financière & Soumission.pdf', status: 'ready' },
+        { name: 'Caution de Soumission (1%).pdf', status: 'ready' }
+      ]
+    };
+
+    await window.syncController.enqueueMutation('tenders', 'save', payload);
+    this.closeModal();
+    window.app.showToast(i18n.t('savedSuccessfully'), 'success');
+    await this.render();
+  },
+
+  async deleteTender(id) {
+    if (!confirm('Supprimer cet appel d\'offres ?')) return;
+    await window.syncController.enqueueMutation('tenders', 'delete', { id });
+    window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
+    await this.render();
+  },
+
+  exportCSV() {
+    SariUtils.exportToCSV(this.state.tenders, 'sari-systeme-appels-offres.csv');
+  },
+
+  /**
+   * Bid Preparation Workspace (Pricing Worksheet linked to Inventory/Cost Data)
+   */
+  async openBidWorkspace(tenderId) {
+    let t = null;
+    if (tenderId) {
+      t = await window.sariDB.getById('tenders', tenderId);
+    }
+    if (!t) {
+      t = this.state.tenders[0];
+    }
+    if (!t) return;
+
+    this.state.activeBidTenderId = t.id;
+    const modalEl = document.getElementById('tender-workspace-modal');
+    if (!modalEl) return;
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-4xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <div>
+              <span class="text-xs font-bold text-sari-blue uppercase">Fiche de Calcul Marchés Publics / Privés</span>
+              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">
+                Espace de Préparation de l'Offre (Bordereau des Prix Unitaires BPU) - ${t.id}
+              </h3>
+            </div>
+            <button onclick="TendersModule.closeBidWorkspace()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 mb-4 flex justify-between items-center">
+            <div>
+              <h4 class="font-bold text-slate-900 dark:text-white">${t.title}</h4>
+              <p class="text-xs text-slate-500">${t.issuingOrganization} • Budget estimatif: <strong class="font-mono-tech">${i18n.formatCurrency(t.estimatedValue)}</strong></p>
+            </div>
+            <span class="sari-badge bg-sari-blue/10 text-sari-blue">${i18n.t(t.status)}</span>
+          </div>
+
+          <!-- Product Picker to add items to BPU -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Sélectionner un produit du catalogue SARI :</label>
+              <select id="bpu-add-select" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 text-sm">
+                ${this.state.products.map(p => `
+                  <option value="${p.id}">${p.sku} - ${p.name} (${i18n.formatCurrency(p.purchasePrice)} coût d'achat)</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button onclick="TendersModule.addItemToBidWorkspace()" class="sari-btn w-full px-4 py-2 bg-sari-blue text-white font-bold text-sm">
+                <i class="fas fa-plus"></i> Ajouter au Devis
+              </button>
+            </div>
+          </div>
+
+          <!-- BPU Table -->
+          <div class="border rounded overflow-hidden">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-100 dark:bg-slate-800 font-bold uppercase text-slate-500">
+                <tr>
+                  <th class="p-2.5">Produit / Ligne</th>
+                  <th class="p-2.5">Coût Achat (DA)</th>
+                  <th class="p-2.5">Marge (%)</th>
+                  <th class="p-2.5">Prix Offre Unitaire (DA)</th>
+                  <th class="p-2.5">Quantité (Pcs)</th>
+                  <th class="p-2.5">Total Ligne (DA)</th>
+                  <th class="p-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="bpu-table-body"></tbody>
+            </table>
+          </div>
+
+          <!-- Bid Total Summary Banner -->
+          <div id="bpu-summary-box" class="mt-4 p-4 bg-sari-lime/20 rounded border-2 border-sari-lime-dark flex justify-between items-center"></div>
+
+          <div class="mt-5 flex justify-end gap-2">
+            <button onclick="TendersModule.closeBidWorkspace()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
+              Fermer
+            </button>
+            <button onclick="TendersModule.saveBidWorkspace()" class="sari-btn px-5 py-2 bg-sari-blue text-white font-bold">
+              <i class="fas fa-save"></i> Enregistrer l'Offre Financière
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.renderBPUItems(t);
+  },
+
+  renderBPUItems(t) {
+    const tbody = document.getElementById('bpu-table-body');
+    if (!tbody) return;
+
+    const linkedIds = t.linkedProductIds || ['prod-001', 'prod-002'];
+    const rowsHtml = linkedIds.map((pid, idx) => {
+      const p = this.state.products.find(x => x.id === pid) || this.state.products[0];
+      if (!p) return '';
+      const margin = 24; // 24% default target profit margin
+      const unitCost = Number(p.purchasePrice) || 10000;
+      const unitOffer = Math.round(unitCost * (1 + margin / 100));
+      const qty = idx === 0 ? 10 : 5;
+      const totalLine = unitOffer * qty;
+
+      return `
+        <tr class="border-t border-slate-200 dark:border-slate-800 bpu-row" data-pid="${p.id}" data-cost="${unitCost}">
+          <td class="p-2.5 font-bold">
+            ${p.sku} - ${p.name}
+          </td>
+          <td class="p-2.5 font-mono-tech">
+            ${i18n.formatCurrency(unitCost)}
+          </td>
+          <td class="p-2.5">
+            <input type="number" value="${margin}" oninput="TendersModule.recalculateBPU()" class="bpu-margin w-16 px-2 py-1 border rounded text-center font-bold" /> %
+          </td>
+          <td class="p-2.5 font-mono-tech font-bold text-sari-blue bpu-unit-price">
+            ${i18n.formatCurrency(unitOffer)}
+          </td>
+          <td class="p-2.5">
+            <input type="number" value="${qty}" oninput="TendersModule.recalculateBPU()" class="bpu-qty w-16 px-2 py-1 border rounded text-center font-mono-tech font-bold" />
+          </td>
+          <td class="p-2.5 font-mono-tech font-extrabold text-sari-blue bpu-line-total">
+            ${i18n.formatCurrency(totalLine)}
+          </td>
+          <td class="p-2.5 text-right">
+            <button onclick="this.closest('tr').remove(); TendersModule.recalculateBPU();" class="text-red-500 hover:text-red-700">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = rowsHtml;
+    this.recalculateBPU();
+  },
+
+  addItemToBidWorkspace() {
+    const sel = document.getElementById('bpu-add-select');
+    if (!sel) return;
+    const pid = sel.value;
+    const p = this.state.products.find(x => x.id === pid);
+    if (!p) return;
+
+    const tbody = document.getElementById('bpu-table-body');
+    const unitCost = Number(p.purchasePrice) || 5000;
+    const margin = 25;
+    const unitOffer = Math.round(unitCost * (1 + margin / 100));
+
+    const tr = document.createElement('tr');
+    tr.className = 'border-t border-slate-200 dark:border-slate-800 bpu-row';
+    tr.setAttribute('data-pid', p.id);
+    tr.setAttribute('data-cost', unitCost);
+    tr.innerHTML = `
+      <td class="p-2.5 font-bold">${p.sku} - ${p.name}</td>
+      <td class="p-2.5 font-mono-tech">${i18n.formatCurrency(unitCost)}</td>
+      <td class="p-2.5"><input type="number" value="${margin}" oninput="TendersModule.recalculateBPU()" class="bpu-margin w-16 px-2 py-1 border rounded text-center font-bold" /> %</td>
+      <td class="p-2.5 font-mono-tech font-bold text-sari-blue bpu-unit-price">${i18n.formatCurrency(unitOffer)}</td>
+      <td class="p-2.5"><input type="number" value="10" oninput="TendersModule.recalculateBPU()" class="bpu-qty w-16 px-2 py-1 border rounded text-center font-mono-tech font-bold" /></td>
+      <td class="p-2.5 font-mono-tech font-extrabold text-sari-blue bpu-line-total">${i18n.formatCurrency(unitOffer * 10)}</td>
+      <td class="p-2.5 text-right"><button onclick="this.closest('tr').remove(); TendersModule.recalculateBPU();" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+    this.recalculateBPU();
+  },
+
+  recalculateBPU() {
+    const rows = document.querySelectorAll('.bpu-row');
+    let grandTotalDZD = 0;
+    let totalCostDZD = 0;
+
+    rows.forEach(r => {
+      const cost = Number(r.getAttribute('data-cost')) || 0;
+      const margin = Number(r.querySelector('.bpu-margin').value) || 0;
+      const qty = Number(r.querySelector('.bpu-qty').value) || 1;
+      const unitOffer = Math.round(cost * (1 + margin / 100));
+      const lineTotal = unitOffer * qty;
+      const lineCost = cost * qty;
+
+      r.querySelector('.bpu-unit-price').textContent = i18n.formatCurrency(unitOffer);
+      r.querySelector('.bpu-line-total').textContent = i18n.formatCurrency(lineTotal);
+
+      grandTotalDZD += lineTotal;
+      totalCostDZD += lineCost;
+    });
+
+    const totalProfitDZD = grandTotalDZD - totalCostDZD;
+    const profitMarginPercent = totalCostDZD > 0 ? ((totalProfitDZD / totalCostDZD) * 100).toFixed(1) : 0;
+
+    const summaryBox = document.getElementById('bpu-summary-box');
+    if (summaryBox) {
+      summaryBox.innerHTML = `
+        <div>
+          <span class="text-xs text-slate-700 dark:text-slate-300 font-bold uppercase">Montant Total de l'Offre Financière</span>
+          <h3 class="text-2xl font-extrabold font-mono-tech text-sari-lime-dark mt-0.5">${i18n.formatCurrency(grandTotalDZD)}</h3>
+        </div>
+        <div class="text-right">
+          <span class="sari-badge bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono-tech">
+            Marge Globale Estimée : ${i18n.formatCurrency(totalProfitDZD)} (+${profitMarginPercent}%)
+          </span>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
+            Conforme au barème des marchés publics algériens
+          </p>
+        </div>
+      `;
+    }
+  },
+
+  async saveBidWorkspace() {
+    if (!this.state.activeBidTenderId) return;
+    const rows = document.querySelectorAll('.bpu-row');
+    const pids = [];
+    rows.forEach(r => {
+      const pid = r.getAttribute('data-pid');
+      if (pid) pids.push(pid);
+    });
+
+    const t = await window.sariDB.getById('tenders', this.state.activeBidTenderId);
+    if (t) {
+      t.linkedProductIds = pids;
+      await window.syncController.enqueueMutation('tenders', 'save', t);
+      window.app.showToast('Offre financière (BPU) enregistrée avec succès !', 'success');
+      this.closeBidWorkspace();
+      await this.render();
+    }
+  },
+
+  closeBidWorkspace() {
+    const modalEl = document.getElementById('tender-workspace-modal');
+    if (modalEl) modalEl.innerHTML = '';
+  },
+
+  /**
+   * Required documents checklist modal
+   */
+  async openDocsModal(tenderId) {
+    const t = await window.sariDB.getById('tenders', tenderId);
+    if (!t) return;
+
+    const modalEl = document.getElementById('tender-docs-modal');
+    if (!modalEl) return;
+
+    const requiredFiles = [
+      { name: 'Cahier des Charges (Lu, paraphé et signé)', status: 'Prêt' },
+      { name: 'Déclaration de Candidature (Formulaire DC1/DC2)', status: 'Prêt' },
+      { name: 'Fiches Techniques et Catalogues des Produits', status: 'Prêt' },
+      { name: 'Agrément Ministère de la Santé Algérie (MSPRH)', status: 'Prêt' },
+      { name: 'Offre Financière (Lettre de soumission & BPU)', status: 'Prêt' },
+      { name: 'Caution de Soumission Bancaire (1% du montant)', status: 'En Attente' }
+    ];
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
+        <div class="sari-tile w-full max-w-xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+          <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <div>
+              <span class="text-xs font-bold text-sari-blue uppercase">Dossier d'Appel d'Offres</span>
+              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">
+                Checklist Pièces Requises : ${t.id}
+              </h3>
+            </div>
+            <button onclick="TendersModule.closeDocsModal()" class="text-slate-400 hover:text-slate-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-sm">
+            ${requiredFiles.map((f, i) => {
+              const ready = i < 5;
+              return `
+                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded border flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <i class="fas ${ready ? 'fa-check-circle text-sari-lime-dark' : 'fa-clock text-sari-amber'} text-lg"></i>
+                    <span class="font-semibold text-slate-800 dark:text-slate-200">${f.name}</span>
+                  </div>
+                  <span class="text-xs font-bold px-2 py-0.5 rounded ${ready ? 'bg-sari-lime/20 text-sari-lime-dark' : 'bg-sari-amber/20 text-sari-amber'}">
+                    ${ready ? 'Dossier Prêt' : 'En Attente'}
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="mt-5 flex justify-end gap-2">
+            <button onclick="TendersModule.closeDocsModal()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
+              Valider le Dossier Administrative
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeDocsModal() {
+    const modalEl = document.getElementById('tender-docs-modal');
+    if (modalEl) modalEl.innerHTML = '';
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.TendersModule = TendersModule;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = TendersModule;
+}

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="sariBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#009CC5"/>
+      <stop offset="100%" stop-color="#006C8A"/>
+    </linearGradient>
+    <linearGradient id="sariLimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C6DA34"/>
+      <stop offset="100%" stop-color="#A5B726"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Shield/Grid tile -->
+  <rect x="32" y="32" width="448" height="448" rx="64" fill="url(#sariBlueGrad)" stroke="#C6DA34" stroke-width="12"/>
+  
+  <!-- Pixel Grid Accent Corners -->
+  <rect x="64" y="64" width="32" height="32" fill="#C6DA34" opacity="0.8"/>
+  <rect x="108" y="64" width="32" height="32" fill="#EBB51A" opacity="0.8"/>
+  <rect x="416" y="64" width="32" height="32" fill="#C6DA34" opacity="0.8"/>
+  <rect x="64" y="416" width="32" height="32" fill="#C6DA34" opacity="0.8"/>
+  <rect x="416" y="416" width="32" height="32" fill="#EBB51A" opacity="0.8"/>
+
+  <!-- Medical Cross / Plus Emblem with Sharp Grid Pixel Edges -->
+  <path d="M 216 128 H 296 V 216 H 384 V 296 H 296 V 384 H 216 V 296 H 128 V 216 H 216 Z" fill="#FFFFFF" stroke="#C6DA34" stroke-width="8"/>
+
+  <!-- Center Diamond / S symbol -->
+  <path d="M 236 216 H 280 L 256 248 L 276 256 L 256 288 H 228 L 248 264 L 228 256 Z" fill="#009CC5"/>
+</svg>

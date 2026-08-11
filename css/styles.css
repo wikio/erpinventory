@@ -1,0 +1,323 @@
+/* ==========================================================================
+   SARI Système - Design System & Custom Styles
+   Apple-Style Full-Width Layout (100% width) + Lucide Icons + 4 Native Themes:
+   1. Sari Classic (Default): #009CC5, #C6DA34, #EBB51A
+   2. Sari Clinical: Cool/Sober Teal #0D9488, #14B8A6
+   3. Sari Sunset: Warm Amber/Orange #EA580C, #F59E0B
+   4. Sari Midnight: True Native Dark #030712, #0F172A
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --color-primary: #009CC5;
+  --color-primary-dark: #007D9E;
+  --color-lime: #C6DA34;
+  --color-lime-dark: #9BB024;
+  --color-amber: #EBB51A;
+  --color-amber-dark: #C69512;
+  
+  --color-bg: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-text: #0F172A;
+  --color-text-muted: #64748B;
+  
+  --font-sans: 'Plus Jakarta Sans', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'IBM Plex Sans Arabic', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* ==========================================================================
+   4 NATIVE THEMES (Apple Style)
+   ========================================================================== */
+
+/* 1. Sari Classic (Default Official Palette) */
+body.theme-classic {
+  --color-primary: #009CC5;
+  --color-primary-dark: #007D9E;
+  --color-lime: #C6DA34;
+  --color-lime-dark: #9BB024;
+  --color-amber: #EBB51A;
+  --color-bg: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-text: #0F172A;
+  --color-text-muted: #64748B;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* 2. Sari Clinical (Cool/Sober Teal for Dense Screens) */
+body.theme-clinical {
+  --color-primary: #0D9488;
+  --color-primary-dark: #0F766E;
+  --color-lime: #14B8A6;
+  --color-lime-dark: #0F766E;
+  --color-amber: #F59E0B;
+  --color-bg: #F0FDFA;
+  --color-card: #FFFFFF;
+  --color-border: #CCFBF1;
+  --color-text: #134E4A;
+  --color-text-muted: #5EEAD4;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* 3. Sari Sunset (Warm Amber/Orange for Commercial Modules) */
+body.theme-sunset {
+  --color-primary: #EA580C;
+  --color-primary-dark: #C2410C;
+  --color-lime: #F59E0B;
+  --color-lime-dark: #B45309;
+  --color-amber: #F97316;
+  --color-bg: #FFFBEB;
+  --color-card: #FFFFFF;
+  --color-border: #FEF3C7;
+  --color-text: #78350F;
+  --color-text-muted: #D97706;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* 4. Sari Midnight (True Native Dark Mode for Warehouse Night Shifts) */
+body.theme-midnight,
+body.theme-dark {
+  --color-primary: #38BDF8;
+  --color-primary-dark: #0284C7;
+  --color-lime: #C6DA34;
+  --color-lime-dark: #A5B726;
+  --color-amber: #EBB51A;
+  --color-bg: #030712;
+  --color-card: #0F172A;
+  --color-border: #1E293B;
+  --color-text: #F8FAFC;
+  --color-text-muted: #94A3B8;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Monospace / Technical numerals for SKUs, DZD prices, Lot batch numbers */
+.font-mono-tech {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* Apple-Style Frosted Glass / Full Width Tile Architecture */
+.sari-tile {
+  position: relative;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 12px;
+  background-color: var(--color-card);
+  border-color: var(--color-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.theme-midnight .sari-tile,
+body.theme-dark .sari-tile {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.sari-tile:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+/* Pixel / Geometric corner accent marker */
+.sari-corner-accent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-lime);
+  pointer-events: none;
+  border-top-right-radius: 11px;
+}
+
+[dir="rtl"] .sari-corner-accent {
+  right: auto;
+  left: 0;
+  border-top-right-radius: 0;
+  border-top-left-radius: 11px;
+}
+
+.sari-corner-accent.amber {
+  background-color: var(--color-amber);
+}
+
+.sari-corner-accent.blue {
+  background-color: var(--color-primary);
+}
+
+/* Grid Pattern Background Accent */
+.sari-grid-pattern {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 156, 197, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 156, 197, 0.06) 1px, transparent 1px);
+}
+
+body.theme-midnight .sari-grid-pattern,
+body.theme-dark .sari-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.theme-midnight ::-webkit-scrollbar-track,
+body.theme-dark ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-lime);
+}
+
+/* RTL Layout Enhancements */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Custom Modal Backdrop with blur */
+.sari-modal-backdrop {
+  background-color: rgba(3, 7, 18, 0.75);
+  backdrop-filter: blur(8px);
+}
+
+/* Badge Apple style */
+.sari-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+}
+
+/* Button Apple effect */
+.sari-btn {
+  position: relative;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.sari-btn:active {
+  transform: scale(0.98);
+}
+
+/* Table alternating rows */
+body.theme-classic .sari-table tbody tr:nth-child(even),
+body.theme-clinical .sari-table tbody tr:nth-child(even),
+body.theme-sunset .sari-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+body.theme-midnight .sari-table tbody tr:nth-child(even),
+body.theme-dark .sari-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Pulse animation for notifications and status badges */
+@keyframes sariPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(1.04); }
+}
+
+.animate-sari-pulse {
+  animation: sariPulse 2s infinite ease-in-out;
+}
+
+/* Sidebar item active state */
+.sari-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.sari-sidebar-item:hover {
+  background-color: rgba(0, 156, 197, 0.1);
+  color: var(--color-primary);
+}
+
+.sari-sidebar-item.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF !important;
+  font-weight: 700;
+  box-shadow: 0 4px 10px -2px rgba(0, 156, 197, 0.4);
+}
+
+/* Print Stylesheet for Invoices, Delivery Notes, and Labels */
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+
+  .sari-tile {
+    box-shadow: none !important;
+    border: 1px solid #CCCCCC !important;
+  }
+  
+  #main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
