@@ -305,14 +305,20 @@ body.theme-dark .sari-table tbody tr:nth-child(even) {
 .kanban-card { cursor: grab; border-left: 3px solid var(--color-primary); }
 .kanban-card:active { cursor: grabbing; }
 
-/* Secure authentication */
+/* Secure authentication. Critical layout is self-contained so login remains
+   usable even if the optional Tailwind CDN is unavailable. */
+.hidden { display: none !important; }
 body.auth-locked { overflow: hidden; }
 .auth-gate {
+  position: fixed; inset: 0; z-index: 100; overflow-y: auto;
   background: radial-gradient(circle at 15% 15%, rgba(198, 218, 52, .16), transparent 28%),
     radial-gradient(circle at 85% 80%, rgba(0, 156, 197, .2), transparent 32%), #071522;
 }
-.auth-card { animation: authCardIn .35s cubic-bezier(.16, 1, .3, 1); }
-.auth-card-header { background: linear-gradient(135deg, #007d9e, #009cc5 65%, #08728e); }
+.auth-gate > div { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+.auth-card { width: 100%; max-width: 28rem; background: #fff; border-radius: 1rem; overflow: hidden; animation: authCardIn .35s cubic-bezier(.16, 1, .3, 1); }
+.auth-card form { padding: 1.75rem; }
+.auth-card form > * + * { margin-top: 1rem; }
+.auth-card-header { padding: 1.75rem; background: linear-gradient(135deg, #007d9e, #009cc5 65%, #08728e); }
 .auth-input-wrap {
   display: flex; align-items: center; gap: .65rem; width: 100%; padding: 0 .85rem;
   border: 1px solid #cbd5e1; border-radius: .65rem; color: #64748b; background: #fff;
@@ -325,6 +331,9 @@ body.auth-locked { overflow: hidden; }
 .auth-captcha { width: 100%; max-width: calc(100% - 3.5rem); height: 52px; border: 1px solid #cbd5e1; border-radius: .65rem; }
 .auth-refresh { width: 3.25rem; display: grid; place-items: center; border: 1px solid #cbd5e1; border-radius: .65rem; color: #007d9e; background: #f8fafc; }
 .auth-refresh:hover { background: #e6f7fb; border-color: #009cc5; }
+.auth-card fieldset > div { display: flex; gap: .5rem; }
+#login-submit { width: 100%; min-height: 2.75rem; background: #009cc5; color: #fff; border: 0; }
+#login-submit:hover { background: #007d9e; }
 .auth-refresh:disabled, #login-submit:disabled { opacity: .6; cursor: wait; }
 .auth-answer { width: 100%; height: 2.6rem; border: 1px solid #cbd5e1; border-radius: .65rem; padding: 0 .85rem; outline: 0; color: #0f172a; font-size: .85rem; }
 .auth-answer:focus { border-color: #009cc5; box-shadow: 0 0 0 3px rgba(0, 156, 197, .13); }

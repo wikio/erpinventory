@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v1.2.0-operations';
+const CACHE_NAME = 'sari-systeme-v1.2.1-login-fix';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -64,7 +64,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // We use Stale-While-Revalidate for public app files to guarantee immediate offline rendering.
+  // Navigation is network-first so a stale cached index cannot hide a newly fixed login gate.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    return;
+  }
+
+  // Static app assets use Stale-While-Revalidate for immediate offline rendering.
   if (event.request.method !== 'GET') return;
 
   event.respondWith(

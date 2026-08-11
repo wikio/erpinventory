@@ -12,6 +12,8 @@ class AuthController {
   }
 
   async init() {
+    // The gate is visible immediately, even while session detection is pending.
+    this.showLogin();
     try {
       const response = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) {
@@ -21,7 +23,7 @@ class AuthController {
       }
       const data = await response.json();
       this.setAuthenticatedUser(data.user);
-      this.hideLogin();
+      // The app controller hides the gate only after the offline database is ready.
       return true;
     } catch (error) {
       this.showLogin('Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.');

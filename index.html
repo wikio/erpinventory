@@ -13,6 +13,8 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Keep the application bootable when the Tailwind CDN is temporarily unavailable.
+    window.tailwind = window.tailwind || {};
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -46,7 +48,7 @@
 <body class="theme-classic theme-light antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
 
   <!-- Secure authentication gate -->
-  <div id="sari-auth-gate" class="hidden fixed inset-0 z-[100] overflow-y-auto auth-gate sari-grid-pattern" role="dialog" aria-modal="true" aria-labelledby="login-title">
+  <div id="sari-auth-gate" class="fixed inset-0 z-[100] overflow-y-auto auth-gate sari-grid-pattern" role="dialog" aria-modal="true" aria-labelledby="login-title">
     <div class="min-h-full flex items-center justify-center p-4 sm:p-8">
       <div class="auth-card w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
         <div class="auth-card-header px-7 pt-7 pb-6 text-white">

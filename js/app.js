@@ -28,12 +28,7 @@ class SariApp {
   async init() {
     console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
 
-    // 1. Init Internationalization (FR / AR / EN)
-    if (window.i18n) {
-      await window.i18n.init();
-    }
-
-    // 2. Authenticate before opening or rendering business data.
+    // 1. Authenticate first. Do not let IndexedDB initialization block the login screen.
     if (window.auth) {
       const authenticated = await window.auth.init();
       if (!authenticated) {
@@ -42,15 +37,25 @@ class SariApp {
       }
     }
 
-    // 3. Init DB Adapter & seed only for authenticated users
-    if (window.dbAdapter) {
-      await window.dbAdapter.init();
-    } else if (window.sariDB) {
-      await window.sariDB.init();
+    // 2. Open and migrate the offline database only after authentication.
+    try {
+      if (window.dbAdapter) {
+        await window.dbAdapter.init();
+      } else if (window.sariDB) {
+        await window.sariDB.init();
+      }
+    } catch (error) {
+      console.error('[SARI Système] IndexedDB startup failed:', error);
+      window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
+      return;
     }
+
+    // 3. Initialize language after IndexedDB is available.
+    if (window.i18n) await window.i18n.init();
 
     // Load database-backed role permissions and optional employee overrides.
     if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+    window.auth?.hideLogin();
 
     // 4. Init Sync Controller
     if (window.syncController) {
