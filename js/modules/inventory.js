@@ -21,6 +21,7 @@ const InventoryModule = {
 
     this.state.products = await window.sariDB.getAll('products');
     this.state.warehouses = await window.sariDB.getAll('warehouses');
+    this.state.vatRates = (await window.sariDB.getAll('vatRates')).filter(rate => rate.isActive);
 
     this.renderView(container);
   },
@@ -73,7 +74,7 @@ const InventoryModule = {
                 type="text" 
                 id="inv-search" 
                 value="${this.state.searchQuery}"
-                oninput="InventoryModule.handleSearch(this.value)"
+                oninput="InventoryModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>InventoryModule.render())"
                 placeholder="Ex: Moniteur, DIA-MON, CE2025..." 
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
@@ -167,8 +168,8 @@ const InventoryModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${p.sku}
-                      <div class="text-[10px] text-slate-400 font-normal">${p.barcode || ''}</div>
+                      ${p.referenceCode || p.sku}
+                      <div class="text-[10px] text-slate-400 font-normal">${p.sku} • ${p.barcode || ''}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${p.name}</div>
@@ -200,6 +201,7 @@ const InventoryModule = {
                         <button onclick="InventoryModule.openBarcodeModal('${p.id}')" title="Imprimer Barcode/QR" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
                           <i class="fas fa-barcode"></i>
                         </button>
+                        <button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="InventoryModule.openModal('${p.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -252,16 +254,7 @@ const InventoryModule = {
         if (this.state.filterExpiry === 'valid' && expDate <= thirtyDays) return false;
       }
       // Search query
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchSku = p.sku && p.sku.toLowerCase().includes(q);
-        const matchName = p.name && p.name.toLowerCase().includes(q);
-        const matchLot = p.lotNumber && p.lotNumber.toLowerCase().includes(q);
-        const matchManufacturer = p.manufacturer && p.manufacturer.toLowerCase().includes(q);
-        if (!matchSku && !matchName && !matchLot && !matchManufacturer) {
-          return false;
-        }
-      }
+      if (!SariUtils.matchesAdvancedSearch(p,this.state.searchQuery,['referenceCode','sku','barcode','name','lotNumber','manufacturer','extendedDescription'])) return false;
       return true;
     });
   },
@@ -301,6 +294,10 @@ const InventoryModule = {
       unit: 'piece',
       purchasePrice: 10000,
       sellingPrice: 15000,
+      vatRateId: 'vat-19',
+      discountPercent: 0,
+      additionalFees: 0,
+      extendedDescription: '',
       stock: 20,
       minimumStock: 5,
       lotNumber: `LOT-${new Date().getFullYear()}-01`,
@@ -317,7 +314,7 @@ const InventoryModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">
               ${productId ? 'Modifier le Produit Médical' : 'Nouveau Produit Médical & Consommable'}
@@ -390,6 +387,12 @@ const InventoryModule = {
               </div>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-sari-blue/5 border border-sari-blue/20">
+              <div><label class="doc-label">Taux TVA applicable</label><select id="form-vat" class="doc-input">${(this.state.vatRates||[]).map(rate=>`<option value="${rate.id}" ${rate.id===(prod.vatRateId||'vat-19')?'selected':''}>${SariUtils.escapeHtml(rate.label)} (${rate.percentage}%)</option>`).join('')}</select></div>
+              <div><label class="doc-label">Remise produit (%)</label><input id="form-discount" type="number" min="0" max="100" step="0.01" value="${prod.discountPercent||0}" class="doc-input"></div>
+              <div><label class="doc-label">Autres frais applicables (DZD)</label><input id="form-fees" type="number" min="0" step="0.01" value="${prod.additionalFees||0}" class="doc-input"></div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Lot / Batch (Traçabilité)</label>
@@ -425,6 +428,8 @@ const InventoryModule = {
               <input type="text" id="form-storage" value="${prod.storageConditions || ''}" placeholder="Ex: Conserver au sec &lt; 25°C" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            ${RichTextEditor.html('form-rich-description', prod.extendedDescription || '', 'Description détaillée / Informations complémentaires')}
+
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="InventoryModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -446,19 +451,30 @@ const InventoryModule = {
   },
 
   async saveProduct(e) {
+    if (!auth.can('inventory', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `prod-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('products', id) : {};
+    const category = document.getElementById('form-category').value;
+    const subType = ({ consumables:'02', diagnostic:'03', furniture:'03', sterilization:'03', ppe:'01', surgical:'04' })[category] || '01';
+    const referenceCode = original.referenceCode || await ReferenceCodeManager.generate('PRO', { subType });
     const payload = {
+      ...original,
       id,
+      referenceCode,
       sku: document.getElementById('form-sku').value.trim(),
       barcode: document.getElementById('form-barcode').value.trim(),
-      category: document.getElementById('form-category').value,
+      category,
       name: document.getElementById('form-name').value.trim(),
       manufacturer: document.getElementById('form-manufacturer').value.trim(),
       countryOfOrigin: document.getElementById('form-country').value.trim(),
       unit: document.getElementById('form-unit').value,
       purchasePrice: Number(document.getElementById('form-purchase').value),
       sellingPrice: Number(document.getElementById('form-selling').value),
+      vatRateId: document.getElementById('form-vat').value,
+      discountPercent: Number(document.getElementById('form-discount').value) || 0,
+      additionalFees: Number(document.getElementById('form-fees').value) || 0,
+      extendedDescription: RichTextEditor.value('form-rich-description'),
       stock: Number(document.getElementById('form-stock').value),
       minimumStock: Number(document.getElementById('form-minstock').value),
       lotNumber: document.getElementById('form-lot').value.trim(),
@@ -477,7 +493,8 @@ const InventoryModule = {
   },
 
   async deleteProduct(id) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit médical ?')) return;
+    if (!auth.can('inventory','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Êtes-vous sûr de vouloir supprimer ce produit médical ?')) return;
     await window.syncController.enqueueMutation('products', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

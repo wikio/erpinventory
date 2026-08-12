@@ -37,6 +37,21 @@
 
 ---
 
+## 🆕 Operations, GED, HR & Collaboration
+
+- **Interactive tender checklists:** IndexedDB-backed checklist lines with inline status, deadlines, notes, attachments, progress indicators, and independent template instances.
+- **Central GED:** reusable offline document records linked through generic `recordType` + `recordId` associations; upload, preview, version replacement, metadata, expiry, unlink/delete, and multi-record linking.
+- **Enhanced commercial documents:** invoices, quotes, purchase orders and BL with DZD/EUR/USD, French/Arabic amounts in words, line/global discounts, delivery fees, per-rate VAT breakdown, configurable QR data, price-free BLs, notes, and visual templates.
+- **Human Resources:** employee profiles, employee documents, missions, vacancies and candidate Kanban pipeline.
+- **Tasks & supervision:** personal/team Kanban with configurable stages, priorities, linked ERP records and Day/Week/Month/Year planning scopes.
+- **Granular permissions:** database-backed role permission matrix for view/create/edit/delete plus optional employee-level overrides.
+
+IndexedDB schema version 5 now includes 39 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
+
+Additional administration tools include responsive/collapsible navigation, separate site and financial-document logos, a dependency-free rich text editor, an employee self-service portal, internal messaging, and a visual drag/resize document-template designer with live merge-field previews.
+
+Version 5 adds purchase invoices/quotes/receipts, cross-document conversion and tender traceability, advanced search and catalog picking, configurable payments/banks/accounts, partner 360° views and reports, centralized GED, signed verification URLs with QR/barcodes, Algerian G50/IBS/bilan tracking, coupons/referrals, and complete employee career/attendance/performance workflows. Native browser prompts have been replaced by themed asynchronous dialogs.
+
 ## 🏥 Core Functional Modules
 
 - **Dashboard Home**: Interactive KPI summary cards, Low-Stock / Near-Expiry alerts, 5 Chart.js analytics charts, Active Tenders & Deadlines, Import Shipments in Transit, and Audit Log timeline.
@@ -53,7 +68,7 @@
 ## 🗄️ SQL Schema & Seed Data Files (`/sql`)
 
 For deployments using external relational databases (MySQL / PostgreSQL / MariaDB), SARI Système provides cleanly separated DDL and DML files in `/sql`:
-- **`sql/schema.sql`**: Complete database structure (11 tables: `warehouses`, `suppliers`, `products`, `shipments`, `tenders`, `customers`, `orders`, `order_items`, `notifications`, `audit_logs`, `app_settings`), indexes, and foreign keys.
+- **`sql/schema.sql`**: Complete database structure (including `users`, core ERP entities, `vat_rates`, `document_codes`, `sequence_counters`, `conversations`, and `messages`), indexes, and foreign keys.
 - **`sql/seed_data.sql`**: Separate DML file with sample Algerian medical distribution records (4 Depots, Suppliers in China/Germany/France/Algeria, 8 Medical Products, CHU Mustapha, DSP Blida, etc.).
 
 To initialize in MySQL / PostgreSQL:
@@ -63,6 +78,23 @@ mysql -u root -p sari_erp_prod < sql/seed_data.sql
 ```
 
 ---
+
+## 🔐 Secure connection, CAPTCHA & user roles
+
+The ERP is protected by a server-side login gate with a single-use arithmetic CAPTCHA. Passwords use salted **scrypt** hashes, sessions use `HttpOnly`/`SameSite` cookies, and repeated failures trigger a temporary lockout. A user's role is assigned by the server and can no longer be changed from the browser.
+
+Demo accounts use the password **`Sari@2026`**:
+
+| Username | Role |
+|---|---|
+| `admin` | Administrator (full access) |
+| `stock` | Inventory manager |
+| `import` | Import/export manager |
+| `tenders` | Tenders manager |
+| `sales` | Sales employee |
+| `viewer` | Read-only observer |
+
+These accounts are for demonstration. Replace the built-in repository in `server.js` with your production user database and rotate all credentials before deployment.
 
 ## 🚀 Quick Start (Node.js Server included)
 

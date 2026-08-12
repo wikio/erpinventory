@@ -17,6 +17,7 @@ const SuppliersModule = {
     if (!container) return;
 
     this.state.suppliers = await window.sariDB.getAll('suppliers');
+    this.state.purchaseDocuments = await sariDB.getAll('purchaseDocuments');
     this.renderView(container);
   },
 
@@ -61,7 +62,7 @@ const SuppliersModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="SuppliersModule.handleSearch(this.value)"
+              oninput="SuppliersModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>SuppliersModule.render())"
               placeholder="Ex: MediCare, BioMed, Saidal, Allemagne..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -116,7 +117,7 @@ const SuppliersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3">
-                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div>
+                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                         <i class="fas fa-map-marker-alt text-sari-blue"></i> ${s.country}
                       </div>
@@ -150,6 +151,8 @@ const SuppliersModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="SuppliersModule.open360('${s.id}')" title="Vue 360°" class="p-1.5 rounded text-sari-lime-dark"><i data-lucide="chart-no-axes-combined" class="w-4 h-4"></i></button>
+                        <button onclick="DocumentManager.open('supplier','${s.id}','${SariUtils.escapeHtml(s.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="SuppliersModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -180,12 +183,7 @@ const SuppliersModule = {
       if (this.state.filterType !== 'all' && s.type !== this.state.filterType) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchName = s.name && s.name.toLowerCase().includes(q);
-        const matchCountry = s.country && s.country.toLowerCase().includes(q);
-        if (!matchName && !matchCountry) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','name','country','certifications','richDetails'])) return false;
       return true;
     });
   },
@@ -218,7 +216,7 @@ const SuppliersModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${supplierId ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur Médical'}
@@ -279,6 +277,7 @@ const SuppliersModule = {
               <input type="text" id="sup-contact" value="${sup.contactInfo || ''}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div class="grid md:grid-cols-[180px_1fr] gap-4"><label class="doc-label">Logo fournisseur${sup.logo?`<img src="${sup.logo}" class="h-16 object-contain my-2">`:''}<input id="sup-logo" type="file" accept="image/*" class="doc-input"></label>${RichTextEditor.html('sup-rich-details',sup.richDetails||'','Informations détaillées / certifications / conditions')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="SuppliersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -300,17 +299,25 @@ const SuppliersModule = {
   },
 
   async saveSupplier(e) {
+    if (!auth.can('suppliers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `sup-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('suppliers', id) : {};
+    const supplierType = document.getElementById('sup-type').value;
+    const subType = supplierType === 'international' || supplierType === 'manufacturer' ? '04' : supplierType === 'local' ? '02' : '03';
     const payload = {
+      ...original,
       id,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('FOU', { subType }),
       name: document.getElementById('sup-name').value.trim(),
       country: document.getElementById('sup-country').value.trim(),
-      type: document.getElementById('sup-type').value,
+      type: supplierType,
       currency: document.getElementById('sup-currency').value,
       incoterms: document.getElementById('sup-incoterm').value,
       certifications: document.getElementById('sup-cert').value.trim(),
-      contactInfo: document.getElementById('sup-contact').value.trim()
+      contactInfo: document.getElementById('sup-contact').value.trim(),
+      logo: document.getElementById('sup-logo').files[0] ? await SariUtils.fileToDataURL(document.getElementById('sup-logo').files[0]) : original.logo || '',
+      richDetails: RichTextEditor.value('sup-rich-details')
     };
 
     await window.syncController.enqueueMutation('suppliers', 'save', payload);
@@ -319,8 +326,11 @@ const SuppliersModule = {
     await this.render();
   },
 
+  async open360(id){const s=this.state.suppliers.find(x=>x.id===id),docs=this.state.purchaseDocuments.filter(d=>d.supplierId===id),total=docs.reduce((sum,d)=>sum+Number(d.total||0),0),outstanding=docs.filter(d=>!['paid','closed'].includes(d.status)).reduce((sum,d)=>sum+Number(d.total||0),0);await DialogManager.form(`Fournisseur 360° • ${s.name}`,[{name:'statistics',label:'Statistiques',type:'textarea',value:`Volume acheté: ${i18n.formatCurrency(total)}\nSolde en attente: ${i18n.formatCurrency(outstanding)}\nDocuments: ${docs.length}\nValeur moyenne: ${i18n.formatCurrency(docs.length?total/docs.length:0)}`},{name:'documents',label:'Documents associés',type:'textarea',value:docs.map(d=>`${d.referenceCode} • ${d.documentType} • ${d.status}`).join('\n')||'Aucun document'}],{confirmText:'Fermer'});},
+
   async deleteSupplier(id) {
-    if (!confirm('Supprimer ce fournisseur médical ?')) return;
+    if (!auth.can('suppliers','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer ce fournisseur médical ?')) return;
     await window.syncController.enqueueMutation('suppliers', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

@@ -25,7 +25,17 @@ const SettingsModule = {
       nis: '001616012345678',
       bankRib: 'BNA Agence 001 - RIB 00100161609876543209'
     },
-    dbTestResult: null
+    dbTestResult: null,
+    checklistTemplates: [],
+    roles: [],
+    documentTemplates: [],
+    vatRates: [],
+    documentCodes: [],
+    paymentMethods: [],
+    banks: [],
+    bankAccounts: [],
+    coupons: [],
+    referrals: []
   },
 
   async render(containerId = 'sari-main-view') {
@@ -41,6 +51,9 @@ const SettingsModule = {
       // ignore
     }
 
+    [this.state.checklistTemplates, this.state.roles, this.state.documentTemplates, this.state.vatRates, this.state.documentCodes, this.state.paymentMethods, this.state.banks, this.state.bankAccounts, this.state.coupons, this.state.referrals] = await Promise.all([
+      'checklistTemplates','roles','documentTemplates','vatRates','documentCodes','paymentMethods','banks','bankAccounts','coupons','referrals'
+    ].map(store=>sariDB.getAll(store)));
     this.renderView(container);
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -99,6 +112,13 @@ const SettingsModule = {
           >
             <i data-lucide="database" class="w-4 h-4"></i> Connecteur DB (Agnostic DB)
           </button>
+          <button onclick="SettingsModule.setTab('branding')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'branding' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="image" class="w-4 h-4"></i> Logos</button>
+          <button onclick="SettingsModule.setTab('financeAdmin')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'financeAdmin' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="landmark" class="w-4 h-4"></i> Paiements & Banque</button>
+          <button onclick="SettingsModule.setTab('vatRates')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'vatRates' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="percent" class="w-4 h-4"></i> Taux TVA</button>
+          <button onclick="SettingsModule.setTab('documentCodes')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'documentCodes' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="binary" class="w-4 h-4"></i> Types & Numérotation</button>
+          <button onclick="SettingsModule.setTab('checklists')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'checklists' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="list-checks" class="w-4 h-4"></i> Modèles Checklist</button>
+          <button onclick="SettingsModule.setTab('permissions')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'permissions' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="shield-check" class="w-4 h-4"></i> Rôles & Permissions</button>
+          <button onclick="SettingsModule.setTab('documentTemplates')" class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'documentTemplates' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="layout-template" class="w-4 h-4"></i> Modèles Documents</button>
           <button 
             onclick="SettingsModule.setTab('dataTools')" 
             class="px-4 py-2 rounded text-xs font-bold transition flex items-center gap-1.5 ${tab === 'dataTools' ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}"
@@ -336,6 +356,35 @@ const SettingsModule = {
       `;
     }
 
+    if (tab === 'branding') {
+      return `<div class="grid md:grid-cols-2 gap-5"><section class="sari-tile p-6"><h3 class="font-extrabold text-lg">Logo de l’application</h3><p class="text-xs text-slate-500">Utilisé dans l’en-tête et l’espace collaborateur.</p>${this.logoUploader('siteLogo','logo-site-preview',s.siteLogo)}</section><section class="sari-tile p-6"><h3 class="font-extrabold text-lg">Logo des documents financiers</h3><p class="text-xs text-slate-500">Logo indépendant pour factures, devis, commandes et BL.</p>${this.logoUploader('documentLogo','logo-document-preview',s.documentLogo)}</section></div>`;
+    }
+
+    if (tab === 'financeAdmin') {
+      return `<div class="space-y-4"><section class="sari-tile p-5"><h3 class="font-extrabold text-lg">Authenticité des documents</h3><div class="grid md:grid-cols-2 gap-3 mt-3"><label class="doc-label">Clé secrète de vérification<input id="cfg-verification-secret" type="password" value="${SariUtils.escapeHtml(s.verificationSecret||'SARI-CHANGE-ME')}" class="doc-input"></label><label class="doc-label">URL de vérification<input id="cfg-verification-url" value="${SariUtils.escapeHtml(s.verificationBaseUrl||'https://verify.sari-systeme.dz')}" class="doc-input"></label></div><button onclick="SettingsModule.saveVerificationSettings()" class="sari-btn px-4 py-2 mt-3 bg-sari-blue text-white">Enregistrer</button></section><div class="grid lg:grid-cols-2 gap-4"><section class="sari-tile p-5"><header class="flex justify-between"><h3 class="font-extrabold">Modes de paiement</h3><button onclick="SettingsModule.editPaymentMethod()" class="doc-action">+ Ajouter</button></header>${this.state.paymentMethods.map(x=>`<div class="flex justify-between p-2 border-b"><span>${SariUtils.escapeHtml(x.label?.[i18n.currentLang]||x.code)}</span><button onclick="SettingsModule.editPaymentMethod('${x.id}')" class="doc-action">Modifier</button></div>`).join('')}</section><section class="sari-tile p-5"><header class="flex justify-between"><h3 class="font-extrabold">Banques & comptes société</h3><button onclick="SettingsModule.editBankAccount()" class="doc-action">+ Compte</button></header>${this.state.bankAccounts.map(a=>`<div class="p-2 border-b"><b>${SariUtils.escapeHtml(a.name)}</b><small class="block">${a.currency} • ${SariUtils.escapeHtml(a.iban)}</small></div>`).join('')}</section><section class="sari-tile p-5"><header class="flex justify-between"><h3 class="font-extrabold">Coupons & bons de remise</h3><button onclick="SettingsModule.editCoupon()" class="doc-action">+ Coupon</button></header>${this.state.coupons.map(x=>`<div class="p-2 border-b"><b>${x.code}</b> • ${x.value}${x.discountType==='percentage'?'%':' DZD'} <span class="text-xs">${x.scope}</span></div>`).join('')}</section><section class="sari-tile p-5"><header class="flex justify-between"><h3 class="font-extrabold">Agents & canaux commerciaux</h3><button onclick="SettingsModule.editReferral()" class="doc-action">+ Référent</button></header>${this.state.referrals.map(x=>`<div class="p-2 border-b"><b>${SariUtils.escapeHtml(x.name)}</b><small class="block">${x.type} • Commission ${x.commissionPercent||0}%</small></div>`).join('')}</section></div></div>`;
+    }
+
+    if (tab === 'vatRates') {
+      return `<section class="sari-tile p-6"><header class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Gestionnaire des taux TVA</h3><p class="text-xs text-slate-500">Source unique utilisée par les produits et documents commerciaux.</p></div><button onclick="SettingsModule.editVatRate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">+ Nouveau taux</button></header><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">${this.state.vatRates.map(rate=>`<article class="p-4 border rounded-xl ${rate.isActive?'':'opacity-50'}"><div class="flex justify-between"><b>${SariUtils.escapeHtml(rate.label)}</b>${rate.isDefault?'<span class="sari-badge bg-sari-lime/20 text-sari-lime-dark">Défaut</span>':''}</div><div class="text-3xl font-black text-sari-blue my-3">${rate.percentage}%</div><div class="flex gap-2"><button onclick="SettingsModule.editVatRate('${rate.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.toggleVatRate('${rate.id}')" class="doc-action">${rate.isActive?'Désactiver':'Activer'}</button><button onclick="SettingsModule.deleteVatRate('${rate.id}')" class="doc-action text-red-600">Supprimer</button></div></article>`).join('')}</div></section>`;
+    }
+
+    if (tab === 'documentCodes') {
+      return `<section class="sari-tile p-6"><header class="flex flex-col md:flex-row justify-between gap-3 border-b pb-4"><div><h3 class="font-extrabold text-lg">Types de documents & numérotation</h3><p class="text-xs text-slate-500">Masques, séquences, réinitialisation et sous-types ERP.</p></div><button onclick="SettingsModule.editDocumentCode()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">+ Nouveau type</button></header><div class="overflow-x-auto mt-4"><table class="w-full sari-table text-xs min-w-[900px]"><thead><tr class="border-b text-left uppercase text-slate-500"><th class="p-2">Code</th><th>Désignation</th><th>Type</th><th>Masque</th><th>Exemple</th><th>Reset</th><th>Actions</th></tr></thead><tbody>${this.state.documentCodes.sort((a,b)=>a.code.localeCompare(b.code)).map(def=>`<tr class="border-b"><td class="p-2 font-black text-sari-blue">${def.code}</td><td><b>${SariUtils.escapeHtml(def.designation)}</b><div class="text-[10px] text-slate-400">${SariUtils.escapeHtml(def.description||'')}</div></td><td>${def.maskType}</td><td><code>${SariUtils.escapeHtml(def.mask)}</code></td><td class="font-mono-tech">${SariUtils.escapeHtml(def.example)}</td><td>${def.resetFrequency}</td><td><button onclick="SettingsModule.editDocumentCode('${def.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteDocumentCode('${def.id}')" class="doc-action text-red-600">Supprimer</button></td></tr>`).join('')}</tbody></table></div><div class="mt-4 p-3 bg-sari-blue/5 rounded text-xs"><b>Jetons :</b> {YY}, {YYYY}, {MM}, {SEQ}, {SUBTYPE}, {COUNTRY3}, {TEMPLATE3}, {REGISTRY}. La séquence grandit automatiquement au-delà du minimum configuré.</div></section>`;
+    }
+
+    if (tab === 'checklists') {
+      return `<div class="sari-tile p-6"><div class="flex justify-between items-center border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles de checklist</h3><p class="text-xs text-slate-500">Les modèles sont copiés lors de la création d’un appel d’offres.</p></div><button onclick="SettingsModule.editChecklistTemplate()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus" class="w-4 h-4"></i>Nouveau modèle</button></div><div class="grid md:grid-cols-2 gap-4 mt-5">${this.state.checklistTemplates.map(tpl=>`<article class="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/60"><div class="flex justify-between"><div><h4 class="font-extrabold">${SariUtils.escapeHtml(tpl.name)}</h4><p class="text-xs text-slate-500">${SariUtils.escapeHtml(tpl.description||'')}</p></div><span class="sari-badge">${tpl.items.length} lignes</span></div><ol class="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">${tpl.items.map(i=>`<li>• ${SariUtils.escapeHtml(i.label)}</li>`).join('')}</ol><div class="flex justify-end gap-2 mt-4 pt-3 border-t"><button onclick="SettingsModule.editChecklistTemplate('${tpl.id}')" class="doc-action">Modifier</button><button onclick="SettingsModule.deleteChecklistTemplate('${tpl.id}')" class="doc-action text-red-600">Supprimer</button></div></article>`).join('')}</div></div>`;
+    }
+
+    if (tab === 'permissions') {
+      const modules=['dashboard','inventory','tenders','importExport','suppliers','sales','customers','reports','documents','hr','tasks','portal','messages','purchases','ged','taxes','vatRates','documentCodes','settings']; const actions=['view','create','edit','delete'];
+      return `<div class="sari-tile p-6"><div class="border-b pb-4"><h3 class="font-extrabold text-lg">Matrice des rôles & permissions</h3><p class="text-xs text-slate-500">Contrôle granulaire par module et action. Les modifications prennent effet à la prochaine navigation.</p></div><div class="overflow-x-auto mt-4"><table class="w-full text-xs"><thead><tr class="border-b"><th class="p-2 text-left">Module</th>${this.state.roles.map(r=>`<th class="p-2 min-w-32">${SariUtils.escapeHtml(r.name)}</th>`).join('')}</tr></thead><tbody>${modules.map(mod=>`<tr class="border-b"><td class="p-2 font-bold">${mod}</td>${this.state.roles.map(r=>`<td class="p-2"><div class="grid grid-cols-2 gap-1">${actions.map(a=>{const checked=r.permissions.includes('*')||r.permissions.includes(`${mod}.*`)||r.permissions.includes(`${mod}.${a}`);return `<label class="flex items-center gap-1" title="${mod}.${a}"><input type="checkbox" ${checked?'checked':''} ${r.id==='admin'?'disabled':''} onchange="SettingsModule.togglePermission('${r.id}','${mod}','${a}',this.checked)"><span>${a[0].toUpperCase()}</span></label>`}).join('')}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="text-[10px] text-slate-400 mt-3">V = view, C = create, E = edit, D = delete. Des dérogations individuelles peuvent être stockées sur la fiche employé.</p></div>`;
+    }
+
+    if (tab === 'documentTemplates') {
+      return `<div class="sari-tile p-6"><div class="flex justify-between border-b pb-4"><div><h3 class="font-extrabold text-lg">Modèles Facture / Devis / BL</h3><p class="text-xs text-slate-500">Designs réutilisables avec aperçu instantané.</p></div><button onclick="TemplateDesigner.open()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs">Nouveau design visuel</button></div><div class="grid md:grid-cols-3 gap-4 mt-5">${this.state.documentTemplates.map(t=>`<article class="rounded-xl border overflow-hidden"><div class="h-28 p-4 bg-white text-slate-900" style="border-top:8px solid ${t.accent}"><div class="flex justify-between"><b style="color:${t.accent}">SARI SYSTÈME</b><span class="text-xs">FACTURE</span></div><div class="mt-4 h-1 bg-slate-200"></div><div class="mt-2 h-1 bg-slate-100 w-2/3"></div></div><div class="p-3 bg-slate-50 dark:bg-slate-800"><b>${SariUtils.escapeHtml(t.name)}</b><p class="text-xs text-slate-500">${t.layout} • ${t.type}</p><div class="flex gap-2 mt-2"><button onclick="TemplateDesigner.open('${t.id}')" class="doc-action">Designer</button><button onclick="SettingsModule.editDocumentTemplate('${t.id}')" class="doc-action">Propriétés</button><button onclick="SettingsModule.deleteDocumentTemplate('${t.id}')" class="doc-action text-red-600">Supprimer</button></div></div></article>`).join('')}</div></div>`;
+    }
+
     if (tab === 'database') {
       const curDriver = (window.dbAdapter && window.dbAdapter.currentDriver) || 'indexeddb';
       const conf = (window.dbAdapter && window.dbAdapter.driverConfig) || {};
@@ -446,7 +495,7 @@ const SettingsModule = {
         <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">Outils de Données, Exports CSV & Sauvegardes Système</h3>
           <p class="text-xs text-slate-500 mt-0.5">
-            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 11 stores ou restaurez votre système.
+            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 39 stores ou restaurez votre système.
           </p>
         </div>
 
@@ -687,21 +736,47 @@ const SettingsModule = {
   },
 
   async resetDemoData() {
-    if (!confirm('Attention: Toutes les données seront réinitialisées au jeu de démonstration Algérie. Continuer ?')) {
+    if (!await DialogManager.confirm('Attention: Toutes les données seront réinitialisées au jeu de démonstration Algérie. Continuer ?')) {
       return;
     }
     try {
-      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue'];
+      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates', 'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords', 'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals', 'taxRecords', 'g50Payments', 'attendance', 'performanceRecords'];
       for (const s of stores) {
         await window.sariDB.clearStore(s);
       }
       await window.sariDB.seedDemoData();
+      await window.sariDB.seedFeatureData();
+      await window.sariDB.seedEnterpriseData();
+      await window.sariDB.seedBusinessData();
       window.app.showToast('Données de démonstration chargées !', 'success');
       setTimeout(() => window.location.reload(), 1200);
     } catch (e) {
       window.app.showToast('Erreur lors de la réinitialisation.', 'error');
     }
   },
+
+  logoUploader(field, previewId, value='') {
+    return `<div class="logo-drop-zone mt-5" ondragover="event.preventDefault();this.classList.add('dragging')" ondragleave="this.classList.remove('dragging')" ondrop="SettingsModule.dropLogo(event,'${field}','${previewId}')"><img id="${previewId}" src="${value||'/assets/sari-logo.svg'}" class="h-28 max-w-full mx-auto object-contain" alt="Aperçu logo"><p class="text-xs font-bold mt-3">Glissez une image ici</p><p class="text-[10px] text-slate-400">PNG, JPEG, WEBP ou SVG • 2 Mo max.</p><label class="sari-btn px-4 py-2 mt-3 bg-sari-blue text-white text-xs cursor-pointer">Choisir un fichier<input type="file" accept="image/*" class="hidden" onchange="SettingsModule.selectLogo(this.files[0],'${field}','${previewId}')"></label>${value?`<button onclick="SettingsModule.removeLogo('${field}')" class="doc-action text-red-600 block mx-auto mt-2">Supprimer le logo</button>`:''}</div>`;
+  },
+  dropLogo(event,field,previewId){event.preventDefault();event.currentTarget.classList.remove('dragging');this.selectLogo(event.dataTransfer.files[0],field,previewId);},
+  selectLogo(file,field,previewId){if(!file||!file.type.startsWith('image/'))return app.showToast('Sélectionnez une image valide.','error');if(file.size>2*1024*1024)return app.showToast('Le logo ne doit pas dépasser 2 Mo.','error');const reader=new FileReader();reader.onload=async()=>{document.getElementById(previewId).src=reader.result;this.state.settings[field]=reader.result;await sariDB.save('settings',this.state.settings);this.applyBranding(this.state.settings);app.showToast('Logo enregistré.','success');};reader.readAsDataURL(file);},
+  async removeLogo(field){this.state.settings[field]='';await sariDB.save('settings',this.state.settings);this.applyBranding(this.state.settings);this.render();},
+  applyBranding(settings=this.state.settings){const img=document.getElementById('sari-site-logo');const fallback=document.getElementById('sari-default-logo');if(img){img.src=settings.siteLogo||'';img.classList.toggle('hidden',!settings.siteLogo);}if(fallback)fallback.classList.toggle('hidden',!!settings.siteLogo);},
+
+  async saveVerificationSettings(){this.state.settings.verificationSecret=document.getElementById('cfg-verification-secret').value;this.state.settings.verificationBaseUrl=document.getElementById('cfg-verification-url').value.replace(/\/$/,'');await sariDB.save('settings',this.state.settings);app.showToast('Paramètres de vérification enregistrés.','success');},
+  async editPaymentMethod(id=''){const old=this.state.paymentMethods.find(x=>x.id===id)||{};const v=await DialogManager.form(id?'Modifier le mode de paiement':'Nouveau mode de paiement',[{name:'code',label:'Code',value:old.code||'',required:true},{name:'fr',label:'Libellé français',value:old.label?.fr||'',required:true},{name:'ar',label:'Libellé arabe',value:old.label?.ar||''},{name:'en',label:'Libellé anglais',value:old.label?.en||''}]);if(!v)return;await sariDB.save('paymentMethods',{...old,id:id||`pay-${crypto.randomUUID()}`,code:v.code,label:{fr:v.fr,ar:v.ar,en:v.en},isActive:true});this.render();},
+  async editBankAccount(){const v=await DialogManager.form('Nouveau compte bancaire',[{name:'name',label:'Nom du compte',required:true},{name:'bank',label:'Banque',required:true},{name:'iban',label:'RIB / IBAN',required:true},{name:'currency',label:'Devise',type:'select',options:['DZD','EUR','USD']}]);if(!v)return;const bankId=`bank-${crypto.randomUUID()}`;await sariDB.save('banks',{id:bankId,name:v.bank,isActive:true});await sariDB.save('bankAccounts',{id:`account-${crypto.randomUUID()}`,bankId,name:v.name,iban:v.iban,currency:v.currency,isActive:true});this.render();},
+  async editCoupon(){const v=await DialogManager.form('Nouveau coupon',[{name:'code',label:'Code coupon',required:true},{name:'label',label:'Libellé',required:true},{name:'discountType',label:'Type',type:'select',options:[{value:'percentage',label:'Pourcentage'},{value:'fixed',label:'Montant fixe'}]},{name:'value',label:'Valeur',type:'number',required:true},{name:'scope',label:'Portée',type:'select',options:['invoice','product']},{name:'productId',label:'ID produit ciblé (optionnel)'},{name:'clientIds',label:'IDs clients autorisés, séparés par virgules'},{name:'validFrom',label:'Début',type:'date'},{name:'validTo',label:'Fin',type:'date'},{name:'usageLimit',label:'Limite utilisation',type:'number',value:1}]);if(!v)return;await sariDB.save('coupons',{id:`coupon-${crypto.randomUUID()}`,...v,value:Number(v.value),usageLimit:Number(v.usageLimit),usageCount:0,isActive:true,clientIds:String(v.clientIds||'').split(',').map(x=>x.trim()).filter(Boolean)});this.render();},
+  async editReferral(){const v=await DialogManager.form('Agent / canal commercial',[{name:'name',label:'Nom',required:true},{name:'type',label:'Type',type:'select',options:['agent','referrer','channel']},{name:'commissionPercent',label:'Commission %',type:'number',value:0}]);if(!v)return;await sariDB.save('referrals',{id:`ref-${crypto.randomUUID()}`,...v,commissionPercent:Number(v.commissionPercent),isActive:true});this.render();},
+
+  async editVatRate(id=''){const old=this.state.vatRates.find(r=>r.id===id)||{};const v=await DialogManager.form(id?'Modifier le taux TVA':'Nouveau taux TVA',[{name:'label',label:'Libellé',value:old.label||'',required:true},{name:'percentage',label:'Pourcentage',type:'number',step:'0.01',value:old.percentage??19,required:true},{name:'isDefault',label:'Taux par défaut',type:'select',value:String(!!old.isDefault),options:[{value:'false',label:'Non'},{value:'true',label:'Oui'}]}]);if(!v)return;const isDefault=v.isDefault==='true';if(isDefault)for(const rate of this.state.vatRates){rate.isDefault=false;await sariDB.save('vatRates',rate);}await sariDB.save('vatRates',{...old,id:id||`vat-${crypto.randomUUID()}`,label:v.label,percentage:Number(v.percentage),isDefault,isActive:old.isActive??true});this.render();},
+  async deleteVatRate(id){if(await DialogManager.confirm('Supprimer ce taux ? Les documents existants conserveront leur valeur.')){await sariDB.delete('vatRates',id);this.render();}},
+  async editDocumentCode(id=''){const old=this.state.documentCodes.find(d=>d.id===id)||{};const v=await DialogManager.form(id?'Modifier le type de document':'Nouveau type de document',[{name:'code',label:'Code court',value:old.code||'NEW',required:true},{name:'designation',label:'Désignation',value:old.designation||'',required:true},{name:'description',label:'Description',type:'textarea',value:old.description||''},{name:'maskType',label:'Type de masque',type:'select',value:old.maskType||'Standard',options:['Standard','CountryBased','SubTypeBased','DateBased','TemplateBased']},{name:'mask',label:'Masque',value:old.mask||'SARI-{PREFIX}{YY}-{SEQ}',required:true},{name:'sequenceMinDigits',label:'Chiffres minimum',type:'number',value:old.sequenceMinDigits||5},{name:'resetFrequency',label:'Réinitialisation',type:'select',value:old.resetFrequency||'yearly',options:['yearly','monthly','never']},{name:'subtypes',label:'Sous-types (01:Libellé, ...)',type:'textarea',value:(old.subTypeOptions||[]).map(x=>`${x.code}:${x.label}`).join(',')}]);if(!v)return;const code=v.code.toUpperCase();const subTypeOptions=v.subtypes.split(',').map(x=>x.trim()).filter(Boolean).map(x=>{const [c,...label]=x.split(':');return{code:c,label:label.join(':')||c}});const record={...old,id:old.id||code,code,designation:v.designation,description:v.description,mask:v.mask,maskType:v.maskType,sequenceMinDigits:Number(v.sequenceMinDigits)||5,resetFrequency:v.resetFrequency,subTypeOptions,isActive:true};record.example=ReferenceCodeManager.render(record,1,{subType:subTypeOptions[0]?.code});await sariDB.save('documentCodes',record);this.render();},
+  async deleteDocumentCode(id){if(await DialogManager.confirm('Supprimer ce type de référence ?')){await sariDB.delete('documentCodes',id);this.render();}},
+  async editChecklistTemplate(id=''){const old=this.state.checklistTemplates.find(x=>x.id===id)||{};const v=await DialogManager.form(id?'Modifier la checklist':'Nouvelle checklist',[{name:'name',label:'Nom',value:old.name||'',required:true},{name:'description',label:'Description',value:old.description||''},{name:'items',label:'Éléments, un par ligne',type:'textarea',value:(old.items||[]).map(x=>x.label).join('\n'),required:true}]);if(!v)return;await sariDB.save('checklistTemplates',{...old,id:id||`tpl-${crypto.randomUUID()}`,name:v.name,description:v.description,items:v.items.split('\n').map(x=>x.trim()).filter(Boolean).map((label,i)=>({label,dueOffsetDays:-(i+1)})),updatedAt:new Date().toISOString()});this.render();},
+  async deleteChecklistTemplate(id){if(await DialogManager.confirm('Supprimer ce modèle ? Les checklists existantes resteront intactes.')){await sariDB.delete('checklistTemplates',id);this.render();}},
+  async editDocumentTemplate(id){const old=this.state.documentTemplates.find(x=>x.id===id);const v=await DialogManager.form('Propriétés du modèle',[{name:'name',label:'Nom',value:old.name,required:true},{name:'type',label:'Type',type:'select',value:old.type,options:['all','invoice','quote','purchase_order','delivery_note','purchase_invoice','purchase_quote','goods_receipt']},{name:'paperFormat',label:'Format papier',type:'select',value:old.paperFormat||'A4',options:['A4','Letter']},{name:'accent',label:'Couleur',type:'color',value:old.accent||'#009CC5'}]);if(!v)return;await sariDB.save('documentTemplates',{...old,...v});this.render();},
+  async deleteDocumentTemplate(id){if(await DialogManager.confirm('Supprimer ce modèle visuel ?')){await sariDB.delete('documentTemplates',id);this.render();}},
 
   openHelpDoc() {
     const modalEl = document.getElementById('settings-help-modal');

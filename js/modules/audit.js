@@ -51,7 +51,7 @@ const AuditModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}" 
-              oninput="AuditModule.handleSearch(this.value)"
+              oninput="AuditModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>AuditModule.render())"
               placeholder="Ex: SUBMIT_TENDER, Administrator, CHU Mustapha..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -118,13 +118,7 @@ const AuditModule = {
       if (this.state.filterModule !== 'all' && l.module !== this.state.filterModule) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchUser = l.user && l.user.toLowerCase().includes(q);
-        const matchDesc = l.description && l.description.toLowerCase().includes(q);
-        const matchAction = l.action && l.action.toLowerCase().includes(q);
-        if (!matchUser && !matchDesc && !matchAction) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(l,this.state.searchQuery,['user','description','action','module'])) return false;
       return true;
     });
   },
