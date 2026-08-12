@@ -11,7 +11,7 @@ const ReportsModule = {
     orders: [],
     shipments: [],
     tenders: [],
-    customers: []
+    customers: [], suppliers: [], purchaseDocuments: []
   },
 
   async render(containerId = 'sari-main-view') {
@@ -23,6 +23,7 @@ const ReportsModule = {
     this.state.shipments = await window.sariDB.getAll('shipments');
     this.state.tenders = await window.sariDB.getAll('tenders');
     this.state.customers = await window.sariDB.getAll('customers');
+    [this.state.suppliers,this.state.purchaseDocuments]=await Promise.all(['suppliers','purchaseDocuments'].map(s=>sariDB.getAll(s)));
 
     this.renderView(container);
   },
@@ -86,6 +87,7 @@ const ReportsModule = {
           </button>
         </div>
 
+          <button onclick="ReportsModule.setTab('partners')" class="px-4 py-2 rounded text-xs font-bold ${tab==='partners'?'bg-sari-blue text-white':'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i class="fas fa-users mr-1"></i> Clients & Fournisseurs</button>
         <!-- Tab Body -->
         <div id="report-tab-body">
           ${this.getTabHtml(tab)}
@@ -100,6 +102,9 @@ const ReportsModule = {
   },
 
   getTabHtml(tab) {
+    if (tab === 'partners') {
+      const clients=this.state.customers.map(c=>{const docs=this.state.orders.filter(o=>o.customerId===c.id),total=docs.reduce((s,d)=>s+Number(d.total||0),0);return{name:c.name,type:'Client',count:docs.length,total,average:docs.length?total/docs.length:0,outstanding:docs.filter(d=>!['paid','closed'].includes(d.status)).reduce((s,d)=>s+Number(d.total||0),0)}});const suppliers=this.state.suppliers.map(x=>{const docs=this.state.purchaseDocuments.filter(d=>d.supplierId===x.id),total=docs.reduce((s,d)=>s+Number(d.total||0),0);return{name:x.name,type:'Fournisseur',count:docs.length,total,average:docs.length?total/docs.length:0,outstanding:docs.filter(d=>!['paid','closed'].includes(d.status)).reduce((s,d)=>s+Number(d.total||0),0)}});return `<div class="sari-tile overflow-x-auto"><table class="w-full sari-table text-sm"><thead><tr class="border-b"><th class="p-3 text-left">Partenaire</th><th>Type</th><th>Documents</th><th>Volume</th><th>Moyenne</th><th>Encours</th></tr></thead><tbody>${[...clients,...suppliers].map(x=>`<tr class="border-b"><td class="p-3 font-bold">${SariUtils.escapeHtml(x.name)}</td><td>${x.type}</td><td>${x.count}</td><td>${i18n.formatCurrency(x.total)}</td><td>${i18n.formatCurrency(x.average)}</td><td class="text-sari-amber font-bold">${i18n.formatCurrency(x.outstanding)}</td></tr>`).join('')}</tbody></table></div>`;
+    }
     if (tab === 'inventory') {
       let totalPurchaseDZD = 0;
       let totalSellingDZD = 0;

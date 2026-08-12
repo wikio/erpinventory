@@ -11,15 +11,21 @@ const TendersModule = {
     filterStatus: 'all',
     searchQuery: '',
     editingId: null,
-    activeBidTenderId: null
+    activeBidTenderId: null,
+    checklistItems: [],
+    checklistTemplates: [],
+    documents: [],
+    activeChecklistTenderId: null
   },
 
   async render(containerId = 'sari-main-view') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    this.state.tenders = await window.sariDB.getAll('tenders');
-    this.state.products = await window.sariDB.getAll('products');
+    [this.state.tenders, this.state.products, this.state.checklistItems, this.state.checklistTemplates, this.state.documents] = await Promise.all([
+      window.sariDB.getAll('tenders'), window.sariDB.getAll('products'), window.sariDB.getAll('checklistItems'),
+      window.sariDB.getAll('checklistTemplates'), window.sariDB.getAll('documents')
+    ]);
 
     this.renderView(container);
   },
@@ -113,7 +119,7 @@ const TendersModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="TendersModule.handleSearch(this.value)"
+              oninput="TendersModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>TendersModule.render())"
               placeholder="Ex: CHU Mustapha, DSP Blida, EHS, Moniteurs, AO-2026..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -166,13 +172,17 @@ const TendersModule = {
                 if (t.status === 'won') badgeClass = 'bg-sari-lime/20 text-sari-lime-dark border-sari-lime-dark font-bold';
                 if (t.status === 'lost') badgeClass = 'bg-red-500/10 text-red-600 dark:text-red-400';
 
-                const docsCount = Array.isArray(t.documents) ? t.documents.length : 0;
+                const docsCount = this.state.documents.filter(d => (d.links || []).some(l => l.recordType === 'tender' && l.recordId === t.id)).length;
+                const checklist = this.state.checklistItems.filter(item => item.tenderId === t.id);
+                const completed = checklist.filter(item => item.status === 'done' || item.status === 'not_applicable').length;
+                const progress = checklist.length ? Math.round(completed / checklist.length * 100) : 0;
                 const productsCount = Array.isArray(t.linkedProductIds) ? t.linkedProductIds.length : 0;
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${t.id}
+                      ${t.referenceCode || t.id}
+                      <div class="text-[9px] text-slate-400">${t.id}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${t.title}</div>
@@ -197,13 +207,15 @@ const TendersModule = {
                       </span>
                     </td>
                     <td class="p-3">
-                      <button onclick="TendersModule.openDocsModal('${t.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
-                        <i class="fas fa-check-square"></i> ${docsCount} pièces au dossier &rarr;
+                      <button onclick="TendersModule.openDocsModal('${t.id}')" class="text-xs font-bold text-sari-blue flex items-center gap-1">
+                        <i data-lucide="list-checks" class="w-3.5 h-3.5"></i> ${completed}/${checklist.length} éléments terminés
                       </button>
-                      <div class="text-[10px] text-slate-500 mt-0.5">${productsCount} produits au devis</div>
+                      <div class="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-1 overflow-hidden"><div class="h-full bg-sari-lime-dark" style="width:${progress}%"></div></div>
+                      <button onclick="DocumentManager.open('tender','${t.id}','${SariUtils.escapeHtml(t.id)}')" class="text-[10px] text-slate-500 mt-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3 h-3"></i>${docsCount} documents • ${productsCount} produits</button>
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="TendersModule.openDocumentChain('${t.id}')" title="Chaîne documentaire" class="p-1.5 text-sari-amber"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
                         <button onclick="TendersModule.openBidWorkspace('${t.id}')" title="Espace Préparation Offre (Devis)" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
                           <i class="fas fa-calculator"></i>
                         </button>
@@ -239,13 +251,7 @@ const TendersModule = {
       if (this.state.filterStatus !== 'all' && t.status !== this.state.filterStatus) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchId = t.id && t.id.toLowerCase().includes(q);
-        const matchTitle = t.title && t.title.toLowerCase().includes(q);
-        const matchOrg = t.issuingOrganization && t.issuingOrganization.toLowerCase().includes(q);
-        if (!matchId && !matchTitle && !matchOrg) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(t,this.state.searchQuery,['referenceCode','id','title','issuingOrganization','extendedDescription','status'])) return false;
       return true;
     });
   },
@@ -277,15 +283,17 @@ const TendersModule = {
         { name: 'Offre Technique SARI.pdf', status: 'in_progress' },
         { name: 'Offre Financière & Soumission.pdf', status: 'in_progress' }
       ],
-      notes: ''
+      notes: '',
+      extendedDescription: ''
     };
+    const previewReference = ten.referenceCode || await ReferenceCodeManager.preview('CON', { date: ten.submissionDeadline });
 
     const modalEl = document.getElementById('tender-modal-container');
     if (!modalEl) return;
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div class="sari-tile w-full max-w-6xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative max-h-[94vh] overflow-y-auto">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${tenderId ? 'Modifier l\'Appel d\'Offres / Consultation' : 'Nouvel Appel d\'Offres Médical'}
@@ -296,6 +304,7 @@ const TendersModule = {
           </div>
 
           <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm">
+            <div class="p-3 rounded-xl bg-sari-blue/5 border border-sari-blue/20"><label class="doc-label">Référence ERP automatique</label><input value="${previewReference}" readonly class="doc-input font-mono-tech font-bold text-sari-blue"><p class="text-[10px] text-slate-500 mt-1">La séquence définitive est réservée lors de l’enregistrement.</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Réf / Code Appel d'Offres *</label>
@@ -349,10 +358,14 @@ const TendersModule = {
               </div>
             </div>
 
+            ${!tenderId ? `<div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Modèle de checklist à appliquer</label><select id="ten-template" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800"><option value="">Aucun modèle</option>${this.state.checklistTemplates.map(tpl => `<option value="${tpl.id}">${SariUtils.escapeHtml(tpl.name)} (${tpl.items.length} éléments)</option>`).join('')}</select><p class="text-[10px] text-slate-500 mt-1">Une copie indépendante sera créée pour cet appel d’offres.</p></div>` : ''}
+
             <div>
               <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Notes Internes / Concurrence</label>
               <input type="text" id="ten-notes" value="${ten.notes || ''}" placeholder="Ex: Soumission déposée au bureau des marchés, Caution de 1% prête" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
+
+            ${RichTextEditor.html('ten-rich-description', ten.extendedDescription || '', 'Description détaillée de la consultation / exigences techniques')}
 
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="TendersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
@@ -375,12 +388,15 @@ const TendersModule = {
   },
 
   async saveTender(e) {
+    if (!auth.can('tenders', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = document.getElementById('ten-id').value.trim();
     const orig = this.state.editingId ? await window.sariDB.getById('tenders', this.state.editingId) : {};
 
+    const referenceCode = orig.referenceCode || await ReferenceCodeManager.generate('CON', { date: document.getElementById('ten-deadline').value });
     const payload = {
       id,
+      referenceCode,
       issuingOrganization: document.getElementById('ten-org').value.trim(),
       title: document.getElementById('ten-title').value.trim(),
       category: document.getElementById('ten-category').value,
@@ -389,6 +405,7 @@ const TendersModule = {
       submissionDeadline: document.getElementById('ten-deadline').value,
       openingDate: document.getElementById('ten-opening').value,
       notes: document.getElementById('ten-notes').value.trim(),
+      extendedDescription: RichTextEditor.value('ten-rich-description'),
       linkedProductIds: orig.linkedProductIds || ['prod-001'],
       documents: orig.documents || [
         { name: 'Cahier des Charges Original.pdf', status: 'ready' },
@@ -399,17 +416,34 @@ const TendersModule = {
     };
 
     await window.syncController.enqueueMutation('tenders', 'save', payload);
+    if (!this.state.editingId) {
+      const templateId = document.getElementById('ten-template')?.value;
+      const template = this.state.checklistTemplates.find(item => item.id === templateId);
+      if (template) {
+        const deadline = new Date(payload.submissionDeadline);
+        for (const templateItem of template.items) {
+          const due = new Date(deadline);
+          due.setDate(due.getDate() + Number(templateItem.dueOffsetDays || 0));
+          await window.sariDB.save('checklistItems', { id: `chk-${crypto.randomUUID()}`, tenderId: id, label: templateItem.label, status: 'todo', dueDate: due.toISOString().split('T')[0], notes: '', createdAt: new Date().toISOString() });
+        }
+      }
+    }
     this.closeModal();
     window.app.showToast(i18n.t('savedSuccessfully'), 'success');
     await this.render();
   },
 
   async deleteTender(id) {
-    if (!confirm('Supprimer cet appel d\'offres ?')) return;
+    if (!auth.can('tenders','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer cet appel d\'offres ?')) return;
     await window.syncController.enqueueMutation('tenders', 'delete', { id });
+    const checklist = await sariDB.getAll('checklistItems');
+    for (const item of checklist.filter(row => row.tenderId === id)) await sariDB.delete('checklistItems', item.id);
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();
   },
+
+  async openDocumentChain(tenderId){const tender=await sariDB.getById('tenders',tenderId),orders=(await sariDB.getAll('orders')).filter(o=>o.linkedTenderId===tenderId),purchases=(await sariDB.getAll('purchaseDocuments')).filter(d=>d.linkedTenderId===tenderId),root=document.getElementById('sari-modal-root');const stages=[{title:'Consultation',icon:'file-check-2',items:[tender]},{title:'Approvisionnement',icon:'shopping-cart',items:purchases},{title:'Vente & livraison',icon:'truck',items:orders},{title:'Clôture',icon:'badge-check',items:[...purchases,...orders].filter(x=>['paid','closed'].includes(x.status))}];root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-4"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">Traçabilité documentaire</span><h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(tender.title)}</h3><p class="font-mono-tech text-xs text-sari-blue">${tender.referenceCode||tender.id}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="trace-flow mt-6">${stages.map((stage,index)=>`<section class="trace-step" style="animation-delay:${index*.08}s"><div class="trace-node"><i data-lucide="${stage.icon}"></i><span>${index+1}</span></div><div class="trace-content"><h4>${stage.title}</h4>${stage.items.length?stage.items.map(item=>`<button onclick="${item.documentType?.startsWith('purchase')||item.documentType==='goods_receipt'?`app.closeModalRoot();PurchasesModule.openDetail('${item.id}')`:item.customerId?`app.closeModalRoot();SalesModule.openPrintModal('${item.id}','facture')`:'void 0'}" class="trace-document"><b>${item.referenceCode||item.id}</b><small>${item.status||'active'} • ${item.supplierName||item.customerName||item.issuingOrganization||''}</small></button>`).join(''):'<p class="text-xs text-slate-400">Aucun document à cette étape</p>'}</div></section>`).join('')}</div></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
 
   exportCSV() {
     SariUtils.exportToCSV(this.state.tenders, 'sari-systeme-appels-offres.csv');
@@ -650,71 +684,36 @@ const TendersModule = {
     if (modalEl) modalEl.innerHTML = '';
   },
 
-  /**
-   * Required documents checklist modal
-   */
+  /** Database-backed tender checklist detail. */
   async openDocsModal(tenderId) {
-    const t = await window.sariDB.getById('tenders', tenderId);
-    if (!t) return;
-
-    const modalEl = document.getElementById('tender-docs-modal');
-    if (!modalEl) return;
-
-    const requiredFiles = [
-      { name: 'Cahier des Charges (Lu, paraphé et signé)', status: 'Prêt' },
-      { name: 'Déclaration de Candidature (Formulaire DC1/DC2)', status: 'Prêt' },
-      { name: 'Fiches Techniques et Catalogues des Produits', status: 'Prêt' },
-      { name: 'Agrément Ministère de la Santé Algérie (MSPRH)', status: 'Prêt' },
-      { name: 'Offre Financière (Lettre de soumission & BPU)', status: 'Prêt' },
-      { name: 'Caution de Soumission Bancaire (1% du montant)', status: 'En Attente' }
-    ];
-
-    modalEl.innerHTML = `
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
-          <div class="flex justify-between items-center border-b pb-3 mb-4">
-            <div>
-              <span class="text-xs font-bold text-sari-blue uppercase">Dossier d'Appel d'Offres</span>
-              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">
-                Checklist Pièces Requises : ${t.id}
-              </h3>
-            </div>
-            <button onclick="TendersModule.closeDocsModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-
-          <div class="space-y-3 text-sm">
-            ${requiredFiles.map((f, i) => {
-              const ready = i < 5;
-              return `
-                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded border flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <i class="fas ${ready ? 'fa-check-circle text-sari-lime-dark' : 'fa-clock text-sari-amber'} text-lg"></i>
-                    <span class="font-semibold text-slate-800 dark:text-slate-200">${f.name}</span>
-                  </div>
-                  <span class="text-xs font-bold px-2 py-0.5 rounded ${ready ? 'bg-sari-lime/20 text-sari-lime-dark' : 'bg-sari-amber/20 text-sari-amber'}">
-                    ${ready ? 'Dossier Prêt' : 'En Attente'}
-                  </span>
-                </div>
-              `;
-            }).join('')}
-          </div>
-
-          <div class="mt-5 flex justify-end gap-2">
-            <button onclick="TendersModule.closeDocsModal()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
-              Valider le Dossier Administrative
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
+    const t = await window.sariDB.getById('tenders', tenderId); if (!t) return;
+    this.state.activeChecklistTenderId = tenderId;
+    this.state.checklistItems = await window.sariDB.getAll('checklistItems');
+    const items = this.state.checklistItems.filter(item => item.tenderId === tenderId);
+    const completed = items.filter(item => ['done','not_applicable'].includes(item.status)).length;
+    const progress = items.length ? Math.round(completed / items.length * 100) : 0;
+    const canWrite = auth.can('tenders','edit');
+    const modalEl = document.getElementById('tender-docs-modal'); if (!modalEl) return;
+    modalEl.innerHTML = `<div class="fixed inset-0 z-50 flex items-center justify-center p-3 sari-modal-backdrop"><div class="sari-tile w-full max-w-4xl bg-white dark:bg-slate-900 shadow-2xl max-h-[94vh] overflow-hidden flex flex-col">
+      <header class="p-5 border-b sari-grid-pattern flex justify-between"><div><span class="text-[10px] font-black text-sari-blue uppercase tracking-widest">Dossier interactif • ${SariUtils.escapeHtml(t.id)}</span><h3 class="font-extrabold text-xl">${SariUtils.escapeHtml(t.title)}</h3><div class="flex items-center gap-3 mt-2"><div class="w-56 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-sari-lime-dark transition-all" style="width:${progress}%"></div></div><b class="text-xs text-sari-lime-dark">${completed}/${items.length} terminés (${progress}%)</b></div></div><button onclick="TendersModule.closeDocsModal()" aria-label="Fermer"><i data-lucide="x"></i></button></header>
+      <div class="p-5 overflow-y-auto space-y-3">${items.length ? items.map(item => this.checklistRow(item, canWrite)).join('') : `<div class="p-8 text-center border-2 border-dashed rounded-xl text-slate-400"><i data-lucide="list-plus" class="w-8 h-8 mx-auto"></i><p class="font-bold mt-2">Checklist vide</p><p class="text-xs">Ajoutez un élément ou appliquez un modèle.</p></div>`}</div>
+      <footer class="p-4 border-t flex flex-col sm:flex-row justify-between gap-3">${canWrite?`<form onsubmit="TendersModule.addChecklistItem(event)" class="flex flex-1 flex-col sm:flex-row gap-2"><input id="check-new-label" class="doc-input flex-1" placeholder="Nouvel élément…" required><input id="check-new-due" type="date" class="doc-input sm:w-40"><button class="sari-btn px-4 bg-sari-blue text-white text-xs"><i data-lucide="plus" class="w-4 h-4"></i>Ajouter</button></form>`:''}<button onclick="DocumentManager.open('tender','${t.id}','${SariUtils.escapeHtml(t.id)}')" class="sari-btn px-4 py-2 bg-slate-800 text-white text-xs"><i data-lucide="folder-open" class="w-4 h-4"></i>Documents du dossier</button></footer>
+    </div></div>`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
-  closeDocsModal() {
-    const modalEl = document.getElementById('tender-docs-modal');
-    if (modalEl) modalEl.innerHTML = '';
-  }
+  checklistRow(item, canWrite) {
+    const statuses = [{id:'todo',label:'À faire'},{id:'in_progress',label:'En cours'},{id:'done',label:'Terminé'},{id:'not_applicable',label:'Non applicable'}];
+    const docCount = this.state.documents.filter(d => (d.links||[]).some(l=>l.recordType==='checklistItem'&&l.recordId===item.id)).length;
+    return `<article class="p-3 rounded-xl border bg-slate-50 dark:bg-slate-800/60 grid grid-cols-1 md:grid-cols-[1fr_150px_130px_auto] gap-3 items-center"><div><h4 class="font-bold text-sm ${item.status==='done'?'line-through opacity-60':''}">${SariUtils.escapeHtml(item.label)}</h4><p class="text-xs text-slate-500 mt-1">${SariUtils.escapeHtml(item.notes||'Sans notes')}</p></div><select onchange="TendersModule.updateChecklistStatus('${item.id}',this.value)" class="doc-input" ${canWrite?'':'disabled'}>${statuses.map(s=>`<option value="${s.id}" ${s.id===item.status?'selected':''}>${s.label}</option>`).join('')}</select><div class="text-xs"><i data-lucide="calendar" class="w-3 h-3 inline"></i> ${item.dueDate?i18n.formatDate(item.dueDate):'Sans échéance'}</div><div class="flex justify-end gap-1"><button onclick="DocumentManager.open('checklistItem','${item.id}','${SariUtils.escapeHtml(item.label)}')" class="doc-action relative"><i data-lucide="paperclip" class="w-4 h-4"></i>${docCount}</button>${canWrite?`<button onclick="TendersModule.editChecklistItem('${item.id}')" class="doc-action"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="TendersModule.deleteChecklistItem('${item.id}')" class="doc-action text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`:''}</div></article>`;
+  },
+
+  async addChecklistItem(event) { event.preventDefault(); const label=document.getElementById('check-new-label').value.trim(); if(!label)return; await sariDB.save('checklistItems',{id:`chk-${crypto.randomUUID()}`,tenderId:this.state.activeChecklistTenderId,label,status:'todo',dueDate:document.getElementById('check-new-due').value,notes:'',createdAt:new Date().toISOString()}); await this.openDocsModal(this.state.activeChecklistTenderId); },
+  async updateChecklistStatus(id,status) { const item=await sariDB.getById('checklistItems',id); if(!item)return; item.status=status;item.updatedAt=new Date().toISOString();await sariDB.save('checklistItems',item);await this.openDocsModal(item.tenderId); },
+  async editChecklistItem(id) { const item=await sariDB.getById('checklistItems',id);if(!item)return;const v=await DialogManager.form('Modifier la ligne de checklist',[{name:'label',label:'Libellé',value:item.label,required:true},{name:'dueDate',label:'Échéance',type:'date',value:item.dueDate||''},{name:'notes',label:'Notes',type:'textarea',value:item.notes||''}]);if(!v)return;Object.assign(item,{...v,updatedAt:new Date().toISOString()});await sariDB.save('checklistItems',item);await this.openDocsModal(item.tenderId); },
+  async deleteChecklistItem(id) { const item=await sariDB.getById('checklistItems',id);if(item&&await DialogManager.confirm('Supprimer cet élément de checklist ?')){await sariDB.delete('checklistItems',id);await this.openDocsModal(item.tenderId);} },
+  closeDocsModal() { const el=document.getElementById('tender-docs-modal');if(el)el.innerHTML='';this.state.activeChecklistTenderId=null; }
+
 };
 
 if (typeof window !== 'undefined') {

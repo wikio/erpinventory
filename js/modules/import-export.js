@@ -19,6 +19,7 @@ const ImportExportModule = {
 
     this.state.shipments = await window.sariDB.getAll('shipments');
     this.state.suppliers = await window.sariDB.getAll('suppliers');
+    this.state.countries = (await sariDB.getAll('countries')).filter(c=>c.isActive);
 
     this.renderView(container);
   },
@@ -106,8 +107,8 @@ const ImportExportModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="ImportExportModule.handleSearch(this.value)"
-              placeholder="Ex: SHIP-2026, MediCare, BioMed, CIF, D10..."
+              oninput="ImportExportModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>ImportExportModule.render())"
+              placeholder="Ex: SARI-IMP26DZA-00001, MediCare, CIF, D10…"
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
           </div>
@@ -163,8 +164,8 @@ const ImportExportModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${s.id}
-                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.type || 'import'}</div>
+                      ${s.referenceCode || s.id}
+                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.id} • ${s.type || 'import'}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.supplierName}</div>
@@ -187,8 +188,8 @@ const ImportExportModule = {
                       ${i18n.formatCurrency(s.totalLandedCostDZD)}
                     </td>
                     <td class="p-3">
-                      <button onclick="ImportExportModule.openDocsModal('${s.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
-                        <i class="fas fa-folder-open"></i> ${docsCount} documents &rarr;
+                      <button onclick="DocumentManager.open('shipment','${s.id}','${SariUtils.escapeHtml(s.id)}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i> GED documents &rarr;
                       </button>
                       <div class="text-[10px] text-slate-500 mt-0.5">Arrivée: ${i18n.formatDate(s.expectedArrival)}</div>
                     </td>
@@ -226,13 +227,7 @@ const ImportExportModule = {
       if (this.state.filterStatus !== 'all' && s.status !== this.state.filterStatus) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchId = s.id && s.id.toLowerCase().includes(q);
-        const matchSupplier = s.supplierName && s.supplierName.toLowerCase().includes(q);
-        const matchIncoterm = s.incoterm && s.incoterm.toLowerCase().includes(q);
-        if (!matchId && !matchSupplier && !matchIncoterm) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','id','supplierName','incoterm','status','notes'])) return false;
       return true;
     });
   },
@@ -256,6 +251,7 @@ const ImportExportModule = {
       id: `SHIP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
       supplierId: this.state.suppliers[0] ? this.state.suppliers[0].id : '',
       supplierName: this.state.suppliers[0] ? this.state.suppliers[0].name : '',
+      partnerCountryCode: this.state.suppliers[0]?.countryCode || 'DZA',
       type: 'import',
       status: 'inTransit',
       currency: 'USD',
@@ -278,7 +274,7 @@ const ImportExportModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
@@ -289,7 +285,7 @@ const ImportExportModule = {
           </div>
 
           <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Expédition / Dossier *</label>
                 <input type="text" id="sh-id" required value="${sh.id}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
@@ -302,6 +298,7 @@ const ImportExportModule = {
                   `).join('')}
                 </select>
               </div>
+              <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Pays partenaire *</label><select id="sh-country" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" required>${this.state.countries.map(c=>`<option value="${c.iso3}" ${c.iso3===(sh.partnerCountryCode||'DZA')?'selected':''}>${c.name?.[i18n.currentLang]||c.name?.fr} (${c.iso3})</option>`).join('')}</select></div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Statut Logistique *</label>
                 <select id="sh-status" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
@@ -408,6 +405,7 @@ const ImportExportModule = {
   },
 
   async saveShipment(e) {
+    if (!auth.can('importExport', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const supSplit = document.getElementById('sh-supplier').value.split('|');
     const foreign = Number(document.getElementById('sh-foreign').value) || 0;
@@ -418,9 +416,15 @@ const ImportExportModule = {
 
     const purchaseDZD = Math.round(foreign * rate);
     const landedDZD = Math.round(purchaseDZD + freight + ins + customs);
+    const recordId = document.getElementById('sh-id').value.trim();
+    const original = this.state.editingId ? await sariDB.getById('shipments', this.state.editingId) : {};
+    const supplier = this.state.suppliers.find(item => item.id === supSplit[0]);
 
     const payload = {
-      id: document.getElementById('sh-id').value.trim(),
+      ...original,
+      id: recordId,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate(original.type==='export'?'EXP':'IMP', { country: document.getElementById('sh-country').value }),
+      partnerCountryCode: document.getElementById('sh-country').value,
       supplierId: supSplit[0] || '',
       supplierName: supSplit[1] || 'Fournisseur International',
       type: 'import',
@@ -446,7 +450,8 @@ const ImportExportModule = {
   },
 
   async deleteShipment(id) {
-    if (!confirm('Supprimer cette expédition ?')) return;
+    if (!auth.can('importExport','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer cette expédition ?')) return;
     await window.syncController.enqueueMutation('shipments', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

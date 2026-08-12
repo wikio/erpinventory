@@ -19,29 +19,53 @@ class SariApp {
       reports: window.ReportsModule,
       translations: window.TranslationsModule,
       auditLogs: window.AuditModule,
-      settings: window.SettingsModule
+      settings: window.SettingsModule,
+      hr: window.HRModule,
+      tasks: window.TasksModule,
+      portal: window.EmployeePortalModule,
+      purchases: window.PurchasesModule,
+      ged: window.GEDModule,
+      taxes: window.TaxesModule,
+      masterData: window.MasterDataModule,
+      inventoryOps: window.InventoryOpsModule,
+      bulkImport: window.BulkImportModule,
+      api: window.ApiModule
     };
   }
 
   async init() {
     console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
 
-    // 1. Init DB Adapter & seed if empty
-    if (window.dbAdapter) {
-      await window.dbAdapter.init();
-    } else if (window.sariDB) {
-      await window.sariDB.init();
-    }
-
-    // 2. Init Internationalization (FR / AR / EN)
-    if (window.i18n) {
-      await window.i18n.init();
-    }
-
-    // 3. Init Auth & RBAC
+    // 1. Authenticate first. Do not let IndexedDB initialization block the login screen.
     if (window.auth) {
-      window.auth.init();
+      const authenticated = await window.auth.init();
+      if (!authenticated) {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+      }
     }
+
+    // 2. Open and migrate the offline database only after authentication.
+    try {
+      if (window.dbAdapter) {
+        await window.dbAdapter.init();
+      } else if (window.sariDB) {
+        await window.sariDB.init();
+      }
+    } catch (error) {
+      console.error('[SARI Système] IndexedDB startup failed:', error);
+      window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
+      return;
+    }
+
+    // 3. Initialize language after IndexedDB is available.
+    if (window.i18n) await window.i18n.init();
+    const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
+    if (brandingSettings && window.SettingsModule?.applyBranding) window.SettingsModule.applyBranding(brandingSettings);
+
+    // Load database-backed role permissions and optional employee overrides.
+    if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+    window.auth?.hideLogin();
 
     // 4. Init Sync Controller
     if (window.syncController) {
@@ -55,8 +79,10 @@ class SariApp {
     // 6. Register Service Worker for PWA
     this.registerServiceWorker();
 
-    // 7. Setup Event Listeners & Shortcuts
+    // 7. Setup navigation behavior and restore the desktop sidebar preference.
     this.setupEventListeners();
+    window.AppValidator?.init();
+    this.applySidebarPreference();
 
     // 8. Load initial route from URL hash or default to 'dashboard'
     const hash = window.location.hash.replace('#', '');
@@ -87,6 +113,27 @@ class SariApp {
       });
     }
   }
+
+  applySidebarPreference() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    if (!sidebar) return;
+    const collapsed = localStorage.getItem('sari_sidebar_collapsed') === 'true';
+    sidebar.classList.toggle('sidebar-collapsed', collapsed && window.innerWidth >= 1024);
+    const icon = sidebar.querySelector('.sidebar-toggle-icon');
+    if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+  }
+
+  toggleSidebarCollapse() {
+    const sidebar = document.getElementById('mobile-sidebar'); if (!sidebar) return;
+    const collapsed = !sidebar.classList.contains('sidebar-collapsed');
+    sidebar.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('sari_sidebar_collapsed', String(collapsed));
+    this.applySidebarPreference();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  toggleMobileSidebar() { document.body.classList.toggle('sidebar-mobile-open'); }
+  closeMobileSidebar() { document.body.classList.remove('sidebar-mobile-open'); }
 
   setupEventListeners() {
     // Re-render active view on language change
@@ -140,6 +187,14 @@ class SariApp {
       moduleName = 'dashboard';
     }
 
+    const permissionModule = ({ suppliers: 'suppliers', customers: 'customers', auditLogs: 'settings', translations: 'settings', settings: 'settings' })[moduleName] || moduleName;
+    if (window.auth && !window.auth.can(permissionModule, 'view')) {
+      const view = document.getElementById('sari-main-view');
+      if (view) view.innerHTML = `<div class="sari-tile p-10 text-center max-w-2xl mx-auto"><i data-lucide="shield-x" class="w-12 h-12 text-red-500 mx-auto mb-3"></i><h2 class="text-xl font-extrabold text-slate-900 dark:text-white">Accès non autorisé</h2><p class="text-sm text-slate-500 mt-2">Votre rôle ne dispose pas de l’autorisation <code>${permissionModule}.view</code>.</p><button onclick="window.app.navigate('dashboard')" class="sari-btn px-4 py-2 mt-5 bg-sari-blue text-white">Retour au tableau de bord</button></div>`;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      return;
+    }
+
     this.activeModule = moduleName;
     if (updateHash && window.location.hash !== `#${moduleName}`) {
       window.location.hash = `#${moduleName}`;
@@ -166,6 +221,7 @@ class SariApp {
       await mod.render('sari-main-view');
     }
 
+    this.enhanceSearchInputs();
     // Refresh Lucide icons
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -173,6 +229,14 @@ class SariApp {
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  enhanceSearchInputs() {
+    document.querySelectorAll('input[onkeydown*="searchKeyHandler"]').forEach(input => {
+      if (input.dataset.searchEnhanced) return; input.dataset.searchEnhanced='true'; input.style.paddingInlineEnd='2.5rem';
+      const parent=input.parentElement; if(!parent)return; parent.style.position='relative';
+      if(parent.querySelector('.sari-search-submit'))return;const button=document.createElement('button');button.type='button';button.className='sari-search-submit';button.setAttribute('aria-label','Lancer la recherche');button.innerHTML='<i data-lucide="search"></i>';button.onclick=()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));parent.appendChild(button);
+    });
   }
 
   updateNavigationLabels() {
@@ -263,7 +327,8 @@ class SariApp {
   async updateNotificationsBadge() {
     if (!window.sariDB) return;
     try {
-      const notifs = await window.sariDB.getAll('notifications');
+      const allNotifs = await window.sariDB.getAll('notifications');
+      const notifs = allNotifs.filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
       const unread = notifs.filter(n => !n.isRead).length;
       const badge = document.getElementById('sari-notif-badge');
       if (badge) {
@@ -279,7 +344,7 @@ class SariApp {
     const modalEl = document.getElementById('sari-modal-root');
     if (!modalEl || !window.sariDB) return;
 
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     modalEl.innerHTML = `
@@ -338,7 +403,7 @@ class SariApp {
 
   async markAllNotificationsRead() {
     if (!window.sariDB) return;
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     for (const n of notifs) {
       if (!n.isRead) {
         n.isRead = true;
