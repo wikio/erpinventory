@@ -295,12 +295,132 @@ body.theme-dark .sari-table tbody tr:nth-child(even) {
   box-shadow: 0 4px 10px -2px rgba(0, 156, 197, 0.4);
 }
 
+/* Responsive desktop rail / mobile drawer */
+#sari-app-layout { display: flex; flex: 1 1 auto; min-width: 0; }
+#main-content { flex: 1 1 auto; min-width: 0; }
+.sari-sidebar { display: flex; flex-direction: column; width: 16rem; transition: width .22s ease, transform .22s ease; overflow-x: hidden; }
+.sari-sidebar.sidebar-collapsed { width: 4.75rem; }
+.sari-sidebar.sidebar-collapsed .sari-nav-label,
+.sari-sidebar.sidebar-collapsed .sidebar-section-label,
+.sari-sidebar.sidebar-collapsed .sidebar-company-card { display: none; }
+.sari-sidebar.sidebar-collapsed .sari-sidebar-item { justify-content: center; padding-inline: .75rem; }
+.sidebar-mobile-backdrop { display: none; }
+@media (max-width: 1023px) {
+  .sari-sidebar, .sari-sidebar.sidebar-collapsed { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(18rem, 86vw); transform: translateX(-105%); z-index: 60; box-shadow: 12px 0 30px rgba(0,0,0,.22); }
+  .sari-sidebar.sidebar-collapsed .sari-nav-label, .sari-sidebar.sidebar-collapsed .sidebar-section-label, .sari-sidebar.sidebar-collapsed .sidebar-company-card { display: block; }
+  .sari-sidebar.sidebar-collapsed .sari-sidebar-item { justify-content: flex-start; padding-inline: 1rem; }
+  [dir="rtl"] .sari-sidebar { transform: translateX(105%); }
+  body.sidebar-mobile-open .sari-sidebar { transform: translateX(0); }
+  body.sidebar-mobile-open { overflow: hidden; }
+  body.sidebar-mobile-open .sidebar-mobile-backdrop { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(3,7,18,.55); backdrop-filter: blur(3px); }
+  #sidebar-collapse-button { display: none; }
+}
+@media (max-width: 640px) {
+  #main-content { padding: .75rem !important; }
+  .sari-tile { border-radius: 10px; }
+  .sari-modal-backdrop { padding: .5rem !important; align-items: flex-end !important; }
+  .sari-modal-backdrop > .sari-tile, .sari-modal-backdrop > form { max-height: 94vh !important; border-radius: 16px 16px 0 0 !important; }
+  table.sari-table { min-width: 720px; }
+}
+
+.designer-canvas { position: relative; width: 794px; min-height: 1123px; margin: 0 auto; background: white; color: #0f172a; box-shadow: 0 15px 45px rgba(0,0,0,.35); background-image: linear-gradient(rgba(0,156,197,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,156,197,.05) 1px,transparent 1px); background-size: 20px 20px; }
+.designer-element { position: absolute; min-width: 60px; min-height: 35px; border: 1px dashed #009cc5; resize: both; overflow: hidden; cursor: move; background-color: rgba(255,255,255,.92); }
+.designer-element:hover { outline: 2px solid #009cc5; }
+.designer-shape { opacity: .85; }.designer-circle{border-radius:50%}.designer-line{border:0!important;border-top:3px solid currentColor!important;background:transparent!important;resize:horizontal}.designer-line:after{content:'';position:absolute;inset:-6px 0}.designer-icon{font-size:2rem;text-align:center}.designer-element.selected{outline:3px solid var(--color-lime)!important;box-shadow:0 0 0 2px #fff}
+.designer-delete { position: absolute; top: 1px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: white; line-height: 15px; font-weight: bold; }
+@media(max-width:900px){.designer-canvas{transform-origin:top left;transform:scale(.7);margin:0}.designer-canvas+*{display:none}}
+
+.logo-drop-zone { padding: 1.5rem; text-align: center; border: 2px dashed var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-card) 94%, var(--color-primary) 6%); transition: .2s; }
+.logo-drop-zone.dragging { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-card) 82%, var(--color-primary) 18%); transform: scale(1.01); }
+
+.catalog-backdrop{position:fixed;inset:0;z-index:90;background:rgba(3,7,18,.55);backdrop-filter:blur(4px)}.catalog-panel{position:fixed;z-index:91;inset-block:0;inset-inline-end:0;width:min(30rem,94vw);background:var(--color-card);color:var(--color-text);box-shadow:-15px 0 45px rgba(0,0,0,.25);display:flex;flex-direction:column;animation:catalogIn .22s ease-out}.catalog-panel header{display:flex;justify-content:space-between;padding:1rem;border-bottom:1px solid var(--color-border)}.catalog-results{padding:.75rem;overflow-y:auto}.catalog-result{width:100%;display:flex;justify-content:space-between;gap:1rem;text-align:left;padding:.85rem;border:1px solid var(--color-border);border-radius:10px;margin-bottom:.5rem}.catalog-result:hover{border-color:var(--color-primary);background:color-mix(in srgb,var(--color-card) 90%,var(--color-primary) 10%)}.catalog-result small{display:block;color:var(--color-text-muted);font-size:.65rem}@keyframes catalogIn{from{transform:translateX(100%)}to{transform:none}}
+
+.sari-search-submit{position:absolute;inset-inline-end:.55rem;top:50%;transform:translateY(-50%);width:1.8rem;height:1.8rem;display:grid;place-items:center;border-radius:6px;color:var(--color-primary)}.sari-search-submit:hover{background:color-mix(in srgb,var(--color-primary) 12%,transparent)}.sari-search-submit svg{width:1rem;height:1rem}
+
+.image-dropzone{min-height:9rem;padding:1rem;border:2px dashed var(--color-border);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;text-align:center;background:color-mix(in srgb,var(--color-card) 95%,var(--color-primary) 5%)}.image-dropzone.dragging{border-color:var(--color-primary);background:color-mix(in srgb,var(--color-card) 82%,var(--color-primary) 18%)}.image-drop-preview{width:5rem;height:5rem;object-fit:contain;border-radius:10px}.image-dropzone .drop-icon{width:1.5rem;color:var(--color-primary)}.image-dropzone small{font-size:.62rem;color:var(--color-text-muted)}.image-drop-error{font-size:.62rem;color:#dc2626}
+
+.field-invalid{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)!important}.field-error{display:block;color:#dc2626;font-size:.65rem;font-weight:700;margin-top:.2rem}
+
+/* Animated application dialogs */
+.sari-dialog-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1rem; background: rgba(3,7,18,.72); backdrop-filter: blur(8px); animation: dialogFade .16s ease-out; }
+.sari-dialog-card { width: min(34rem,100%); max-height: 92vh; overflow-y: auto; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-card); color: var(--color-text); box-shadow: 0 24px 70px rgba(0,0,0,.32); animation: dialogPop .22s cubic-bezier(.16,1,.3,1); }
+.sari-dialog-card.closing { opacity: 0; transform: translateY(8px) scale(.98); transition: .15s; }
+.sari-dialog-card header { display:flex; gap:.8rem; align-items:flex-start; border-bottom:1px solid var(--color-border); padding-bottom:1rem; }
+.sari-dialog-card h3 { font-weight:800; font-size:1.05rem; }.sari-dialog-card header p{font-size:.75rem;color:var(--color-text-muted);margin-top:.2rem}
+.sari-dialog-icon { width:2.5rem;height:2.5rem;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--color-primary) 15%,transparent);color:var(--color-primary);flex:none}.sari-dialog-icon.danger{background:#fee2e2;color:#dc2626}
+.sari-dialog-fields { display:grid;gap:.85rem;padding:1rem 0}.sari-dialog-card footer{display:flex;justify-content:flex-end;gap:.5rem;border-top:1px solid var(--color-border);padding-top:1rem}
+@keyframes dialogPop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}@keyframes dialogFade{from{opacity:0}to{opacity:1}}
+
+.career-timeline{position:relative;padding-left:1.25rem}.career-timeline:before{content:'';position:absolute;left:.3rem;top:.3rem;bottom:.3rem;width:2px;background:linear-gradient(var(--color-primary),var(--color-lime))}.career-event{position:relative;display:grid;grid-template-columns:7rem 1fr;gap:1rem;padding:0 0 1.25rem;animation:dialogPop .3s both}.career-event:before{content:'';position:absolute;left:-1.25rem;top:.35rem;width:.7rem;height:.7rem;border-radius:50%;background:var(--color-primary);box-shadow:0 0 0 4px color-mix(in srgb,var(--color-primary) 18%,transparent)}.career-event time{font-size:.68rem;color:var(--color-text-muted)}.career-event h5{font-weight:800;margin:.3rem 0}.career-event p{font-size:.75rem;color:var(--color-text-muted)}
+
+/* Offline rich-text editor */
+.rich-editor-wrap { border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; background: var(--color-card); }
+.rich-editor-wrap > .doc-label { padding: .65rem .75rem 0; }
+.rich-editor-toolbar { display: flex; flex-wrap: wrap; gap: .25rem; padding: .5rem .75rem; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-card) 90%, var(--color-primary) 10%); }
+.rich-editor-toolbar button { min-width: 2rem; padding: .3rem .55rem; border: 1px solid var(--color-border); border-radius: 5px; font-size: .7rem; font-weight: 700; }
+.rich-editor-toolbar button:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.rich-editor { min-height: 9rem; max-height: 20rem; overflow-y: auto; padding: .85rem; outline: none; font-size: .85rem; line-height: 1.6; color: var(--color-text); }
+.rich-editor:focus { box-shadow: inset 0 0 0 2px var(--color-primary); }
+
+/* Reusable rich detail / GED controls */
+.doc-label { display: block; margin-bottom: .3rem; font-size: .68rem; font-weight: 800; color: var(--color-text-muted); }
+.doc-input { width: 100%; min-height: 2.35rem; padding: .45rem .65rem; border: 1px solid var(--color-border); border-radius: .55rem; background: var(--color-card); color: var(--color-text); font-size: .75rem; outline: none; }
+.doc-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent); }
+.doc-action { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .5rem; border-radius: .4rem; font-size: .68rem; font-weight: 700; color: var(--color-primary); }
+.doc-action:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.kanban-column { min-width: 260px; background: color-mix(in srgb, var(--color-card) 92%, var(--color-primary) 8%); border: 1px solid var(--color-border); border-radius: 12px; }
+.kanban-card { cursor: grab; border-left: 3px solid var(--color-primary); }
+.kanban-card:active { cursor: grabbing; }
+
+/* Secure authentication. Critical layout is self-contained so login remains
+   usable even if the optional Tailwind CDN is unavailable. */
+.auth-gate.hidden, #sari-site-logo.hidden { display: none; }
+body.auth-locked { overflow: hidden; }
+.auth-gate {
+  position: fixed; inset: 0; z-index: 100; overflow-y: auto;
+  background: radial-gradient(circle at 15% 15%, rgba(198, 218, 52, .16), transparent 28%),
+    radial-gradient(circle at 85% 80%, rgba(0, 156, 197, .2), transparent 32%), #071522;
+}
+.auth-gate > div { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+.auth-card { width: 100%; max-width: 28rem; background: #fff; border-radius: 1rem; overflow: hidden; animation: authCardIn .35s cubic-bezier(.16, 1, .3, 1); }
+.auth-card form { padding: 1.75rem; }
+.auth-card form > * + * { margin-top: 1rem; }
+.auth-card-header { padding: 1.75rem; background: linear-gradient(135deg, #007d9e, #009cc5 65%, #08728e); }
+.auth-input-wrap {
+  display: flex; align-items: center; gap: .65rem; width: 100%; padding: 0 .85rem;
+  border: 1px solid #cbd5e1; border-radius: .65rem; color: #64748b; background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.auth-input-wrap:focus-within { border-color: #009cc5; box-shadow: 0 0 0 3px rgba(0, 156, 197, .13); }
+.auth-input-wrap input { min-width: 0; flex: 1; height: 2.75rem; border: 0; outline: 0; color: #0f172a; background: transparent; font-size: .85rem; }
+.auth-icon-button { padding: .45rem; margin-right: -.45rem; border-radius: .4rem; }
+.auth-icon-button:hover { background: #f1f5f9; color: #009cc5; }
+.auth-captcha { width: 100%; max-width: calc(100% - 3.5rem); height: 52px; border: 1px solid #cbd5e1; border-radius: .65rem; }
+.auth-refresh { width: 3.25rem; display: grid; place-items: center; border: 1px solid #cbd5e1; border-radius: .65rem; color: #007d9e; background: #f8fafc; }
+.auth-refresh:hover { background: #e6f7fb; border-color: #009cc5; }
+.auth-card fieldset > div { display: flex; gap: .5rem; }
+#login-submit { width: 100%; min-height: 2.75rem; background: #009cc5; color: #fff; border: 0; }
+#login-submit:hover { background: #007d9e; }
+.auth-refresh:disabled, #login-submit:disabled { opacity: .6; cursor: wait; }
+.auth-answer { width: 100%; height: 2.6rem; border: 1px solid #cbd5e1; border-radius: .65rem; padding: 0 .85rem; outline: 0; color: #0f172a; font-size: .85rem; }
+.auth-answer:focus { border-color: #009cc5; box-shadow: 0 0 0 3px rgba(0, 156, 197, .13); }
+.auth-demo button { padding: .4rem .25rem; border: 1px solid #e2e8f0; border-radius: .4rem; background: white; color: #475569; font-weight: 700; }
+.auth-demo button:hover { border-color: #009cc5; color: #007d9e; }
+.auth-demo code { color: #007d9e; font-weight: 700; }
+.auth-spinner { width: 1rem; height: 1rem; border: 2px solid rgba(255,255,255,.45); border-top-color: white; border-radius: 50%; animation: authSpin .7s linear infinite; }
+@keyframes authSpin { to { transform: rotate(360deg); } }
+@keyframes authCardIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
 /* Print Stylesheet for Invoices, Delivery Notes, and Labels */
 @media print {
-  body {
-    background: #FFFFFF !important;
-    color: #000000 !important;
-  }
+  @page { size: auto; margin: 8mm; }
+  body { background:#fff !important; color:#000 !important; }
+  body * { visibility: hidden !important; }
+  #print-doc-area, #print-doc-area *, #purchase-print-area, #purchase-print-area *, #tax-print-area, #tax-print-area * { visibility: visible !important; }
+  #print-doc-area, #purchase-print-area, #tax-print-area { position:absolute !important; inset:0 auto auto 0 !important; width:100% !important; max-width:none !important; max-height:none !important; overflow:visible !important; margin:0 !important; box-shadow:none !important; page-break-after:avoid !important; break-after:avoid-page !important; }
+  #print-doc-area > :not(.no-print), #purchase-print-area { break-inside:avoid-page; }
+  .sari-modal-backdrop { position:static !important; background:none !important; padding:0 !important; display:block !important; }
+  .hidden { display:none !important; }
   
   .no-print {
     display: none !important;
