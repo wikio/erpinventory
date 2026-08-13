@@ -432,6 +432,9 @@ body.auth-locked { overflow: hidden; }
   #print-doc-area tfoot, #purchase-print-area tfoot, #tax-print-area tfoot { display:table-footer-group; }
   #print-doc-area tr, #purchase-print-area tr, #tax-print-area tr { break-inside:avoid; page-break-inside:avoid; }
   #print-doc-area canvas, #purchase-print-area canvas { break-inside:avoid; }
+  .print-page-counter::after { content:'Page ' counter(page) '/' counter(pages); }
+  .document-continuation-header { display:table-row; }
+  .html-document-template { width:100% !important; min-height:0 !important; }
   .sari-modal-backdrop { position:static !important; background:none !important; padding:0 !important; display:block !important; }
   .hidden { display:none !important; }
   

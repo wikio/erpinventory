@@ -163,8 +163,18 @@ const SariUtils = {
   async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4') {
     const element=document.getElementById(elementId);if(!element)return;
     if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined'){window.app?.showToast('Moteur PDF indisponible : ouverture de l’impression PDF.','warning');window.print();return;}
-    const clone=element.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxHeight:'none',overflow:'visible',background:'#fff'});document.body.appendChild(clone);const headerElement=clone.querySelector('.document-print-header'),headerCanvas=headerElement?await html2canvas(headerElement,{scale:1.5,backgroundColor:'#ffffff'}):null,canvas=await html2canvas(clone,{scale:1.5,useCORS:true,backgroundColor:'#ffffff'});clone.remove();const img=canvas.toDataURL('image/jpeg',.95),headerImg=headerCanvas?.toDataURL('image/jpeg',.95),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),ratio=pageW/canvas.width,imgH=canvas.height*ratio,headerH=headerCanvas?headerCanvas.height*(pageW/headerCanvas.width):0;let y=0,remaining=imgH,page=0;
-    while(remaining>0){if(page++)pdf.addPage();pdf.addImage(img,'JPEG',0,-y,pageW,imgH);if(page>1&&headerImg)pdf.addImage(headerImg,'JPEG',0,0,pageW,headerH);y+=pageH;remaining-=pageH;}pdf.save(filename);
+    const clone=element.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxHeight:'none',minHeight:'0',overflow:'visible',background:'#fff'});document.body.appendChild(clone);
+    const canvas=await html2canvas(clone,{scale:1.5,useCORS:true,backgroundColor:'#ffffff',windowWidth:clone.scrollWidth,windowHeight:clone.scrollHeight});clone.remove();
+    const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=8,headerH=14,footerH=7,contentW=pageW-margin*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-margin*2,continuationCapacity=pageH-margin*2-headerH-footerH,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
+    let consumed=0;
+    for(let page=1;page<=totalPages;page++){
+      if(page>1)pdf.addPage(format,'portrait');const continuation=page>1,contentTop=margin+(continuation?headerH:0),capacity=continuation?continuationCapacity:firstCapacity;
+      pdf.addImage(img,'JPEG',margin,contentTop-consumed,contentW,imgH,undefined,'FAST');
+      pdf.setFillColor(255,255,255);pdf.rect(0,0,pageW,contentTop,'F');pdf.rect(0,pageH-margin-footerH,pageW,margin+footerH,'F');
+      if(continuation){pdf.setTextColor(15,23,42);pdf.setFontSize(9);pdf.setFont('helvetica','bold');pdf.text(`${company} — Total: ${total} — ${reference} — Page ${page}/${totalPages}`,margin,margin+5);pdf.setDrawColor(0,156,197);pdf.line(margin,margin+8,pageW-margin,margin+8);}
+      pdf.setFontSize(8);pdf.setFont('helvetica','normal');pdf.setTextColor(100);pdf.text(`${reference} • ${page}/${totalPages}`,pageW-margin,pageH-margin,{align:'right'});consumed+=capacity;
+    }
+    pdf.save(filename);
   },
 
   /**

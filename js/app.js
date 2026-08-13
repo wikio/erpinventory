@@ -93,8 +93,9 @@ class SariApp {
     const validRoute = Object.keys(this.modules).includes(hash) ? hash : 'dashboard';
     await this.navigate(validRoute);
 
-    // 9. Update notification bell badge
+    // 9. Update notifications and run the lightweight document layout regression guard.
     await this.updateNotificationsBadge();
+    window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
 
     // 10. Render Lucide icons
     if (typeof lucide !== 'undefined') {
@@ -254,6 +255,7 @@ class SariApp {
     }
 
     this.enhanceSearchInputs();
+    window.UICopy?.apply(document.getElementById('sari-main-view'), window.i18n?.currentLang || 'fr');
     // Refresh Lucide icons
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -407,10 +409,10 @@ class SariApp {
                     <i data-lucide="${icon}" class="w-4 h-4 text-sari-blue mt-0.5"></i>
                     <div class="flex-1">
                       <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${n.title}</span>
+                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${n.titleI18n?.[i18n.currentLang]||n.title}</span>
                         <span class="text-[10px] text-slate-400">${i18n ? i18n.formatDate(n.createdAt) : ''}</span>
                       </div>
-                      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">${n.message}</p>
+                      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">${n.messageI18n?.[i18n.currentLang]||n.message}</p>
                     </div>
                   </div>
                 </div>

@@ -65,6 +65,7 @@ const TranslationsModule = {
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <button onclick="TranslationsModule.openAudit()" class="sari-btn px-4 py-2 bg-slate-800 text-white text-sm"><i data-lucide="scan-search" class="w-4 h-4"></i> Audit couverture</button>
             <button onclick="ReferenceTranslations.open()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-sm"><i data-lucide="list-tree" class="w-4 h-4"></i> Listes configurables</button>
             ${canWrite ? `
               <button onclick="TranslationsModule.openAddKeyModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
@@ -398,6 +399,8 @@ const TranslationsModule = {
     window.app.showToast(`Clé personnalisée [${key}] ajoutée avec succès !`, 'success');
     await this.render();
   },
+
+  openAudit(){const staticMissing={fr:[],ar:[],en:[]};const keys=new Set(Object.keys(TRANSLATIONS.fr));for(const lang of ['fr','ar','en'])for(const key of keys)if(!TRANSLATIONS[lang]?.[key])staticMissing[lang].push(key);const runtime=window.UICopy?.audit(document.getElementById('sari-main-view'))||[],root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[92vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">i18n QA</span><h3 class="text-xl font-extrabold mt-2">Rapport de couverture des traductions</h3></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-3 gap-3 my-4">${['fr','ar','en'].map(lang=>`<div class="p-4 border rounded-xl"><b>${lang.toUpperCase()}</b><p class="text-2xl font-black ${staticMissing[lang].length?'text-red-600':'text-green-600'}">${staticMissing[lang].length}</p><small>clés statiques manquantes</small></div>`).join('')}</div><h4 class="font-extrabold">Textes dynamiques/non marqués détectés (${runtime.length})</h4><p class="text-xs text-slate-500">Cette liste prévient les régressions : ajoutez les expressions légitimes au dictionnaire ou à UICopy.</p><table class="w-full text-xs mt-3"><thead><tr><th class="text-left">Texte source</th><th>Occurrences</th><th>Couverture auto</th></tr></thead><tbody>${runtime.slice(0,300).map(row=>`<tr class="border-t"><td class="p-2">${SariUtils.escapeHtml(row.text)}</td><td>${row.count}</td><td>${UICopy.phrases[row.text]?'Oui':'À traduire'}</td></tr>`).join('')}</tbody></table></div></div>`;},
 
   exportJSON() {
     const pack = {

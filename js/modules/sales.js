@@ -695,10 +695,11 @@ const SalesModule = {
     if (o.shippingFee) { vatMap['0.19'] ||= { rate: .19, base: 0, tax: 0 }; vatMap['0.19'].base += Number(o.shippingFee); vatMap['0.19'].tax += Number(o.shippingFee)*.19; }
     const vatBreakdown = Object.values(vatMap);
     const formatMoney = value => new Intl.NumberFormat(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-DZ', { style: 'currency', currency }).format(Number(value || 0));
+    const htmlTemplate = template.templateMode==='html' ? TemplateEngine.render(template.htmlContent,TemplateEngine.context({document:{...o,referenceCode:docCode,verificationUrl:printVerificationUrl},partner:customer,company:companySettings,title:docTitle,formatMoney})) : '';
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div id="print-doc-area" class="sari-tile w-full max-w-3xl bg-white dark:bg-slate-900 p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto text-slate-900">
+        <div id="print-doc-area" data-reference="${docCode}" data-total="${o.total}" data-currency="${currency}" data-company="${SARI_CONFIG.COMPANY_NAME}" class="sari-tile w-full max-w-3xl bg-white dark:bg-slate-900 p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto text-slate-900">
           <div class="flex justify-between items-center border-b pb-3 mb-6 no-print">
             <span class="text-sm font-bold text-sari-blue">Aperçu Avant Impression • SARI Système Algérie</span>
             <div class="flex gap-2">
@@ -713,8 +714,8 @@ const SalesModule = {
           </div>
 
           <!-- Printable SARI Système Template -->
-          ${template.elements?.length ? this.renderDesignerOutput(template, { ...o, verificationUrl: printVerificationUrl }, customer, docCode, formatMoney, amountWords, vatBreakdown, companySettings) : ''}
-          <div class="${template.elements?.length ? 'hidden' : ''} bg-white text-slate-900 p-4 border border-slate-300" style="border-top:8px solid ${template.accent}">
+          ${htmlTemplate ? `<div class="html-document-template bg-white text-slate-900">${htmlTemplate}</div>` : template.elements?.length ? this.renderDesignerOutput(template, { ...o, verificationUrl: printVerificationUrl }, customer, docCode, formatMoney, amountWords, vatBreakdown, companySettings) : ''}
+          <div class="${htmlTemplate || template.elements?.length ? 'hidden' : ''} bg-white text-slate-900 p-4 border border-slate-300" style="border-top:8px solid ${template.accent}">
             <!-- Header -->
             <div class="document-print-header flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
               <div class="flex items-start gap-3">
@@ -749,7 +750,7 @@ const SalesModule = {
             <!-- Items Table -->
             <table class="w-full text-left border-collapse border border-slate-300 text-xs mb-6">
               <thead class="bg-slate-100 font-bold uppercase text-slate-700 border-b-2 border-slate-300">
-                <tr class="document-continuation-header"><th colspan="6" class="p-2 text-left text-[9px] text-slate-500">${SariUtils.escapeHtml(o.printHeader||`SARI SYSTÈME • ${docTitle} • ${docCode}`)}</th></tr>
+                <tr class="document-continuation-header"><th colspan="6" class="p-2 text-left text-[9px] text-slate-500">${SariUtils.escapeHtml(o.printHeader||`SARI SYSTÈME — Total: ${formatMoney(o.total)} — ${docCode}`)} — <span class="print-page-counter"></span></th></tr>
                 <tr>
                   <th class="p-2.5 border-r border-slate-300">N°</th>
                   <th class="p-2.5 border-r border-slate-300">Désignation Dispositif Médical</th>

@@ -50,7 +50,7 @@ IndexedDB schema version 10 now includes 57 offline stores. It adds centrally ma
 
 Additional administration tools include responsive/collapsible navigation, separate site and financial-document logos, a dependency-free rich text editor, an employee self-service portal, internal messaging, and a visual drag/resize document-template designer with live merge-field previews.
 
-Version 10 adds dedicated partner-linked document detail routes, payment transaction histories, all 250 ISO countries with trilingual names, reference-list translation management, structured before/after audit diffs, non-blank starter templates, direct PDF downloads, a 58-line multipage invoice sample with continuation headers, detailed editable/PDF reports, and a dedicated bank-account dashboard. It retains role-filtered expandable menus, configurable master data, searchable selectors, sales/inventory workflows, bulk imports, and the authenticated public API.
+Version 10 adds dedicated partner-linked document detail routes, payment transaction histories, all 250 ISO countries with trilingual names, reference-list translation management, structured before/after audit diffs, detailed editable/PDF reports, and a dedicated bank-account dashboard. The template library now includes populated visual and sandboxed HTML templates, thumbnails and 10-version rollback history. A fixed-size PDF pipeline reserves continuation-header space, renders company/total/reference/page counts, and ships with a 58-line multipage regression sample plus deployment-time print QA. It retains role-filtered expandable menus, configurable master data, searchable selectors, sales/inventory workflows, bulk imports, and the authenticated public API.
 
 ## 🏥 Core Functional Modules
 

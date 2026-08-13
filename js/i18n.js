@@ -63,8 +63,10 @@ class I18nController {
       }
     });
 
-    // Translate all DOM elements with data-i18n attribute
+    // Translate keyed and legacy/dynamic UI copy, then keep auditing future nodes.
     this.translateDOM();
+    window.UICopy?.init();
+    window.UICopy?.apply(document, lang);
   }
 
   translateDOM(root = document) {
