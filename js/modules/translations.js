@@ -65,6 +65,7 @@ const TranslationsModule = {
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <button onclick="ReferenceTranslations.open()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-sm"><i data-lucide="list-tree" class="w-4 h-4"></i> Listes configurables</button>
             ${canWrite ? `
               <button onclick="TranslationsModule.openAddKeyModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
                 <i data-lucide="plus" class="w-4 h-4"></i>
@@ -90,7 +91,7 @@ const TranslationsModule = {
               <input 
                 type="text" 
                 value="${this.state.searchQuery}"
-                oninput="TranslationsModule.handleSearch(this.value)"
+                oninput="TranslationsModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>TranslationsModule.render())"
                 placeholder="Ex: appName, stock, Facture, الجزائر, Tender..."
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
@@ -284,7 +285,7 @@ const TranslationsModule = {
   },
 
   async resetKey(key) {
-    if (!confirm(`Réinitialiser la clé [${key}] aux valeurs officielles par défaut ?`)) return;
+    if (!await DialogManager.confirm(`Réinitialiser la clé [${key}] aux valeurs officielles par défaut ?`)) return;
 
     delete this.state.customTranslations[key];
     try {
