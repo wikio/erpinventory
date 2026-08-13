@@ -18,6 +18,7 @@ const CustomersModule = {
     if (!container) return;
 
     this.state.customers = await window.sariDB.getAll('customers');
+    [this.state.orders,this.state.purchaseDocuments,this.state.clientTypes,this.state.countries] = await Promise.all(['orders','purchaseDocuments','clientTypes','countries'].map(s=>sariDB.getAll(s)));
     this.renderView(container);
   },
 
@@ -100,7 +101,7 @@ const CustomersModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="CustomersModule.handleSearch(this.value)"
+              oninput="CustomersModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>CustomersModule.render())"
               placeholder="Ex: CHU Mustapha, El-Shifa, Ibn Sina, 000016..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -112,11 +113,7 @@ const CustomersModule = {
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             >
               <option value="all">Tous les Clients</option>
-              <option value="public_hospital" ${this.state.filterType === 'public_hospital' ? 'selected' : ''}>Hôpital Public (CHU/EHS)</option>
-              <option value="private_clinic" ${this.state.filterType === 'private_clinic' ? 'selected' : ''}>Clinique Privée</option>
-              <option value="pharmacy" ${this.state.filterType === 'pharmacy' ? 'selected' : ''}>Pharmacie d'Officine</option>
-              <option value="government" ${this.state.filterType === 'government' ? 'selected' : ''}>Organisme d'État / DSP</option>
-              <option value="wholesaler" ${this.state.filterType === 'wholesaler' ? 'selected' : ''}>Grossiste / Distributeur</option>
+              ${(this.state.clientTypes||[]).filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${this.state.filterType===x.id?'selected':''}>${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -167,7 +164,7 @@ const CustomersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3">
-                      <div class="font-bold text-slate-900 dark:text-white">${c.name}</div>
+                      <div class="font-bold text-slate-900 dark:text-white">${c.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${c.referenceCode||c.id}</div>
                       <div class="text-xs text-slate-500 mt-0.5">${c.contactInfo || '-'}</div>
                     </td>
                     <td class="p-3">
@@ -192,6 +189,9 @@ const CustomersModule = {
                         <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
                           <i class="fas fa-shopping-cart"></i>
                         </button>
+                        <button onclick="CustomersModule.openDetail('${c.id}')" title="Consulter la fiche" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="CustomersModule.open360('${c.id}')" title="Transactions & statistiques" class="p-1.5 rounded text-sari-lime-dark"><i data-lucide="chart-no-axes-combined" class="w-4 h-4"></i></button>
+                        <button onclick="DocumentManager.open('customer','${c.id}','${SariUtils.escapeHtml(c.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="CustomersModule.openModal('${c.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -223,12 +223,7 @@ const CustomersModule = {
       if (this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchName = c.name && c.name.toLowerCase().includes(q);
-        const matchTax = c.taxId && c.taxId.toLowerCase().includes(q);
-        if (!matchName && !matchTax) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(c,this.state.searchQuery,['referenceCode','name','taxId','contactInfo','richDetails'])) return false;
       return true;
     });
   },
@@ -266,7 +261,7 @@ const CustomersModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${customerId ? 'Modifier le Client / Hôpital' : 'Nouveau Client ou Institution Algérie'}
@@ -282,17 +277,12 @@ const CustomersModule = {
               <input type="text" id="cust-name" required value="${cust.name}" placeholder="Ex: CHU Mustapha Pacha, Pharmacie El-Shifa" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Type de Client *</label>
-                <select id="cust-type" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-semibold">
-                  <option value="public_hospital" ${cust.type === 'public_hospital' ? 'selected' : ''}>Hôpital Public (CHU / EHS)</option>
-                  <option value="private_clinic" ${cust.type === 'private_clinic' ? 'selected' : ''}>Clinique Privée</option>
-                  <option value="pharmacy" ${cust.type === 'pharmacy' ? 'selected' : ''}>Pharmacie d'Officine</option>
-                  <option value="government" ${cust.type === 'government' ? 'selected' : ''}>Organisme d'État / DSP Wilaya</option>
-                  <option value="wholesaler" ${cust.type === 'wholesaler' ? 'selected' : ''}>Grossiste / Distributeur</option>
-                </select>
+                <input id="cust-type" list="client-type-options" value="${cust.type||''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-semibold" required autocomplete="off"><datalist id="client-type-options">${(this.state.clientTypes||[]).filter(x=>x.isActive).map(x=>`<option value="${x.id}">${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}</datalist>
               </div>
+              <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Pays *</label><input id="cust-country" list="customer-country-options" value="${cust.countryCode||'DZA'}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" required autocomplete="off"><datalist id="customer-country-options">${this.state.countries.filter(c=>c.isActive).map(c=>`<option value="${c.iso3}">${c.name?.[i18n.currentLang]||c.name?.fr}</option>`).join('')}</datalist></div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Wilaya (Algérie) *</label>
                 <select id="cust-wilaya" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-bold">
@@ -324,6 +314,7 @@ const CustomersModule = {
               <input type="text" id="cust-contact" value="${cust.contactInfo || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('cust-logo',cust.logo||'','Logo client')}${RichTextEditor.html('cust-rich-details',cust.richDetails||'','Informations détaillées / conditions spéciales')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="CustomersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -345,17 +336,25 @@ const CustomersModule = {
   },
 
   async saveCustomer(e) {
+    if (!auth.can('customers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `cust-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('customers', id) : {};
+    const typeInput=document.getElementById('cust-type').value.trim();const typeRecord=this.state.clientTypes.find(x=>x.id===typeInput||[x.name?.fr,x.name?.ar,x.name?.en].includes(typeInput));if(!typeRecord)return app.showToast('Sélectionnez un type client configuré.','error');const customerType=typeRecord.id;const subType=typeRecord.code;const countryInput=document.getElementById('cust-country').value.trim();const countryRecord=this.state.countries.find(c=>c.iso3===countryInput||c.iso2===countryInput||[c.name?.fr,c.name?.ar,c.name?.en].includes(countryInput));if(!countryRecord)return app.showToast('Sélectionnez un pays configuré.','error');
     const payload = {
+      ...original,
       id,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('CLI', { subType }),
       name: document.getElementById('cust-name').value.trim(),
-      type: document.getElementById('cust-type').value,
+      type: customerType,
+      countryCode:countryRecord.iso3,country:countryRecord.name?.fr||countryRecord.iso3,
       wilaya: document.getElementById('cust-wilaya').value,
       taxId: document.getElementById('cust-tax').value.trim(),
       creditLimit: Number(document.getElementById('cust-credit').value),
       paymentTerms: document.getElementById('cust-payment').value.trim(),
-      contactInfo: document.getElementById('cust-contact').value.trim()
+      contactInfo: document.getElementById('cust-contact').value.trim(),
+      logo: ImageDropzone.value('cust-logo',original.logo||''),
+      richDetails: RichTextEditor.value('cust-rich-details')
     };
 
     await window.syncController.enqueueMutation('customers', 'save', payload);
@@ -364,8 +363,11 @@ const CustomersModule = {
     await this.render();
   },
 
+  async openDetail(id){return Partner360.open('customer',id);},async open360(id){return Partner360.open('customer',id);},
+
   async deleteCustomer(id) {
-    if (!confirm('Supprimer ce client ?')) return;
+    if (!auth.can('customers','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer ce client ?')) return;
     await window.syncController.enqueueMutation('customers', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

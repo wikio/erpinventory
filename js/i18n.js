@@ -132,6 +132,8 @@ class I18nController {
   }
 
   getCategoryName(catId) {
+    const managed = window.InventoryModule?.state?.productCategories?.find(x=>x.id===catId);
+    if (managed) return managed.name?.[this.currentLang] || managed.name?.fr || catId;
     const c = SARI_CONFIG.PRODUCT_CATEGORIES.find(x => x.id === catId);
     if (!c) return catId;
     return c[this.currentLang] || c.fr || catId;

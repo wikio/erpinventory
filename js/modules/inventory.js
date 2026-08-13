@@ -21,6 +21,9 @@ const InventoryModule = {
 
     this.state.products = await window.sariDB.getAll('products');
     this.state.warehouses = await window.sariDB.getAll('warehouses');
+    this.state.vatRates = (await window.sariDB.getAll('vatRates')).filter(rate => rate.isActive);
+    this.state.productCategories = (await sariDB.getAll('productCategories')).filter(row=>row.isActive);
+    this.state.countries = (await sariDB.getAll('countries')).filter(row=>row.isActive);
 
     this.renderView(container);
   },
@@ -73,7 +76,7 @@ const InventoryModule = {
                 type="text" 
                 id="inv-search" 
                 value="${this.state.searchQuery}"
-                oninput="InventoryModule.handleSearch(this.value)"
+                oninput="InventoryModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>InventoryModule.render())"
                 placeholder="Ex: Moniteur, DIA-MON, CE2025..." 
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
@@ -89,9 +92,7 @@ const InventoryModule = {
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             >
               <option value="all">Toutes les Catégories</option>
-              ${SARI_CONFIG.PRODUCT_CATEGORIES.map(c => `
-                <option value="${c.id}" ${this.state.filterCategory === c.id ? 'selected' : ''}>${i18n.getCategoryName(c.id)}</option>
-              `).join('')}
+              ${(this.state.productCategories||[]).map(c => `<option value="${c.id}" ${this.state.filterCategory===c.id?'selected':''}>${c.name?.[i18n.currentLang]||c.name?.fr}</option>`).join('')}
             </select>
           </div>
 
@@ -167,8 +168,8 @@ const InventoryModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${p.sku}
-                      <div class="text-[10px] text-slate-400 font-normal">${p.barcode || ''}</div>
+                      ${p.referenceCode || p.sku}
+                      <div class="text-[10px] text-slate-400 font-normal">${p.sku} • ${p.barcode || ''}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${p.name}</div>
@@ -197,9 +198,11 @@ const InventoryModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="InventoryModule.openDetail('${p.id}')" title="Consulter" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="InventoryModule.openBarcodeModal('${p.id}')" title="Imprimer Barcode/QR" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
                           <i class="fas fa-barcode"></i>
                         </button>
+                        <button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="InventoryModule.openModal('${p.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -252,16 +255,7 @@ const InventoryModule = {
         if (this.state.filterExpiry === 'valid' && expDate <= thirtyDays) return false;
       }
       // Search query
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchSku = p.sku && p.sku.toLowerCase().includes(q);
-        const matchName = p.name && p.name.toLowerCase().includes(q);
-        const matchLot = p.lotNumber && p.lotNumber.toLowerCase().includes(q);
-        const matchManufacturer = p.manufacturer && p.manufacturer.toLowerCase().includes(q);
-        if (!matchSku && !matchName && !matchLot && !matchManufacturer) {
-          return false;
-        }
-      }
+      if (!SariUtils.matchesAdvancedSearch(p,this.state.searchQuery,['referenceCode','sku','barcode','name','lotNumber','manufacturer','extendedDescription'])) return false;
       return true;
     });
   },
@@ -286,6 +280,8 @@ const InventoryModule = {
     this.render();
   },
 
+  async openDetail(id){const p=await sariDB.getById('products',id),lots=(await sariDB.getAll('productLots')).filter(l=>l.productId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.getCategoryName(p.category)}</span><h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(p.name)}</h3><p class="font-mono-tech text-sari-blue">${p.referenceCode||p.sku}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded-xl"><small>Stock</small><b class="block text-xl">${p.stock}</b></div><div class="p-3 border rounded-xl"><small>Prix vente</small><b class="block">${i18n.formatCurrency(p.sellingPrice)}</b></div><div class="p-3 border rounded-xl"><small>TVA</small><b class="block">${this.state.vatRates.find(v=>v.id===p.vatRateId)?.percentage||19}%</b></div><div class="p-3 border rounded-xl"><small>Lots</small><b class="block">${lots.length}</b></div></div><div class="grid md:grid-cols-2 gap-4"><dl class="text-sm space-y-2"><div><dt class="text-slate-400">SKU / Code-barres</dt><dd>${p.sku} • ${p.barcode||'—'}</dd></div><div><dt class="text-slate-400">Fabricant / pays</dt><dd>${p.manufacturer||'—'} • ${p.countryOfOrigin||'—'}</dd></div><div><dt class="text-slate-400">Certification</dt><dd>${p.certificationRef||'—'}</dd></div><div><dt class="text-slate-400">Stockage</dt><dd>${p.storageConditions||'—'}</dd></div></dl><div class="rich-content text-sm">${RichTextEditor.sanitize(p.extendedDescription||p.notes||'')}</div></div><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('inventory','edit')?`<button onclick="app.closeModalRoot();InventoryModule.openModal('${p.id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
+
   /**
    * Open modal to Add or Edit a medical product
    */
@@ -301,6 +297,10 @@ const InventoryModule = {
       unit: 'piece',
       purchasePrice: 10000,
       sellingPrice: 15000,
+      vatRateId: 'vat-19',
+      discountPercent: 0,
+      additionalFees: 0,
+      extendedDescription: '',
       stock: 20,
       minimumStock: 5,
       lotNumber: `LOT-${new Date().getFullYear()}-01`,
@@ -317,7 +317,7 @@ const InventoryModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">
               ${productId ? 'Modifier le Produit Médical' : 'Nouveau Produit Médical & Consommable'}
@@ -339,11 +339,7 @@ const InventoryModule = {
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Catégorie *</label>
-                <select id="form-category" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800">
-                  ${SARI_CONFIG.PRODUCT_CATEGORIES.map(c => `
-                    <option value="${c.id}" ${prod.category === c.id ? 'selected' : ''}>${i18n.getCategoryName(c.id)}</option>
-                  `).join('')}
-                </select>
+                <div class="flex gap-1"><input id="form-category" list="product-category-options" value="${prod.category}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" required autocomplete="off"><button type="button" onclick="InventoryModule.addCategoryInline()" class="sari-btn px-3 bg-sari-lime text-slate-900" title="Ajouter une catégorie">+</button></div><datalist id="product-category-options">${(this.state.productCategories||[]).map(c=>`<option value="${c.id}">${c.name?.[i18n.currentLang]||c.name?.fr} • PRO${c.code}</option>`).join('')}</datalist>
               </div>
             </div>
 
@@ -359,7 +355,7 @@ const InventoryModule = {
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Pays d'Origine</label>
-                <input type="text" id="form-country" value="${prod.countryOfOrigin || ''}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
+                <input id="form-country" list="product-country-options" value="${prod.countryCode||prod.countryOfOrigin||''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" required autocomplete="off"><datalist id="product-country-options">${this.state.countries.map(c=>`<option value="${c.iso3}">${c.name?.[i18n.currentLang]||c.name?.fr}</option>`).join('')}</datalist>
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Unité de Mesure</label>
@@ -388,6 +384,12 @@ const InventoryModule = {
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Seuil Min Alerte *</label>
                 <input type="number" id="form-minstock" required value="${prod.minimumStock}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 font-mono-tech" />
               </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-sari-blue/5 border border-sari-blue/20">
+              <div><label class="doc-label">Taux TVA applicable</label><select id="form-vat" class="doc-input">${(this.state.vatRates||[]).map(rate=>`<option value="${rate.id}" ${rate.id===(prod.vatRateId||'vat-19')?'selected':''}>${SariUtils.escapeHtml(rate.name?.[i18n.currentLang]||rate.label)} (${rate.percentage}%)</option>`).join('')}</select></div>
+              <div><label class="doc-label">Remise (% ou montant fixe)</label><input id="form-discount" type="text" value="${prod.discountExpression || (prod.discountPercent ? prod.discountPercent+'%' : '0')}" placeholder="10% ou 1500" class="doc-input"><p class="text-[10px] text-slate-400">Ajoutez % pour un pourcentage.</p></div>
+              <div><label class="doc-label">Autres frais applicables (DZD)</label><input id="form-fees" type="number" min="0" step="0.01" value="${prod.additionalFees||0}" class="doc-input"></div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -425,6 +427,8 @@ const InventoryModule = {
               <input type="text" id="form-storage" value="${prod.storageConditions || ''}" placeholder="Ex: Conserver au sec &lt; 25°C" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            ${RichTextEditor.html('form-rich-description', prod.extendedDescription || '', 'Description détaillée / Informations complémentaires')}
+
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="InventoryModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -439,6 +443,8 @@ const InventoryModule = {
     `;
   },
 
+  async addCategoryInline(){const v=await DialogManager.form('Nouvelle catégorie produit',[{name:'id',label:'Identifiant technique',required:true},{name:'code',label:'Sous-type PRO (01–99)',required:true},{name:'fr',label:'Nom français',required:true},{name:'ar',label:'Nom arabe',required:true},{name:'en',label:'Nom anglais',required:true}]);if(!v)return;const row={id:v.id.trim(),code:String(v.code).padStart(2,'0').slice(-2),name:{fr:v.fr,ar:v.ar,en:v.en},isActive:true};await sariDB.save('productCategories',row);this.state.productCategories.push(row);document.getElementById('form-category').value=row.id;const list=document.getElementById('product-category-options');list.insertAdjacentHTML('beforeend',`<option value="${row.id}">${SariUtils.escapeHtml(row.name[i18n.currentLang]||row.name.fr)} • PRO${row.code}</option>`);app.showToast('Catégorie ajoutée.','success');},
+
   closeModal() {
     const modalEl = document.getElementById('inv-modal-container');
     if (modalEl) modalEl.innerHTML = '';
@@ -446,19 +452,36 @@ const InventoryModule = {
   },
 
   async saveProduct(e) {
+    if (!auth.can('inventory', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `prod-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('products', id) : {};
+    const categoryInput = document.getElementById('form-category').value.trim();
+    const categoryRecord = this.state.productCategories.find(c=>c.id===categoryInput||[c.name?.fr,c.name?.ar,c.name?.en].includes(categoryInput));
+    if(!categoryRecord)return app.showToast('Sélectionnez une catégorie configurée valide.','error');
+    const category = categoryRecord.id;
+    const subType = categoryRecord.code || '01';
+    const countryInput=document.getElementById('form-country').value.trim();const countryRecord=this.state.countries.find(c=>c.iso3===countryInput||c.iso2===countryInput||[c.name?.fr,c.name?.ar,c.name?.en].includes(countryInput));if(!countryRecord)return app.showToast('Sélectionnez un pays configuré.','error');
+    const referenceCode = original.referenceCode || await ReferenceCodeManager.generate('PRO', { subType });
     const payload = {
+      ...original,
       id,
+      referenceCode,
       sku: document.getElementById('form-sku').value.trim(),
       barcode: document.getElementById('form-barcode').value.trim(),
-      category: document.getElementById('form-category').value,
+      category,
       name: document.getElementById('form-name').value.trim(),
       manufacturer: document.getElementById('form-manufacturer').value.trim(),
-      countryOfOrigin: document.getElementById('form-country').value.trim(),
+      countryCode: countryRecord.iso3,
+      countryOfOrigin: countryRecord.name?.fr||countryRecord.iso3,
       unit: document.getElementById('form-unit').value,
       purchasePrice: Number(document.getElementById('form-purchase').value),
       sellingPrice: Number(document.getElementById('form-selling').value),
+      vatRateId: document.getElementById('form-vat').value,
+      discountExpression: document.getElementById('form-discount').value.trim() || '0',
+      discountPercent: SariUtils.parseDiscount(document.getElementById('form-discount').value, Number(document.getElementById('form-selling').value)).percentage,
+      additionalFees: Number(document.getElementById('form-fees').value) || 0,
+      extendedDescription: RichTextEditor.value('form-rich-description'),
       stock: Number(document.getElementById('form-stock').value),
       minimumStock: Number(document.getElementById('form-minstock').value),
       lotNumber: document.getElementById('form-lot').value.trim(),
@@ -477,7 +500,8 @@ const InventoryModule = {
   },
 
   async deleteProduct(id) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit médical ?')) return;
+    if (!auth.can('inventory','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Êtes-vous sûr de vouloir supprimer ce produit médical ?')) return;
     await window.syncController.enqueueMutation('products', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 2) {
+  constructor(dbName = 'SariSystemeDB', version = 8) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -32,7 +32,40 @@ class SariDB {
           'notifications',
           'settings',
           'auditLogs',
-          'syncQueue'
+          'syncQueue',
+          'checklistItems',
+          'checklistTemplates',
+          'documents',
+          'employees',
+          'missions',
+          'jobPostings',
+          'candidates',
+          'tasks',
+          'taskStages',
+          'roles',
+          'documentTemplates',
+          'vatRates',
+          'documentCodes',
+          'sequenceCounters',
+          'conversations',
+          'messages',
+          'careerRecords',
+          'purchaseDocuments',
+          'documentLinks',
+          'paymentMethods',
+          'banks',
+          'bankAccounts',
+          'coupons',
+          'referrals',
+          'taxRecords',
+          'g50Payments',
+          'attendance',
+          'performanceRecords',
+          'salaryHistory',
+          'taskHistory',
+          'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories',
+          'salesStages', 'productLots', 'stockMovements', 'inventoryCounts',
+          'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms'
         ];
 
         stores.forEach((storeName) => {
@@ -49,6 +82,34 @@ class SariDB {
               store.createIndex('status', 'status', { unique: false });
             } else if (storeName === 'orders') {
               store.createIndex('customerId', 'customerId', { unique: false });
+            } else if (storeName === 'checklistItems') {
+              store.createIndex('tenderId', 'tenderId', { unique: false });
+              store.createIndex('status', 'status', { unique: false });
+            } else if (storeName === 'documents') {
+              store.createIndex('name', 'name', { unique: false });
+            } else if (storeName === 'missions') {
+              store.createIndex('employeeId', 'employeeId', { unique: false });
+            } else if (storeName === 'candidates') {
+              store.createIndex('jobPostingId', 'jobPostingId', { unique: false });
+            } else if (storeName === 'tasks') {
+              store.createIndex('assigneeId', 'assigneeId', { unique: false });
+              store.createIndex('stageId', 'stageId', { unique: false });
+            } else if (storeName === 'messages') {
+              store.createIndex('conversationId', 'conversationId', { unique: false });
+            } else if (storeName === 'careerRecords' || storeName === 'attendance' || storeName === 'performanceRecords' || storeName === 'salaryHistory') {
+              store.createIndex('employeeId', 'employeeId', { unique: false });
+            } else if (storeName === 'taskHistory') {
+              store.createIndex('taskId', 'taskId', { unique: false });
+            } else if (storeName === 'productLots' || storeName === 'stockMovements') {
+              store.createIndex('productId', 'productId', { unique: false });
+            } else if (storeName === 'inventoryCounts') {
+              store.createIndex('warehouseId', 'warehouseId', { unique: false });
+            } else if (storeName === 'purchaseDocuments') {
+              store.createIndex('supplierId', 'supplierId', { unique: false });
+              store.createIndex('documentType', 'documentType', { unique: false });
+            } else if (storeName === 'documentLinks') {
+              store.createIndex('sourceId', 'sourceId', { unique: false });
+              store.createIndex('targetId', 'targetId', { unique: false });
             }
           }
         });
@@ -62,6 +123,15 @@ class SariDB {
           console.log('[SariDB] Empty IndexedDB detected. Seeding Algerian demo dataset...');
           await this.seedDemoData();
         }
+        const templateCount = await this.count('checklistTemplates');
+        if (templateCount === 0) await this.seedFeatureData();
+        const vatCount = await this.count('vatRates');
+        if (vatCount === 0) await this.seedEnterpriseData();
+        const paymentCount = await this.count('paymentMethods');
+        if (paymentCount === 0) await this.seedBusinessData();
+        const masterCount = await this.count('clientTypes');
+        if (masterCount === 0) await this.seedConfigurationData();
+        else if (await this.count('logisticsStatuses') === 0) await this.seedConfigurationData();
         resolve(this.db);
       };
 
@@ -158,7 +228,14 @@ class SariDB {
       'orders',
       'notifications',
       'settings',
-      'auditLogs'
+      'auditLogs',
+      'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions',
+      'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates',
+      'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords',
+      'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals',
+      'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory',
+      'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages',
+      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -189,6 +266,199 @@ class SariDB {
     }
     console.log('[SariDB] Successfully imported backup data');
     return true;
+  }
+
+  async seedConfigurationData() {
+    const localized = (fr, ar, en) => ({ fr, ar, en });
+    const clientTypes = [
+      {id:'public_hospital',code:'01',name:localized('Hôpital public','مستشفى عمومي','Public hospital'),isActive:true},
+      {id:'private_clinic',code:'02',name:localized('Clinique privée','عيادة خاصة','Private clinic'),isActive:true},
+      {id:'pharmacy',code:'02',name:localized('Pharmacie','صيدلية','Pharmacy'),isActive:true},
+      {id:'government',code:'03',name:localized('Organisme public','هيئة عمومية','Government organization'),isActive:true},
+      {id:'international',code:'04',name:localized('Client international','عميل دولي','International client'),isActive:true}
+    ];
+    const supplierTypes = [
+      {id:'local',code:'02',name:localized('Fournisseur national','مورد وطني','National supplier'),isActive:true},
+      {id:'distributor',code:'03',name:localized('Distributeur / organisme','موزع / هيئة','Distributor / organization'),isActive:true},
+      {id:'international',code:'04',name:localized('Fournisseur international','مورد دولي','International supplier'),isActive:true},
+      {id:'manufacturer',code:'04',name:localized('Fabricant international','مصنع دولي','International manufacturer'),isActive:true}
+    ];
+    const bankTypes = [
+      {id:'bank',code:'01',name:localized('Compte bancaire','حساب بنكي','Bank account'),isActive:true},
+      {id:'cash',code:'02',name:localized('Caisse','صندوق نقدي','Petty cash'),isActive:true},
+      {id:'online',code:'03',name:localized('Paiement électronique','دفع إلكتروني','Online payment'),isActive:true}
+    ];
+    const countries = [
+      ['DZA','DZ',localized('Algérie','الجزائر','Algeria'),'DZD'],['FRA','FR',localized('France','فرنسا','France'),'EUR'],
+      ['CHN','CN',localized('Chine','الصين','China'),'CNY'],['DEU','DE',localized('Allemagne','ألمانيا','Germany'),'EUR'],
+      ['USA','US',localized('États-Unis','الولايات المتحدة','United States'),'USD']
+    ].map(([iso3,iso2,name,currency])=>({id:iso3,code:iso3,iso2,iso3,name,currency,isActive:true}));
+    const productCategories = [
+      {id:'diagnostic',code:'03',name:localized('Équipement de diagnostic','معدات التشخيص','Diagnostic equipment'),isActive:true},
+      {id:'consumables',code:'02',name:localized('Consommable médical','مستهلك طبي','Medical consumable'),isActive:true},
+      {id:'furniture',code:'03',name:localized('Mobilier hospitalier','أثاث استشفائي','Hospital furniture'),isActive:true},
+      {id:'sterilization',code:'03',name:localized('Stérilisation & laboratoire','التعقيم والمختبر','Sterilization & laboratory'),isActive:true},
+      {id:'ppe',code:'01',name:localized('Protection individuelle','الحماية الفردية','PPE'),isActive:true},
+      {id:'surgical',code:'04',name:localized('Chirurgie / pièce','الجراحة / قطعة غيار','Surgical / spare part'),isActive:true},
+      {id:'service',code:'05',name:localized('Service','خدمة','Service'),isActive:true}
+    ];
+    const logisticsStatuses = [
+      {id:'orderPlaced',order:1,name:localized('Commande passée','تم تقديم الطلب','Order placed'),color:'#64748B',isActive:true},
+      {id:'inTransit',order:2,name:localized('En transit','قيد النقل','In transit'),color:'#009CC5',isActive:true},
+      {id:'customsClearance',order:3,name:localized('Dédouanement','التخليص الجمركي','Customs clearance'),color:'#EBB51A',isActive:true},
+      {id:'received',order:4,name:localized('Réceptionné','تم الاستلام','Received'),color:'#9BB024',isActive:true},
+      {id:'exported',order:5,name:localized('Exporté / livré','تم التصدير / التسليم','Exported / delivered'),color:'#8B5CF6',isActive:true}
+    ];
+    const incoterms = ['EXW','FCA','FOB','CFR','CIF','DAP','DDP'].map(code=>({id:code,code,name:{fr:code,ar:code,en:code},isActive:true}));
+    const salesStages = [
+      {id:'quote',order:1,name:localized('Devis','عرض سعر','Quote'),color:'#64748B'},
+      {id:'order',order:2,name:localized('Commande','طلبية','Order'),color:'#009CC5'},
+      {id:'delivery',order:3,name:localized('Livraison','تسليم','Delivery'),color:'#EBB51A'},
+      {id:'invoice',order:4,name:localized('Facture','فاتورة','Invoice'),color:'#8B5CF6'},
+      {id:'payment',order:5,name:localized('Paiement','دفع','Payment'),color:'#9BB024'}
+    ];
+    for(const [store,rows] of [['clientTypes',clientTypes],['supplierTypes',supplierTypes],['bankTypes',bankTypes],['countries',countries],['productCategories',productCategories],['logisticsStatuses',logisticsStatuses],['incoterms',incoterms],['salesStages',salesStages]]) for(const row of rows) await this.save(store,row);
+    const products = await this.getAll('products');
+    for(const product of products) await this.save('productLots',{id:`lot-${product.id}`,productId:product.id,lotNumber:product.lotNumber||`LOT-${product.id}`,warehouseId:product.warehouseId,quantity:Number(product.stock||0),manufacturingDate:product.manufacturingDate||'',expirationDate:product.expirationDate||'',status:'active',createdAt:new Date().toISOString()});
+    const profiles = [
+      {id:'import-products',recordType:'products',name:'Import Produits',columns:['sku','name','category','purchasePrice','sellingPrice','stock','warehouseId']},
+      {id:'import-orders',recordType:'orders',name:'Import Commandes',columns:['referenceCode','customerId','currency','status','total']},
+      {id:'import-purchases',recordType:'purchaseDocuments',name:'Import Documents Achat',columns:['referenceCode','supplierId','documentType','currency','status','total']}
+    ]; for(const row of profiles) await this.save('importProfiles',row);
+    await this.save('apiEndpoints',{id:'api-config',basePath:'/api/v1',isEnabled:true,endpoints:[{name:'products',path:'products',store:'products'},{name:'customers',path:'customers',store:'customers'},{name:'suppliers',path:'suppliers',store:'suppliers'},{name:'sales',path:'sales',store:'orders'},{name:'purchases',path:'purchases',store:'purchaseDocuments'}]});
+    const roles=await this.getAll('roles');for(const role of roles){if(role.id==='admin')continue;role.permissions=[...new Set([...(role.permissions||[]),'masterData.view',role.id==='inventory'?'bulkImport.*':'bulkImport.view','api.view',role.id==='inventory'?'inventoryOps.*':'inventoryOps.view'])];await this.save('roles',role);}
+  }
+
+  async seedBusinessData() {
+    const methods = [
+      { id:'pay-transfer', code:'bank_transfer', label:{fr:'Virement bancaire',ar:'تحويل بنكي',en:'Bank transfer'}, isActive:true },
+      { id:'pay-check', code:'check', label:{fr:'Chèque',ar:'شيك',en:'Check'}, isActive:true },
+      { id:'pay-cash', code:'cash', label:{fr:'Espèces',ar:'نقداً',en:'Cash'}, isActive:true },
+      { id:'pay-card', code:'card', label:{fr:'Carte bancaire',ar:'بطاقة بنكية',en:'Card'}, isActive:true }
+    ];
+    for (const item of methods) await this.save('paymentMethods', item);
+    const readyTemplates=[
+      {id:'tpl-ready-modern',name:'Modern Médical',type:'invoice',paperFormat:'A4',accent:'#009CC5',layout:'designer',elements:[{id:'m1',kind:'field',field:'documentLogo',content:'SARI LOGO',x:35,y:30,w:150,h:70},{id:'m2',kind:'field',field:'documentNumber',content:'SARI-FAV26-00001',x:530,y:35,w:220,h:45},{id:'m3',kind:'field',field:'customerName',content:'Client',x:35,y:140,w:340,h:60},{id:'m4',kind:'field',field:'lineItems',content:'Table lignes',x:35,y:240,w:720,h:360},{id:'m5',kind:'field',field:'totals',content:'Totaux',x:510,y:650,w:245,h:100},{id:'m6',kind:'field',field:'qrCode',content:'QR',x:35,y:800,w:110,h:110},{id:'m7',kind:'field',field:'barcode',content:'Barcode',x:170,y:825,w:260,h:60}]},
+      {id:'tpl-ready-compact',name:'Compact Institution',type:'all',paperFormat:'A4',accent:'#0D9488',layout:'designer',elements:[{id:'c1',kind:'field',field:'documentNumber',content:'Référence',x:35,y:35,w:260,h:45},{id:'c2',kind:'field',field:'customerName',content:'Client',x:35,y:100,w:300,h:50},{id:'c3',kind:'field',field:'lineItems',content:'Lignes',x:35,y:180,w:720,h:420},{id:'c4',kind:'field',field:'vatBreakdown',content:'TVA',x:460,y:630,w:295,h:100},{id:'c5',kind:'field',field:'amountInWords',content:'Montant en lettres',x:35,y:760,w:500,h:70}]},
+      {id:'tpl-ready-letter',name:'International Letter',type:'all',paperFormat:'Letter',accent:'#334155',layout:'designer',elements:[{id:'l1',kind:'field',field:'documentLogo',content:'Logo',x:35,y:30,w:150,h:70},{id:'l2',kind:'field',field:'supplierName',content:'Supplier',x:35,y:130,w:300,h:50},{id:'l3',kind:'field',field:'lineItems',content:'Items',x:35,y:230,w:745,h:350},{id:'l4',kind:'field',field:'totals',content:'Total',x:540,y:640,w:240,h:90},{id:'l5',kind:'field',field:'qrCode',content:'Verify',x:35,y:780,w:110,h:110}]}
+    ];for(const tpl of readyTemplates)if(!await this.getById('documentTemplates',tpl.id))await this.save('documentTemplates',tpl);
+    await this.save('banks',{id:'bank-bna',name:'Banque Nationale d’Algérie',swift:'BNALDZAL',country:'DZA',isActive:true});
+    await this.save('bankAccounts',{id:'account-bna-001',bankId:'bank-bna',name:'Compte exploitation DZD',iban:'00100161609876543209',currency:'DZD',isDefault:true,isActive:true});
+    await this.save('coupons',{id:'coupon-welcome',code:'SARI10',label:'Remise institution partenaire',discountType:'percentage',value:10,scope:'invoice',productId:'',clientIds:[],validFrom:'2026-01-01',validTo:'2026-12-31',usageLimit:100,usageCount:0,isActive:true});
+    await this.save('referrals',{id:'ref-direct',name:'Vente directe SARI',type:'channel',employeeId:'emp-sales',commissionPercent:0,isActive:true});
+    await this.save('attendance',{id:'attendance-demo',employeeId:'emp-sales',date:'2026-08-11',clockIn:'08:12',clockOut:'17:06',status:'present',notes:''});
+    await this.save('performanceRecords',{id:'perf-demo',employeeId:'emp-sales',period:'2026-S1',evaluationDate:'2026-07-05',score:88,goals:'Développer le portefeuille CHU',kpis:'CA, nouveaux clients, taux conversion',notes:'Objectifs atteints.',status:'completed'});
+    await this.save('taxRecords',{id:'tax-g50-demo',referenceCode:'G502026-08-R01',type:'G50',period:'2026-08',status:'draft',taxableRevenue:1200000,vatCollected:228000,vatDeductible:95000,amountDue:133000,createdAt:new Date().toISOString()});
+    if (globalThis.ReferenceCodeManager) {
+      const docs = [
+        { id:'pdoc-demo-quote', documentType:'purchase_quote', code:'DVA', supplierId:'sup-de', supplierName:'BioMed Diagnostics GmbH', status:'draft', currency:'EUR', items:[{productId:'prod-002',name:'ECG 12 pistes',qty:2,unitPrice:1400,vatRate:.19,discountPercent:0,total:2800}], subtotal:2800,taxAmount:532,total:3332,createdAt:new Date().toISOString() },
+        { id:'pdoc-demo-receipt', documentType:'goods_receipt', code:'REC', supplierId:'sup-cn', supplierName:'Shenzhen MediCare Tech Ltd', status:'received', currency:'USD', items:[{productId:'prod-001',name:'Moniteur patient',qty:10,unitPrice:900,vatRate:.19,discountPercent:0,total:9000}], subtotal:9000,taxAmount:1710,total:10710,createdAt:new Date().toISOString() }
+      ];
+      for(const doc of docs){doc.referenceCode=await globalThis.ReferenceCodeManager.generate(doc.code);await this.save('purchaseDocuments',doc);}
+    }
+    const roles=await this.getAll('roles');for(const role of roles){if(role.id!=='admin')role.permissions=[...new Set([...(role.permissions||[]),role.id==='import_export'?'purchases.*':role.id==='sales'?'purchases.create':'purchases.view','purchases.view','ged.view'])];await this.save('roles',role);}
+  }
+
+  async seedEnterpriseData() {
+    const vats = [
+      { id: 'vat-0', label: 'Exonéré / 0%', name:{fr:'Exonéré',ar:'معفى',en:'Exempt'}, percentage: 0, isDefault: false, isActive: true },
+      { id: 'vat-9', label: 'TVA réduite 9%', name:{fr:'TVA réduite',ar:'ضريبة مخفضة',en:'Reduced VAT'}, percentage: 9, isDefault: false, isActive: true },
+      { id: 'vat-19', label: 'TVA normale 19%', name:{fr:'TVA normale',ar:'ضريبة عادية',en:'Standard VAT'}, percentage: 19, isDefault: true, isActive: true }
+    ];
+    const standard = ['FAC|Purchase invoice','FAV|Sales invoice','BCA|Purchase order','CHA|Expense / Charge','REV|Revenue','MIS|Mission','CAT|Catalogue','DOC|Document','RAP|Report','LET|Letter','MOD|Model document','FIS|Fiscal record','DVV|Sales quote','BCV|Sales order','DVA|Purchase quote','LIV|Delivery note','REC|Goods receipt','STE|Stock entry','STS|Stock exit','CON|Consultation / Tender','EMP|Employee','ADM|Administration','REG|Trade register','PVE|Minutes','NIS|Statistical ID','NIF|Tax ID','NAI|Tax article','INV|Inventory'];
+    const subtypeLists = {
+      CLI: [{code:'01',label:'National / Public'},{code:'02',label:'National / Private'},{code:'03',label:'National / Organization'},{code:'04',label:'International'}],
+      FOU: [{code:'01',label:'National / Public'},{code:'02',label:'National / Private'},{code:'03',label:'National / Organization'},{code:'04',label:'International'}],
+      PRO: [{code:'01',label:'Standard product'},{code:'02',label:'Consumable product'},{code:'03',label:'Equipment'},{code:'04',label:'Spare part'},{code:'05',label:'Service'}],
+      BAN: [{code:'01',label:'Standard bank account'},{code:'02',label:'Petty cash'},{code:'03',label:'Online payment account'}]
+    };
+    const codes = standard.map(row => { const [code, designation] = row.split('|'); return { id: code, code, designation, description: designation, mask: `SARI-${code}{YY}-{SEQ}`, example: `SARI-${code}26-00001`, maskType: 'Standard', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }; });
+    Object.entries(subtypeLists).forEach(([code, subTypeOptions]) => codes.push({ id: code, code, designation: {CLI:'Client',FOU:'Supplier',PRO:'Product',BAN:'Bank account'}[code], description: 'Sub-type based reference', mask: `${code}{SUBTYPE}-{SEQ}`, example: `${code}01-00001`, maskType: 'SubTypeBased', sequenceMinDigits: 5, resetFrequency: 'never', isActive: true, subTypeOptions }));
+    ['IMP','EXP'].forEach(code => codes.push({ id: code, code, designation: code === 'IMP' ? 'Import' : 'Export', description: 'Country-based reference', mask: `${code}{YY}{COUNTRY3}-{SEQ}`, example: `${code}26DZA-00001`, maskType: 'CountryBased', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }));
+    codes.push({ id:'G50',code:'G50',designation:'G50 Algerian tax declaration',description:'Monthly registry reference',mask:'G50{YYYY}-{MM}-R{REGISTRY}',example:'G502026-08-R12',maskType:'DateBased',sequenceMinDigits:2,resetFrequency:'monthly',isActive:true,subTypeOptions:[] });
+    codes.push({ id:'TEM',code:'TEM',designation:'Document template',description:'Template type reference',mask:'TEM{TEMPLATE3}-{SEQ}',example:'TEMFAC-00001',maskType:'TemplateBased',sequenceMinDigits:5,resetFrequency:'never',isActive:true,subTypeOptions:[] });
+    for (const x of vats) await this.save('vatRates', x);
+    for (const x of codes) await this.save('documentCodes', x);
+    if (globalThis.ReferenceCodeManager) {
+      const mappings = [
+        ['products','PRO', item => ({ subType: item.category === 'consumables' ? '02' : ['diagnostic','furniture','sterilization'].includes(item.category) ? '03' : '01' })],
+        ['tenders','CON', item => ({ date: item.submissionDeadline })], ['orders','FAV', () => ({})],
+        ['customers','CLI', item => ({ subType: ['public_hospital','government'].includes(item.type) ? '01' : '02' })],
+        ['suppliers','FOU', item => ({ subType: ['international','manufacturer'].includes(item.type) ? '04' : '02' })],
+        ['shipments','IMP', item => ({ country: item.supplierName?.slice(0,3) || 'DZA' })],
+        ['employees','EMP', item => ({ date: item.hireDate })], ['missions','MIS', item => ({ date: item.startDate })]
+      ];
+      for (const [store, code, context] of mappings) for (const item of await this.getAll(store)) if (!item.referenceCode) { item.referenceCode = await globalThis.ReferenceCodeManager.generate(code, context(item)); await this.save(store, item); }
+    }
+    await this.save('careerRecords',  { id:'career-001', employeeId:'emp-sales', type:'promotion', date:'2025-01-15', title:'Promotion Commerciale B2B', description:'Évolution vers le portefeuille institutions de santé.', rating: 4 });
+    await this.save('careerRecords', { id:'career-002', employeeId:'emp-stock', type:'evaluation', date:'2026-06-30', title:'Évaluation semestrielle', description:'Excellente maîtrise de la traçabilité des lots.', rating: 5 });
+    await this.save('conversations', { id:'conv-hr-team', title:'RH • Équipe SARI', participantUserIds:['usr-admin','usr-stock','usr-sales'], updatedAt:new Date().toISOString() });
+    await this.save('messages', { id:'msg-welcome', conversationId:'conv-hr-team', senderUserId:'usr-admin', body:'Bienvenue dans votre nouvel espace collaborateur SARI.', createdAt:new Date().toISOString(), readBy:['usr-admin'] });
+    const roles = await this.getAll('roles');
+    for (const role of roles) {
+      if (role.id !== 'admin') role.permissions = [...new Set([...(role.permissions || []), 'portal.view', role.id === 'readonly' ? 'messages.view' : 'messages.*'])];
+      await this.save('roles', role);
+    }
+  }
+
+  async seedFeatureData() {
+    const checklistTemplates = [{
+      id: 'tpl-tender-standard', name: 'Dossier standard appel d’offres', description: 'Pièces administratives et techniques usuelles en Algérie',
+      items: [
+        { label: 'Cahier des charges lu, paraphé et signé', dueOffsetDays: -10 },
+        { label: 'Déclaration de candidature', dueOffsetDays: -9 },
+        { label: 'Fiches techniques et catalogues', dueOffsetDays: -7 },
+        { label: 'Agrément MSPRH à jour', dueOffsetDays: -7 },
+        { label: 'Offre financière et BPU', dueOffsetDays: -3 },
+        { label: 'Caution de soumission bancaire', dueOffsetDays: -2 }
+      ], createdAt: new Date().toISOString()
+    }];
+    const checklistLabels = ['Cahier des charges lu, paraphé et signé', 'Déclaration de candidature', 'Fiches techniques et catalogues', 'Agrément MSPRH à jour', 'Offre financière et BPU', 'Caution de soumission bancaire'];
+    const tenderChecklistStates = {
+      'AO-2026-CHU-01': ['done','done','done','done','done','done'],
+      'AO-2026-DSP-04': ['done','done','in_progress','done','in_progress','todo'],
+      'AO-2025-EHS-09': ['done','done','done','done','done','not_applicable'],
+      'AO-2026-MIL-02': ['todo','todo','todo','todo','todo','todo']
+    };
+    const checklistItems = Object.entries(tenderChecklistStates).flatMap(([tenderId, states]) => checklistLabels.map((label, index) => ({ id: `chk-${tenderId}-${index + 1}`, tenderId, label, status: states[index], dueDate: `2026-08-${20 + index}`, notes: '', createdAt: new Date().toISOString() })));
+    const employees = [
+      { id: 'emp-admin', userId: 'usr-admin', firstName: 'Amel', lastName: 'Bensaïd', email: 'amel@sarisysteme.dz', dateOfBirth:'1985-04-12', gender:'Female', postalAddress:'Alger', cnasNumber:'CNAS-160001', phone: '+213 550 10 20 30', position: 'Directrice générale', department: 'Direction', contractType: 'CDI', salary: 180000, hireDate: '2021-03-01', status: 'active', managerId: '' },
+      { id: 'emp-stock', userId: 'usr-stock', firstName: 'Nadir', lastName: 'Khelifi', email: 'nadir@sarisysteme.dz', dateOfBirth:'1991-09-20', gender:'Male', postalAddress:'Alger', cnasNumber:'CNAS-160002', phone: '+213 550 22 33 44', position: 'Gestionnaire stocks', department: 'Logistique', contractType: 'CDI', salary: 95000, hireDate: '2023-06-12', status: 'active', managerId: 'emp-admin' },
+      { id: 'emp-sales', userId: 'usr-sales', firstName: 'Lina', lastName: 'Mansouri', email: 'lina@sarisysteme.dz', dateOfBirth:'1994-02-08', gender:'Female', postalAddress:'Blida', cnasNumber:'CNAS-160003', phone: '+213 550 55 66 77', position: 'Commerciale B2B', department: 'Commercial', contractType: 'CDI', salary: 105000, hireDate: '2024-01-15', status: 'active', managerId: 'emp-admin' }
+    ];
+    const stages = [
+      { id: 'todo', label: { fr: 'À faire', ar: 'للإنجاز', en: 'To Do' }, color: '#64748B', order: 1 },
+      { id: 'in_progress', label: { fr: 'En cours', ar: 'قيد التنفيذ', en: 'In Progress' }, color: '#009CC5', order: 2 },
+      { id: 'review', label: { fr: 'Révision', ar: 'مراجعة', en: 'Review' }, color: '#EBB51A', order: 3 },
+      { id: 'done', label: { fr: 'Terminé', ar: 'مكتمل', en: 'Done' }, color: '#9BB024', order: 4 }
+    ];
+    const tasks = [
+      { id: 'task-001', title: 'Finaliser le BPU DSP Blida', description: 'Vérifier les prix et la TVA.', assigneeId: 'emp-sales', stageId: 'in_progress', priority: 'high', dueDate: '2026-08-27', relatedType: 'tender', relatedId: 'AO-2026-DSP-04', createdAt: new Date().toISOString() },
+      { id: 'task-002', title: 'Contrôler le lot de seringues', description: 'Vérifier date et traçabilité.', assigneeId: 'emp-stock', stageId: 'todo', priority: 'urgent', dueDate: '2026-08-15', relatedType: 'product', relatedId: 'prod-003', createdAt: new Date().toISOString() }
+    ];
+    const roles = Object.entries({
+      admin: ['*'], inventory: ['dashboard.view','inventory.view','inventory.create','inventory.edit','documents.*','tasks.*','portal.view','messages.*'],
+      import_export: ['dashboard.view','importExport.*','suppliers.*','documents.*','tasks.*','portal.view','messages.*'],
+      tenders: ['dashboard.view','tenders.*','documents.*','tasks.*','portal.view','messages.*'], sales: ['dashboard.view','sales.*','customers.*','documents.*','tasks.*','portal.view','messages.*'],
+      readonly: ['dashboard.view','inventory.view','tenders.view','importExport.view','sales.view','reports.view','tasks.view','portal.view','messages.view']
+    }).map(([id, permissions]) => ({ id, name: SARI_CONFIG.USER_ROLES[id]?.fr || id, permissions }));
+    const documentTemplates = [
+      { id: 'doc-tpl-classic', name: 'SARI Classique', type: 'all', accent: '#009CC5', layout: 'classic', isDefault: true },
+      { id: 'doc-tpl-clinical', name: 'SARI Clinique', type: 'all', accent: '#0D9488', layout: 'compact', isDefault: false }
+    ];
+    const missions = [{ id: 'mission-001', employeeId: 'emp-sales', destination: 'Oran', startDate: '2026-09-03', endDate: '2026-09-05', purpose: 'Visite clients et prospection pharmacies', expenses: 45000, status: 'approved' }];
+    const jobs = [{ id: 'job-001', title: 'Responsable qualité dispositifs médicaux', department: 'Qualité', location: 'Alger', status: 'open', publishedAt: '2026-08-01' }];
+    const candidates = [{ id: 'cand-001', jobPostingId: 'job-001', name: 'Samir Haddad', email: 'samir@example.dz', dateOfBirth:'1990-06-15', stage: 'interviewing', notes: 'Entretien technique planifié.' }];
+    for (const x of checklistTemplates) await this.save('checklistTemplates', x);
+    for (const x of checklistItems) await this.save('checklistItems', x);
+    for (const x of employees) await this.save('employees', x);
+    for (const x of stages) await this.save('taskStages', x);
+    for (const x of tasks) await this.save('tasks', x);
+    for (const x of roles) await this.save('roles', x);
+    for (const x of documentTemplates) await this.save('documentTemplates', x);
+    for (const x of missions) await this.save('missions', x);
+    for (const x of jobs) await this.save('jobPostings', x);
+    for (const x of candidates) await this.save('candidates', x);
   }
 
   async seedDemoData() {
@@ -660,7 +930,9 @@ class SariDB {
       currency: 'DZD',
       taxRate: 0.19,
       companyName: 'SARI Système',
-      defaultWarehouseId: 'wh-alger'
+      defaultWarehouseId: 'wh-alger',
+      verificationBaseUrl: 'http://sari-systeme.com/code',
+      verificationSecret: 'SARI-CHANGE-ME'
     };
 
     // 10. Audit Logs

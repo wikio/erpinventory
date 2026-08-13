@@ -90,7 +90,7 @@ const TranslationsModule = {
               <input 
                 type="text" 
                 value="${this.state.searchQuery}"
-                oninput="TranslationsModule.handleSearch(this.value)"
+                oninput="TranslationsModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>TranslationsModule.render())"
                 placeholder="Ex: appName, stock, Facture, الجزائر, Tender..."
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
@@ -284,7 +284,7 @@ const TranslationsModule = {
   },
 
   async resetKey(key) {
-    if (!confirm(`Réinitialiser la clé [${key}] aux valeurs officielles par défaut ?`)) return;
+    if (!await DialogManager.confirm(`Réinitialiser la clé [${key}] aux valeurs officielles par défaut ?`)) return;
 
     delete this.state.customTranslations[key];
     try {

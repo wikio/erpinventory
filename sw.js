@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v1.0.0';
+const CACHE_NAME = 'sari-systeme-v1.7.0-role-menus-workflows';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -9,11 +9,22 @@ const ASSETS_TO_CACHE = [
   '/assets/icon-512.svg',
   '/js/config.js',
   '/js/db.js',
+  '/js/reference-codes.js',
+  '/js/document-security.js',
   '/js/i18n.js',
   '/js/auth.js',
   '/js/sync.js',
   '/js/charts.js',
   '/js/utils.js',
+  '/js/dialogs.js',
+  '/js/validation.js',
+  '/js/image-dropzone.js',
+  '/js/rich-editor.js',
+  '/js/template-designer.js',
+  '/js/catalog-picker.js',
+  '/js/partner-360.js',
+  '/js/document-link-picker.js',
+  '/js/documents.js',
   '/js/modules/dashboard.js',
   '/js/modules/inventory.js',
   '/js/modules/suppliers.js',
@@ -24,6 +35,16 @@ const ASSETS_TO_CACHE = [
   '/js/modules/reports.js',
   '/js/modules/audit.js',
   '/js/modules/settings.js',
+  '/js/modules/hr.js',
+  '/js/modules/tasks.js',
+  '/js/modules/portal.js',
+  '/js/modules/purchases.js',
+  '/js/modules/ged.js',
+  '/js/modules/taxes.js',
+  '/js/modules/master-data.js',
+  '/js/modules/inventory-ops.js',
+  '/js/modules/bulk-import.js',
+  '/js/modules/api.js',
   '/js/app.js'
 ];
 
@@ -54,10 +75,21 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // We use Stale-While-Revalidate for app files to guarantee immediate offline rendering
-  if (event.request.method !== 'GET') {
+  // Authentication must always reach the server and must never be cached.
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
     return;
   }
+
+  // Navigation is network-first so a stale cached index cannot hide a newly fixed login gate.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    return;
+  }
+
+  // Static app assets use Stale-While-Revalidate for immediate offline rendering.
+  if (event.request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
