@@ -680,8 +680,8 @@ const SalesModule = {
     const printVerificationUrl = await DocumentSecurity.url(printReference, printHash);
     const companySettings = await window.sariDB.getById('settings', 'app-settings') || {};
 
-    const modalEl = document.getElementById('sales-print-modal');
-    if (!modalEl) return;
+    let modalEl = document.getElementById('sales-print-modal');
+    if (!modalEl) { modalEl=document.createElement('div');modalEl.id='sales-print-modal';modalEl.dataset.globalPrintRoot='true';document.body.appendChild(modalEl); }
 
     const customer = this.state.customers.find(c => c.id === o.customerId) || { name: o.customerName, wilaya: '16', taxId: 'NIF: 00001600000' };
     const docTitles = { facture: 'FACTURE COMMERCIALE', quote: 'DEVIS / OFFRE DE PRIX', purchase_order: 'BON DE COMMANDE', bl: 'BON DE LIVRAISON (BL)' };
@@ -796,7 +796,7 @@ const SalesModule = {
 
   closePrintModal() {
     const modalEl = document.getElementById('sales-print-modal');
-    if (modalEl) modalEl.innerHTML = '';
+    if (modalEl?.dataset.globalPrintRoot) modalEl.remove(); else if (modalEl) modalEl.innerHTML = '';
   }
 };
 
