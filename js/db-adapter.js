@@ -13,7 +13,7 @@ class DBAdapter {
     this.defaultConfigs = {
       indexeddb: {
         dbName: 'SariSystemeDB',
-        version: 2,
+        version: 16,
         storageType: 'Local IndexedDB (Offline PWA)'
       },
       mysql: {
@@ -97,7 +97,7 @@ class DBAdapter {
         driver: type,
         latencyMs,
         message: 'Connexion IndexedDB locale active (Offline-First PWA)',
-        details: '11 Object Stores prêts (Products, Warehouses, Suppliers, Shipments, Tenders, Customers, Orders, Notifications, Settings, AuditLogs, SyncQueue)'
+        details: '67 Object Stores prêts, incluant GED, checklists, RH, TVA, références ERP, messagerie, permissions et tâches Kanban'
       };
     } else if (type === 'mysql') {
       return {
@@ -135,9 +135,8 @@ class DBAdapter {
 
   // Abstraction methods calling the underlying storage engine
   async init() {
-    if (window.sariDB) {
-      await window.sariDB.init();
-    }
+    if (window.sariDB) await window.sariDB.init();
+    try{const response=await fetch('/api/db/status',{credentials:'same-origin'});if(response.ok){const status=await response.json();if(status.active){this.currentDriver=status.type;this.driverConfig={...this.defaultConfigs[status.type],serverManaged:true};}else{this.currentDriver='indexeddb';this.driverConfig=this.defaultConfigs.indexeddb;}}}catch(_){/* offline: retain IndexedDB/local preference */}
   }
 
   async getAll(storeName) {
