@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 13) {
+  constructor(dbName = 'SariSystemeDB', version = 14) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -66,7 +66,7 @@ class SariDB {
           'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories',
           'salesStages', 'productLots', 'stockMovements', 'inventoryCounts',
           'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations',
-          'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles'
+          'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences'
         ];
 
         stores.forEach((storeName) => {
@@ -144,6 +144,7 @@ class SariDB {
         if (!await this.getById('orders','order-multipage-sample')) await this.seedMultiPageInvoice();
         if (!await this.getById('documentTemplates','tpl-ready-html') && globalThis.TemplateEngine) await this.save('documentTemplates',{id:'tpl-ready-html',name:'HTML Professionnel',type:'all',paperFormat:'A4',accent:'#009CC5',layout:'html',templateMode:'html',htmlContent:TemplateEngine.defaultHtml(),versions:[]});
         if (await this.count('gedCategories') === 0 || await this.count('gedTypes') === 0 || !await this.getById('configurableOptions','documentStatus-quoted')) await this.seedTranslationData();
+        await this.backfillNumericIdsAndReferences();
         resolve(this.db);
       };
 
@@ -155,6 +156,13 @@ class SariDB {
 
     return this.initPromise;
   }
+
+  async rawGetAll(storeName){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readonly').objectStore(storeName).getAll();request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>reject(request.error);});}
+  async rawPut(storeName,data){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readwrite').objectStore(storeName).put(data);request.onsuccess=()=>resolve(data);request.onerror=()=>reject(request.error);});}
+  async nextNumericId(storeName){return new Promise((resolve,reject)=>{const tx=this.db.transaction(['recordSequences'],'readwrite'),store=tx.objectStore('recordSequences'),get=store.get(storeName);get.onsuccess=()=>{const value=Number(get.result?.value||0)+1;store.put({id:storeName,value,updatedAt:new Date().toISOString()});resolve(value);};get.onerror=()=>reject(get.error);});}
+  async referenceDefinition(storeName,record){let code='',context={recordId:record.numericId};if(storeName==='products'){code='PRO';const category=await this.getById('productCategories',record.category);context.subType=category?.code||'01';}else if(storeName==='suppliers'){code='FOU';context.subType=['international','manufacturer'].includes(record.type)?'04':record.type==='local'?'02':'03';}else if(storeName==='customers'){code='CLI';context.subType=['public_hospital','government'].includes(record.type)?'01':['private_clinic','pharmacy'].includes(record.type)?'02':'03';}else if(storeName==='shipments'){code=record.type==='export'?'EXP':'IMP';context.country=record.partnerCountryCode||'DZA';}else if(storeName==='tenders'){code='CON';context.date=record.submissionDeadline;}else if(storeName==='orders')code=({invoice:'FAV',quote:'DVV',purchase_order:'BCV',delivery_note:'LIV'})[record.documentType]||'FAV';else if(storeName==='purchaseDocuments')code=({purchase_invoice:'FAC',purchase_quote:'DVA',goods_receipt:'REC',purchase_order:'BCA'})[record.documentType]||'FAC';else if(storeName==='employees'){code='EMP';context.date=record.hireDate;}else if(storeName==='missions'){code='MIS';context.date=record.startDate;}else if(storeName==='documentTemplates'){code='TEM';context.templateType=({invoice:'FAV',quote:'DVV',purchase_order:'BCA',delivery_note:'LIV'})[record.type]||'DOC';}else if(storeName==='taxRecords'){code=record.type==='G50'?'G50':record.type==='IBS'?'FIS':'RAP';context.date=String(record.period||'').length===7?record.period+'-01':undefined;}else if(storeName==='stockMovements')code=record.type==='out'?'STS':'STE';else if(storeName==='inventoryCounts')code='INV';else if(storeName==='paymentTransactions')code=record.direction==='out'?'CHA':'REV';return code?{code,context}:null;}
+  async applyDerivedReference(storeName,record){if(!record.numericId||!globalThis.ReferenceCodeManager)return record;const definition=await this.referenceDefinition(storeName,record);if(!definition)return record;const mask=await this.getById('documentCodes',definition.code);if(mask)record.referenceCode=ReferenceCodeManager.render(mask,record.numericId,{...definition.context,recordId:record.numericId});return record;}
+  async backfillNumericIdsAndReferences(){const stores=Array.from(this.db.objectStoreNames).filter(name=>!['recordSequences'].includes(name));for(const storeName of stores){const rows=await this.rawGetAll(storeName);let next=Math.max(0,...rows.map(row=>Number(row.numericId)||0))+1;for(const row of rows){if(!Number.isInteger(row.numericId)||row.numericId<1)row.numericId=next++;await this.applyDerivedReference(storeName,row);await this.rawPut(storeName,row);}await this.rawPut('recordSequences',{id:storeName,value:Math.max(0,next-1),updatedAt:new Date().toISOString()});}}
 
   async getAll(storeName) {
     await this.init();
@@ -182,6 +190,7 @@ class SariDB {
 
   async save(storeName, data) {
     await this.init();
+    if(storeName!=='recordSequences'){if(!Number.isInteger(data.numericId)||data.numericId<1)data.numericId=await this.nextNumericId(storeName);await this.applyDerivedReference(storeName,data);}
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -259,6 +268,13 @@ class SariDB {
       exportData.data[s] = await this.getAll(s);
     }
     return exportData;
+  }
+
+  async exportSQL() {
+    await this.init();const stores=Array.from(this.db.objectStoreNames).filter(name=>!['recordSequences'].includes(name)),escape=value=>String(value??'').replace(/\\/g,'\\\\').replace(/'/g,"''").replace(/\0/g,'');let sql=`-- SARI Système complete MySQL dump\n-- Generated ${new Date().toISOString()}\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n`;
+    for(const storeName of stores){const table=`sari_${storeName.replace(/([a-z])([A-Z])/g,'$1_$2').replace(/[^a-z0-9_]/gi,'_').toLowerCase()}`,rows=await this.getAll(storeName);sql+=`DROP TABLE IF EXISTS \`${table}\`;\nCREATE TABLE \`${table}\` (\n  \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,\n  \`legacy_uid\` VARCHAR(255) NULL,\n  \`reference_code\` VARCHAR(180) NULL,\n  \`payload_json\` JSON NOT NULL,\n  \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (\`id\`), UNIQUE KEY \`uq_${table}_legacy_uid\` (\`legacy_uid\`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n`;
+      if(rows.length){const values=rows.map(row=>`(${Number(row.numericId)||'NULL'},'${escape(row.id)}',${row.referenceCode?`'${escape(row.referenceCode)}'`:'NULL'},'${escape(JSON.stringify(row))}')`);sql+=`INSERT INTO \`${table}\` (\`id\`,\`legacy_uid\`,\`reference_code\`,\`payload_json\`) VALUES\n${values.join(',\n')};\n`; }sql+='\n';
+    }return sql+'SET FOREIGN_KEY_CHECKS=1;\n';
   }
 
   async importJSON(jsonData) {

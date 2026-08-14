@@ -385,6 +385,7 @@ const SalesModule = {
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'bl')" title="Imprimer Bon de Livraison" class="px-2 py-1 rounded bg-sari-lime/20 hover:bg-sari-lime/30 text-sari-lime-dark text-xs font-bold flex items-center gap-1">
                             <i class="fas fa-truck-loading"></i> BL
                           </button>
+                          <button onclick="DocumentTranslationManager.open('order','${o.id}')" class="p-1 text-sari-lime-dark" title="Traduire"><i data-lucide="languages" class="w-4 h-4"></i></button>
                           ${o.status!=='closed'&&canWrite?`<button onclick="SalesModule.editOrder('${o.id}')" class="p-1 text-sari-blue" title="Modifier"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="SalesModule.convertOrder('${o.id}')" class="p-1 text-sari-amber" title="Convertir"><i data-lucide="repeat-2" class="w-4 h-4"></i></button>`:''}
                           <button onclick="DocumentManager.open('order','${o.id}','${o.id}')" title="Documents" class="p-1 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                           ${canWrite ? `
@@ -665,16 +666,18 @@ const SalesModule = {
   /**
    * Official Facture / Bon de Livraison (BL) Printable Modal
    */
-  async openPrintModal(orderId, docType = 'facture') {
-    const o = await window.sariDB.getById('orders', orderId);
-    if (!o) return;
+  async openPrintModal(orderId, docType = 'facture', languageOverride = i18n.currentLang) {
+    const originalOrder = await window.sariDB.getById('orders', orderId);
+    if (!originalOrder) return;
+    const o = await DocumentTranslationManager.translateRecord(originalOrder,'order',languageOverride);
     const requestedType = ({ facture:'invoice', quote:'quote', purchase_order:'purchase_order', bl:'delivery_note' })[docType] || 'invoice';
     const configuredCode = ({ invoice:'FAV', quote:'DVV', purchase_order:'BCV', delivery_note:'LIV' })[requestedType];
-    o.referenceCodes ||= {};
-    if (!o.referenceCodes[requestedType]) {
-      o.referenceCodes[requestedType] = o.documentType === requestedType && o.referenceCode ? o.referenceCode : await ReferenceCodeManager.generate(configuredCode);
-      await sariDB.save('orders',o);
+    originalOrder.referenceCodes ||= {};
+    if (!originalOrder.referenceCodes[requestedType]) {
+      const definition=await sariDB.getById('documentCodes',configuredCode);originalOrder.referenceCodes[requestedType]=originalOrder.documentType===requestedType&&originalOrder.referenceCode?originalOrder.referenceCode:definition?ReferenceCodeManager.render(definition,originalOrder.numericId||1,{}):originalOrder.referenceCode;
+      await sariDB.save('orders',originalOrder);
     }
+    o.referenceCodes={...originalOrder.referenceCodes};
     const printReference = o.referenceCodes[requestedType];
     const printHash = await DocumentSecurity.hash(printReference);
     const printVerificationUrl = await DocumentSecurity.url(printReference, printHash);
@@ -762,7 +765,7 @@ const SalesModule = {
                 ${o.items.map((it, idx) => `
                   <tr class="border-b border-slate-200">
                     <td class="p-2.5 border-r border-slate-300 font-mono-tech">${idx + 1}</td>
-                    <td class="p-2.5 border-r border-slate-300 font-bold" ${DynamicI18n.attributes('products',it.productId||o.id,it.productId?'name':'lineName',it.name)}>${SariUtils.escapeHtml(DynamicI18n.get('products',it.productId||o.id,it.productId?'name':'lineName',it.name))}</td>
+                    <td class="p-2.5 border-r border-slate-300 font-bold" ${it._manualTranslated?DynamicI18n.attributes('orders',o.id,it._translationField,it.name):DynamicI18n.attributes('products',it.productId||o.id,it.productId?'name':'lineName',it.name)}>${SariUtils.escapeHtml(it._manualTranslated?it.name:DynamicI18n.get('products',it.productId||o.id,it.productId?'name':'lineName',it.name))}</td>
                     <td class="p-2.5 border-r border-slate-300 text-center font-mono-tech font-bold">${it.qty}</td>
                     ${hideAmounts ? '' : `<td class="p-2.5 border-r border-slate-300 text-right font-mono-tech">${formatMoney(it.unitPrice)}</td><td class="p-2.5 border-r border-slate-300 text-center">${it.discountPercent||0}%</td><td class="p-2.5 text-right font-mono-tech font-bold">${formatMoney(it.total)}</td>`}
                   </tr>

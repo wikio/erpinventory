@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
   '/js/db-adapter.js',
   '/js/reference-codes.js',
   '/js/document-security.js',
+  '/js/document-translation.js',
   '/js/ui-copy.js',
   '/js/module-translations.js',
   '/js/i18n.js',

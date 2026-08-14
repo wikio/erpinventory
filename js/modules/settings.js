@@ -55,6 +55,7 @@ const SettingsModule = {
     [this.state.checklistTemplates, this.state.roles, this.state.documentTemplates, this.state.vatRates, this.state.documentCodes, this.state.paymentMethods, this.state.banks, this.state.bankAccounts, this.state.coupons, this.state.referrals, this.state.bankTypes, this.state.countries] = await Promise.all([
       'checklistTemplates','roles','documentTemplates','vatRates','documentCodes','paymentMethods','banks','bankAccounts','coupons','referrals','bankTypes','countries'
     ].map(store=>sariDB.getAll(store)));
+    if(auth.currentRole==='admin')try{const response=await fetch('/api/db/config',{credentials:'same-origin'});if(response.ok)this.state.externalDbConfig=await response.json();}catch(_){this.state.externalDbConfig={configured:false,type:'indexeddb',active:false};}
     this.renderView(container);
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -389,107 +390,8 @@ const SettingsModule = {
     }
 
     if (tab === 'database') {
-      const curDriver = (window.dbAdapter && window.dbAdapter.currentDriver) || 'indexeddb';
-      const conf = (window.dbAdapter && window.dbAdapter.driverConfig) || {};
-
-      return `
-        <div class="sari-tile p-6 space-y-6">
-          <div class="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
-            <div>
-              <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">Connecteur & Architecture Base de Données Agnostique</h3>
-              <p class="text-xs text-slate-500 mt-0.5">
-                Basculez à la volée entre le moteur de base de données local (IndexedDB) et des bases de données d'entreprise (MySQL, PostgreSQL, MongoDB).
-              </p>
-            </div>
-            <button onclick="SettingsModule.testDBConnection('${curDriver}')" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-xs font-bold">
-              <i data-lucide="check-circle" class="w-4 h-4"></i> Tester la connexion
-            </button>
-          </div>
-
-          <!-- Driver selector grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div
-              onclick="SettingsModule.switchDriver('indexeddb')"
-              class="p-4 rounded-lg border-2 cursor-pointer ${curDriver === 'indexeddb' ? 'border-sari-blue bg-sari-blue/5 ring-2 ring-sari-blue/30' : 'border-slate-300 dark:border-slate-700 hover:border-sari-blue'}"
-            >
-              <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-sm text-slate-900 dark:text-white">IndexedDB (Local PWA)</span>
-                ${curDriver === 'indexeddb' ? '<span class="sari-badge bg-sari-blue text-white">Actif</span>' : ''}
-              </div>
-              <p class="text-xs text-slate-500">Moteur offline-first embarqué 100% dans le navigateur client.</p>
-            </div>
-
-            <div
-              onclick="SettingsModule.switchDriver('mysql')"
-              class="p-4 rounded-lg border-2 cursor-pointer ${curDriver === 'mysql' ? 'border-sari-blue bg-sari-blue/5 ring-2 ring-sari-blue/30' : 'border-slate-300 dark:border-slate-700 hover:border-sari-blue'}"
-            >
-              <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-sm text-slate-900 dark:text-white">MySQL 8.0</span>
-                ${curDriver === 'mysql' ? '<span class="sari-badge bg-sari-blue text-white">Actif</span>' : ''}
-              </div>
-              <p class="text-xs text-slate-500">Base de données relationnelle MySQL (Moteur InnoDB).</p>
-            </div>
-
-            <div
-              onclick="SettingsModule.switchDriver('postgresql')"
-              class="p-4 rounded-lg border-2 cursor-pointer ${curDriver === 'postgresql' ? 'border-sari-blue bg-sari-blue/5 ring-2 ring-sari-blue/30' : 'border-slate-300 dark:border-slate-700 hover:border-sari-blue'}"
-            >
-              <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-sm text-slate-900 dark:text-white">PostgreSQL 15+</span>
-                ${curDriver === 'postgresql' ? '<span class="sari-badge bg-sari-blue text-white">Actif</span>' : ''}
-              </div>
-              <p class="text-xs text-slate-500">Base relationnelle d'entreprise et conformité ACID forte.</p>
-            </div>
-
-            <div
-              onclick="SettingsModule.switchDriver('mongodb')"
-              class="p-4 rounded-lg border-2 cursor-pointer ${curDriver === 'mongodb' ? 'border-sari-blue bg-sari-blue/5 ring-2 ring-sari-blue/30' : 'border-slate-300 dark:border-slate-700 hover:border-sari-blue'}"
-            >
-              <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-sm text-slate-900 dark:text-white">MongoDB 6.0</span>
-                ${curDriver === 'mongodb' ? '<span class="sari-badge bg-sari-blue text-white">Actif</span>' : ''}
-              </div>
-              <p class="text-xs text-slate-500">Moteur NoSQL orienté documents JSON/BSON distribué.</p>
-            </div>
-          </div>
-
-          <!-- Configuration Form for External Drivers -->
-          <form onsubmit="SettingsModule.saveDBConfig(event)" class="p-5 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4">
-            <div class="flex justify-between items-center border-b pb-2">
-              <h4 class="font-bold text-sm text-slate-900 dark:text-white uppercase">Paramètres de Connexion : <span class="text-sari-blue">${curDriver.toUpperCase()}</span></h4>
-              <span class="text-xs text-slate-500 font-mono-tech">SSL/TLS : ${conf.ssl ? 'Activé' : 'Désactivé'}</span>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-              <div>
-                <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Hôte / Serveur DB (Host)</label>
-                <input type="text" id="db-host" required value="${conf.host || 'localhost'}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-900 font-mono-tech font-bold" />
-              </div>
-              <div>
-                <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Port</label>
-                <input type="number" id="db-port" required value="${conf.port || 3306}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-900 font-mono-tech font-bold" />
-              </div>
-              <div>
-                <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Nom Base de Données (DB Name)</label>
-                <input type="text" id="db-name" required value="${conf.database || 'sari_erp_prod'}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-900 font-mono-tech font-bold" />
-              </div>
-              <div>
-                <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Utilisateur (Username)</label>
-                <input type="text" id="db-user" required value="${conf.user || 'sari_admin'}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-900 font-mono-tech font-bold" />
-              </div>
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-              <button type="submit" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold text-xs">
-                <i data-lucide="save" class="w-4 h-4"></i> Enregistrer la configuration DB
-              </button>
-            </div>
-          </form>
-
-          <!-- Connection Test Feedback Area -->
-          <div id="db-test-feedback"></div>
-        </div>
-      `;
+      const db=this.state.externalDbConfig||{type:'indexeddb',configured:false,active:false};
+      return `<div class="space-y-5"><section class="sari-tile p-6"><div class="flex justify-between border-b pb-4"><div><span class="sari-badge ${db.active?'bg-green-100 text-green-700':'bg-slate-100 text-slate-600'}">${db.active?'BACKEND EXTERNE ACTIF':'INDEXEDDB OFFLINE'}</span><h3 class="font-extrabold text-lg mt-2">Connexion base de données externe</h3><p class="text-xs text-slate-500">Le navigateur communique uniquement avec le serveur SARI. Le mot de passe est chiffré et conservé côté serveur, jamais dans IndexedDB.</p></div><i data-lucide="database-zap" class="w-10 h-10 text-sari-blue"></i></div><form id="external-db-form" onsubmit="SettingsModule.saveExternalDB(event)" class="grid md:grid-cols-3 gap-4 mt-5"><label class="doc-label">Type de base<select id="ext-db-type" class="doc-input" onchange="SettingsModule.externalTypeChanged(this.value)"><option value="mysql" ${db.type==='mysql'?'selected':''}>MySQL</option><option value="postgresql" ${db.type==='postgresql'?'selected':''}>PostgreSQL</option><option value="mongodb" ${db.type==='mongodb'?'selected':''}>MongoDB</option></select></label><label class="doc-label">Hôte<input id="ext-db-host" value="${SariUtils.escapeHtml(db.host||'localhost')}" class="doc-input" required></label><label class="doc-label">Port<input id="ext-db-port" type="number" value="${db.port||({mysql:3306,postgresql:5432,mongodb:27017}[db.type]||3306)}" class="doc-input" required></label><label class="doc-label">Base de données<input id="ext-db-name" value="${SariUtils.escapeHtml(db.database||'sari_erp_prod')}" class="doc-input" required></label><label class="doc-label">Nom utilisateur<input id="ext-db-user" autocomplete="username" value="${SariUtils.escapeHtml(db.username||'')}" class="doc-input"></label><label class="doc-label">Mot de passe<input id="ext-db-password" type="password" autocomplete="new-password" placeholder="${db.hasPassword?'Laisser vide pour conserver le secret':'Mot de passe serveur'}" class="doc-input"><small class="field-helper">Jamais renvoyé ni affiché par le serveur.</small></label><label class="doc-label">SSL<select id="ext-db-ssl" class="doc-input"><option value="false">Désactivé</option><option value="true">Activé</option></select></label><label class="doc-label">Backend actif<select id="ext-db-active" class="doc-input"><option value="false" ${!db.active?'selected':''}>Non — IndexedDB uniquement</option><option value="true" ${db.active?'selected':''}>Oui — synchroniser via API</option></select></label><div class="flex items-end gap-2"><button type="button" onclick="SettingsModule.testExternalDB()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900">Tester</button><button type="submit" class="sari-btn px-4 py-2 bg-sari-blue text-white">Tester & enregistrer</button></div></form><div id="external-db-feedback" class="mt-4"></div></section><section class="sari-tile p-6"><div class="flex justify-between"><div><h3 class="font-extrabold text-lg">Migration IndexedDB → ${String(db.type||'externe').toUpperCase()}</h3><p class="text-xs text-slate-500">Transfert idempotent par lots. Les enregistrements existants sont mis à jour, jamais dupliqués.</p></div><button onclick="SettingsModule.migrateToExternalDB()" ${db.active?'':'disabled'} class="sari-btn px-5 bg-sari-amber text-slate-900 disabled:opacity-40">Lancer la migration</button></div><div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden mt-4"><div id="external-migration-progress" class="h-full bg-sari-blue transition-all" style="width:0%"></div></div><div id="external-migration-results" class="mt-4 grid md:grid-cols-3 gap-2"></div></section><section class="sari-tile p-4 text-xs"><b>Architecture offline-first :</b> IndexedDB reste le cache local et la file de synchronisation. Sans configuration externe, l’application reste entièrement fonctionnelle hors ligne.</section></div>`;
     }
 
     // Data Tools Tab
@@ -498,7 +400,7 @@ const SettingsModule = {
         <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="font-extrabold text-lg text-slate-900 dark:text-white">Outils de Données, Exports CSV & Sauvegardes Système</h3>
           <p class="text-xs text-slate-500 mt-0.5">
-            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 64 stores ou restaurez votre système.
+            Exportez l'ensemble des tables en CSV pour vos tableurs Excel, effectuez un backup JSON de vos 65 stores ou restaurez votre système.
           </p>
         </div>
 
@@ -566,6 +468,7 @@ const SettingsModule = {
             </p>
 
             <div class="space-y-2">
+              <button onclick="SettingsModule.exportSQLDump()" class="sari-btn w-full py-2.5 bg-sari-blue text-white font-extrabold text-xs"><i data-lucide="database-backup" class="w-4 h-4"></i> EXPORT COMPLET MYSQL (.SQL)</button>
               <button onclick="SettingsModule.backupJSON()" class="sari-btn w-full py-2.5 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 font-extrabold text-xs">
                 <i data-lucide="download" class="w-4 h-4"></i> TÉLÉCHARGER SAUVEGARDE COMPLÈTE (.JSON)
               </button>
@@ -613,6 +516,13 @@ const SettingsModule = {
     window.app.showToast('Coordonnées de l\'entreprise enregistrées !', 'success');
     await this.render();
   },
+
+  externalPayload(){return{type:document.getElementById('ext-db-type').value,host:document.getElementById('ext-db-host').value.trim(),port:Number(document.getElementById('ext-db-port').value),database:document.getElementById('ext-db-name').value.trim(),username:document.getElementById('ext-db-user').value.trim(),password:document.getElementById('ext-db-password').value,ssl:document.getElementById('ext-db-ssl').value==='true',active:document.getElementById('ext-db-active').value==='true'};},
+  externalTypeChanged(type){const ports={mysql:3306,postgresql:5432,mongodb:27017};document.getElementById('ext-db-port').value=ports[type];},
+  showExternalFeedback(result,success){const el=document.getElementById('external-db-feedback');if(el)el.innerHTML=`<div class="p-3 rounded border ${success?'bg-green-50 border-green-300 text-green-800':'bg-red-50 border-red-300 text-red-700'}"><b>${success?'✓ Connexion réussie':'✗ Échec de connexion'}</b><p class="text-xs">${SariUtils.escapeHtml(result.message||result.error||'')}</p>${result.latencyMs?`<span class="sari-badge mt-1">${result.latencyMs} ms</span>`:''}</div>`;},
+  async testExternalDB(){try{const response=await fetch('/api/db/test',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(this.externalPayload())}),result=await response.json();this.showExternalFeedback(result,response.ok&&result.success);}catch(error){this.showExternalFeedback({error:error.message},false);}},
+  async saveExternalDB(event){event.preventDefault();try{const response=await fetch('/api/db/config',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(this.externalPayload())}),result=await response.json();this.showExternalFeedback(result,response.ok);if(response.ok){this.state.externalDbConfig=result;await dbAdapter.setDriver(result.active?result.type:'indexeddb',{serverManaged:true});app.showToast('Connexion externe enregistrée côté serveur.','success');setTimeout(()=>this.render(),600);}}catch(error){this.showExternalFeedback({error:error.message},false);}},
+  async migrateToExternalDB(){const stores=Array.from(sariDB.db.objectStoreNames).filter(name=>!['recordSequences','syncQueue'].includes(name)),progress=document.getElementById('external-migration-progress'),results=document.getElementById('external-migration-results');let completed=0;const summaries=[];results.innerHTML='<p class="text-sm">Migration en cours…</p>';for(const storeName of stores){const records=await sariDB.getAll(storeName);let migrated=0,failed=[];for(let offset=0,chunkSize=storeName==='documents'?1:25;offset<records.length;offset+=chunkSize){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName,records:records.slice(offset,offset+chunkSize)})}),result=await response.json();if(response.ok){migrated+=result.migrated;failed.push(...(result.failed||[]));}else failed.push({id:'batch',reason:result.error||'Erreur serveur'});}summaries.push({storeName,migrated,failed,total:records.length});completed++;progress.style.width=`${Math.round(completed/stores.length*100)}%`;results.innerHTML=summaries.map(s=>`<div class="p-3 border rounded ${s.failed.length?'border-amber-400':'border-green-300'}"><b>${s.storeName}</b><p class="text-xs">${s.migrated}/${s.total} migrés • ${s.failed.length} échec(s)</p>${s.failed.slice(0,3).map(e=>`<small class="block text-red-600">${e.id}: ${SariUtils.escapeHtml(e.reason)}</small>`).join('')}</div>`).join('');}app.showToast(`Migration terminée : ${summaries.reduce((n,s)=>n+s.migrated,0)} enregistrements.`,summaries.some(s=>s.failed.length)?'warning':'success');},
 
   async switchDriver(driverType) {
     if (window.dbAdapter) {
@@ -697,6 +607,8 @@ const SettingsModule = {
     window.app.showToast(`${totalExported} tables exportées en CSV !`, 'success');
   },
 
+  async exportSQLDump(){try{const sql=await sariDB.exportSQL(),blob=new Blob([sql],{type:'application/sql;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`sari-systeme-full-dump-${new Date().toISOString().slice(0,10)}.sql`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);app.showToast('Dump SQL MySQL complet généré.','success');}catch(error){console.error(error);app.showToast('Erreur pendant la génération SQL.','error');}},
+
   async backupJSON() {
     try {
       const exportData = await window.sariDB.exportJSON();
@@ -744,7 +656,7 @@ const SettingsModule = {
       return;
     }
     try {
-      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates', 'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords', 'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals', 'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory', 'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages', 'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles'];
+      const stores = ['products', 'warehouses', 'suppliers', 'shipments', 'tenders', 'customers', 'orders', 'notifications', 'auditLogs', 'syncQueue', 'checklistItems', 'checklistTemplates', 'documents', 'employees', 'missions', 'jobPostings', 'candidates', 'tasks', 'taskStages', 'roles', 'documentTemplates', 'vatRates', 'documentCodes', 'sequenceCounters', 'conversations', 'messages', 'careerRecords', 'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals', 'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory', 'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages', 'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences'];
       for (const s of stores) {
         await window.sariDB.clearStore(s);
       }

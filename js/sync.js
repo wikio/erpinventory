@@ -107,7 +107,10 @@ class SyncController {
           // Simulate server synchronization / conflict resolution
           if (item.action === 'save') {
             await window.sariDB.save(item.storeName, item.payload);
+            if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,records:[item.payload]})});if(!response.ok)throw Error((await response.json()).error||'External sync failed');}
           } else if (item.action === 'delete') {
+            const existing=await window.sariDB.getById(item.storeName,item.payload.id);
+            if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/delete-record',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,numericId:existing.numericId})});if(!response.ok)throw Error((await response.json()).error||'External delete failed');}
             await window.sariDB.delete(item.storeName, item.payload.id);
           }
           await window.sariDB.delete('syncQueue', item.id);

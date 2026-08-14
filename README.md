@@ -46,11 +46,17 @@
 - **Tasks & supervision:** personal/team Kanban with configurable stages, priorities, linked ERP records and Day/Week/Month/Year planning scopes.
 - **Granular permissions:** database-backed role permission matrix for view/create/edit/delete plus optional employee-level overrides.
 
-IndexedDB schema version 13 now includes 64 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
+IndexedDB schema version 14 now includes 65 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
 
 Additional administration tools include responsive/collapsible navigation, separate site and financial-document logos, a dependency-free rich text editor, an employee self-service portal, internal messaging, and a visual drag/resize document-template designer with live merge-field previews.
 
-Version 13 adds persisted module-level FR/AR/EN coverage for product, lot, import/export, tender, sales and GED workflows; translated rich-editor/barcode UI; reliable GED Blob previews and downloads; restored all-store CSV/data tools; and a clickable quick profile editor with user photo. Inline translation mode, dynamic content translation, configurable GED metadata, 250 countries, detailed documents/reports, bank dashboards, visual/HTML templates, fixed multipage PDFs, workflows, imports and the public API remain included.
+Version 14 adds numeric auto-increment technical identifiers, ID-derived document references, full MySQL SQL dumps, a realistic numeric-ID seed, manual document/mission translation, and optional encrypted server-side MySQL/PostgreSQL/MongoDB connectors with idempotent IndexedDB migration. It retains complete module-level FR/AR/EN coverage, translated rich-editor/barcode UI, GED previews/downloads, all-store data tools, quick profiles, inline translation, configurable metadata, 250 countries, reports, templates, fixed PDFs, workflows and the public API.
+
+## 🗄️ Optional External Database Backend
+
+The browser never connects to a database protocol directly. Configure MySQL, PostgreSQL, or MongoDB from **Settings → Database**; credentials are sent to the Node server, encrypted with AES-256-GCM under `.runtime/`, and never returned to or stored by IndexedDB. Without a configured backend, the ERP remains fully offline-first. With one active, IndexedDB remains the local cache/sync queue.
+
+Install server drivers with `npm install`. For production, set a stable `SARI_CONFIG_KEY` environment secret before saving a connection. The migration tool performs idempotent upserts keyed by store + numeric record ID and reports progress/failures per store.
 
 ## 🏥 Core Functional Modules
 

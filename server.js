@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { ExternalDatabaseManager } = require('./external-db');
 
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
@@ -37,6 +38,7 @@ const integrationTokens = new Map();
 const integrationData = new Map(['products','customers','suppliers','sales','purchases'].map(name => [name, []]));
 const integrationEndpointAliases = new Map(['products','customers','suppliers','sales','purchases'].map(name => [name,name]));
 let integrationBasePath = '/api/v1';
+const externalDB = new ExternalDatabaseManager(__dirname);
 
 const TOKEN_FILE = path.join(__dirname,'.runtime','api-tokens.json');
 try { for (const item of JSON.parse(fs.readFileSync(TOKEN_FILE,'utf8'))) integrationTokens.set(item.id,item); } catch (_) { /* first run */ }
@@ -72,12 +74,12 @@ function getSession(req) {
   return { token, session };
 }
 
-function readJson(req) {
+function readJson(req, maxBytes = 10 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 16 * 1024) req.destroy();
+      if (body.length > maxBytes) req.destroy();
     });
     req.on('end', () => {
       try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); }
@@ -99,6 +101,12 @@ function clearSessionCookie(req, res) {
 }
 
 async function handleApi(req, res, pathname) {
+  if (pathname === '/api/db/config' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,externalDB.publicConfig()); }
+  if (pathname === '/api/db/status' && req.method === 'GET') { if(!getSession(req))return json(res,401,{error:'Authentication required'});const config=externalDB.publicConfig();return json(res,200,{active:config.active,type:config.type,configured:config.configured}); }
+  if (pathname === '/api/db/test' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,await externalDB.test(await readJson(req)));}catch(error){return json(res,400,{success:false,error:error.message});} }
+  if (pathname === '/api/db/config' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,await externalDB.configure(await readJson(req)));}catch(error){return json(res,400,{success:false,error:error.message});} }
+  if (pathname === '/api/db/migrate-batch' && req.method === 'POST') { if(!getSession(req))return json(res,401,{error:'Authentication required'});try{const body=await readJson(req);return json(res,200,await externalDB.migrateBatch(body.storeName,body.records||[]));}catch(error){return json(res,400,{success:false,error:error.message});} }
+  if (pathname === '/api/db/delete-record' && req.method === 'POST') { if(!getSession(req))return json(res,401,{error:'Authentication required'});try{const body=await readJson(req);return json(res,200,await externalDB.deleteRecord(body.storeName,body.numericId));}catch(error){return json(res,400,{success:false,error:error.message});} }
   if (pathname === '/api/integration/tokens' && req.method === 'GET') {
     if (!requireAdmin(req)) return json(res, 403, { error: 'Administrator access required' });
     return json(res, 200, { tokens: [...integrationTokens.values()].map(({tokenHash,...item}) => item) });

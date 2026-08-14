@@ -18,5 +18,10 @@
     "indexeddb"
   ],
   "author": "SARI Système Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "mongodb": "^6.18.0",
+    "mysql2": "^3.14.3",
+    "pg": "^8.16.3"
+  }
 }
