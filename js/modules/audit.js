@@ -51,7 +51,7 @@ const AuditModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}" 
-              oninput="AuditModule.handleSearch(this.value)"
+              oninput="AuditModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>AuditModule.render())"
               placeholder="Ex: SUBMIT_TENDER, Administrator, CHU Mustapha..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -101,9 +101,7 @@ const AuditModule = {
                       <p class="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">${log.description}</p>
                     </div>
                   </div>
-                  <div class="text-xs font-mono-tech text-slate-400 whitespace-nowrap">
-                    ${new Date(log.timestamp).toLocaleString(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-FR')}
-                  </div>
+                  <div class="text-right"><div class="text-xs font-mono-tech text-slate-400 whitespace-nowrap">${new Date(log.timestamp).toLocaleString(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-FR')}</div><button onclick="AuditModule.viewLog('${log.id}')" class="doc-action">Consulter</button>${auth.currentRole==='admin'?`<button onclick="AuditModule.editLog('${log.id}')" class="doc-action">Modifier</button><button onclick="AuditModule.deleteLog('${log.id}')" class="doc-action text-red-600">Supprimer</button>`:''}</div>
                 </div>
               `;
             }).join('')}
@@ -118,13 +116,7 @@ const AuditModule = {
       if (this.state.filterModule !== 'all' && l.module !== this.state.filterModule) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchUser = l.user && l.user.toLowerCase().includes(q);
-        const matchDesc = l.description && l.description.toLowerCase().includes(q);
-        const matchAction = l.action && l.action.toLowerCase().includes(q);
-        if (!matchUser && !matchDesc && !matchAction) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(l,this.state.searchQuery,['user','description','action','module'])) return false;
       return true;
     });
   },
@@ -138,6 +130,10 @@ const AuditModule = {
     this.state.filterModule = val;
     this.render();
   },
+
+  async viewLog(id){const l=await sariDB.getById('auditLogs',id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[92vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${l.action}</span><h3 class="text-xl font-extrabold mt-2">${l.module} • ${l.affectedRecordId||'Système'}</h3></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-4 gap-3 my-4 text-xs"><div><span class="text-slate-400">Utilisateur</span><b class="block">${l.user} (${l.role})</b></div><div><span class="text-slate-400">ID utilisateur</span><b class="block">${l.actingUserId||'—'}</b></div><div><span class="text-slate-400">Horodatage</span><b class="block">${new Date(l.timestamp).toLocaleString()}</b></div><div><span class="text-slate-400">Type / ID</span><b class="block">${l.recordType||l.module} / ${l.affectedRecordId||'—'}</b></div></div><p class="p-3 bg-slate-50 dark:bg-slate-800 rounded">${SariUtils.escapeHtml(l.description||'')}</p><h4 class="font-extrabold mt-5">Champs modifiés (${l.changes?.length||0})</h4><div class="overflow-x-auto"><table class="w-full text-xs mt-2"><thead><tr><th class="text-left p-2">Champ</th><th>Avant</th><th>Après</th></tr></thead><tbody>${(l.changes||[]).map(x=>`<tr class="border-t"><td class="p-2 font-mono-tech text-sari-blue">${x.field}</td><td><pre class="whitespace-pre-wrap max-w-sm">${SariUtils.escapeHtml(JSON.stringify(x.before,null,2))}</pre></td><td><pre class="whitespace-pre-wrap max-w-sm">${SariUtils.escapeHtml(JSON.stringify(x.after,null,2))}</pre></td></tr>`).join('')||'<tr><td colspan="3" class="p-4 text-slate-400">Ancienne entrée sans diff structuré.</td></tr>'}</tbody></table></div></div></div>`;},
+  async editLog(id){if(auth.currentRole!=='admin')return;const l=await sariDB.getById('auditLogs',id),v=await DialogManager.form('Modifier une entrée d’audit',[{name:'action',label:'Action',value:l.action},{name:'module',label:'Module',value:l.module},{name:'description',label:'Description',type:'textarea',value:l.description}]);if(!v)return;const before=JSON.stringify(l);Object.assign(l,v,{editedAt:new Date().toISOString(),editedBy:auth.currentUser.name});await sariDB.save('auditLogs',l);await sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:auth.currentUser.name,role:auth.currentRole,action:'EDIT_AUDIT_LOG',module:'Audit',description:`Modification de ${id}. Empreinte précédente: ${before.slice(0,180)}`,timestamp:new Date().toISOString()});this.render();},
+  async deleteLog(id){if(auth.currentRole!=='admin'||!await DialogManager.confirm('Supprimer cette entrée ? Une trace de cette suppression sera conservée.'))return;const l=await sariDB.getById('auditLogs',id);await sariDB.delete('auditLogs',id);await sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:auth.currentUser.name,role:auth.currentRole,action:'DELETE_AUDIT_LOG',module:'Audit',description:`Suppression de ${id} [${l?.action}]`,timestamp:new Date().toISOString()});this.render();},
 
   exportCSV() {
     SariUtils.exportToCSV(this.state.logs, 'sari-systeme-audit-logs.csv');

@@ -17,6 +17,7 @@ const SuppliersModule = {
     if (!container) return;
 
     this.state.suppliers = await window.sariDB.getAll('suppliers');
+    [this.state.purchaseDocuments,this.state.supplierTypes,this.state.countries] = await Promise.all(['purchaseDocuments','supplierTypes','countries'].map(s=>sariDB.getAll(s)));
     this.renderView(container);
   },
 
@@ -61,7 +62,7 @@ const SuppliersModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="SuppliersModule.handleSearch(this.value)"
+              oninput="SuppliersModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>SuppliersModule.render())"
               placeholder="Ex: MediCare, BioMed, Saidal, Allemagne..."
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
@@ -73,10 +74,7 @@ const SuppliersModule = {
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             >
               <option value="all">Tous les Fournisseurs</option>
-              <option value="international" ${this.state.filterType === 'international' ? 'selected' : ''}>International (Import)</option>
-              <option value="local" ${this.state.filterType === 'local' ? 'selected' : ''}>Local (Algérie)</option>
-              <option value="manufacturer" ${this.state.filterType === 'manufacturer' ? 'selected' : ''}>Fabricant Direct</option>
-              <option value="distributor" ${this.state.filterType === 'distributor' ? 'selected' : ''}>Distributeur Agréé</option>
+              ${(this.state.supplierTypes||[]).filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${this.state.filterType===x.id?'selected':''}>${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}
             </select>
           </div>
           <div class="flex items-end">
@@ -116,7 +114,7 @@ const SuppliersModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3">
-                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div>
+                      <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                         <i class="fas fa-map-marker-alt text-sari-blue"></i> ${s.country}
                       </div>
@@ -150,6 +148,9 @@ const SuppliersModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="SuppliersModule.openDetail('${s.id}')" title="Consulter la fiche" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="SuppliersModule.open360('${s.id}')" title="Transactions & statistiques" class="p-1.5 rounded text-sari-lime-dark"><i data-lucide="chart-no-axes-combined" class="w-4 h-4"></i></button>
+                        <button onclick="DocumentManager.open('supplier','${s.id}','${SariUtils.escapeHtml(s.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="SuppliersModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -180,12 +181,7 @@ const SuppliersModule = {
       if (this.state.filterType !== 'all' && s.type !== this.state.filterType) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchName = s.name && s.name.toLowerCase().includes(q);
-        const matchCountry = s.country && s.country.toLowerCase().includes(q);
-        if (!matchName && !matchCountry) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','name','country','certifications','richDetails'])) return false;
       return true;
     });
   },
@@ -218,7 +214,7 @@ const SuppliersModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${supplierId ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur Médical'}
@@ -236,19 +232,14 @@ const SuppliersModule = {
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Pays d'Origine *</label>
-                <input type="text" id="sup-country" required value="${sup.country}" placeholder="Ex: Algérie, Chine, Allemagne, France" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
+                ${ManagedAutocomplete.html({id:'sup-country',items:(this.state.countries||[]).filter(c=>c.isActive),selected:sup.countryCode||'',valueFor:c=>c.iso3,labelFor:c=>(c.name?.[i18n.currentLang]||c.name?.fr)+' • '+c.currency,className:'w-full px-3 py-2 border rounded bg-white dark:bg-slate-800'})}
               </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Type de Fournisseur</label>
-                <select id="sup-type" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800">
-                  <option value="local" ${sup.type === 'local' ? 'selected' : ''}>Local (Algérie)</option>
-                  <option value="international" ${sup.type === 'international' ? 'selected' : ''}>International (Import)</option>
-                  <option value="manufacturer" ${sup.type === 'manufacturer' ? 'selected' : ''}>Fabricant Direct</option>
-                  <option value="distributor" ${sup.type === 'distributor' ? 'selected' : ''}>Distributeur Agréé</option>
-                </select>
+                ${ManagedAutocomplete.html({id:'sup-type',items:(this.state.supplierTypes||[]).filter(x=>x.isActive),selected:sup.type||'',valueFor:x=>x.id,labelFor:x=>x.name?.[i18n.currentLang]||x.name?.fr,className:'w-full px-3 py-2 border rounded bg-white dark:bg-slate-800'})}
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Devise Utilisée</label>
@@ -279,6 +270,7 @@ const SuppliersModule = {
               <input type="text" id="sup-contact" value="${sup.contactInfo || ''}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('sup-logo',sup.logo||'','Logo fournisseur')}${RichTextEditor.html('sup-rich-details',sup.richDetails||'','Informations détaillées / certifications / conditions')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="SuppliersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
                 ${i18n.t('cancel')}
@@ -300,17 +292,26 @@ const SuppliersModule = {
   },
 
   async saveSupplier(e) {
+    if (!auth.can('suppliers', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
     const id = this.state.editingId || `sup-${Date.now()}`;
+    const original = this.state.editingId ? await sariDB.getById('suppliers', id) : {};
+    const typeInput=document.getElementById('sup-type').value.trim();const typeRecord=this.state.supplierTypes.find(x=>x.id===typeInput||[x.name?.fr,x.name?.ar,x.name?.en].includes(typeInput));if(!typeRecord)return app.showToast('Sélectionnez un type fournisseur configuré.','error');const supplierType=typeRecord.id;const subType=typeRecord.code;
+    const countryInput=document.getElementById('sup-country').value.trim().toUpperCase();const countryRecord=this.state.countries.find(c=>c.iso3===countryInput||c.iso2===countryInput||[c.name?.fr,c.name?.ar,c.name?.en].includes(document.getElementById('sup-country').value.trim()));if(!countryRecord)return app.showToast('Sélectionnez un pays configuré.','error');
     const payload = {
+      ...original,
       id,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate('FOU', { subType }),
       name: document.getElementById('sup-name').value.trim(),
-      country: document.getElementById('sup-country').value.trim(),
-      type: document.getElementById('sup-type').value,
+      countryCode: countryRecord.iso3,
+      country: countryRecord.name?.fr || countryRecord.iso3,
+      type: supplierType,
       currency: document.getElementById('sup-currency').value,
       incoterms: document.getElementById('sup-incoterm').value,
       certifications: document.getElementById('sup-cert').value.trim(),
-      contactInfo: document.getElementById('sup-contact').value.trim()
+      contactInfo: document.getElementById('sup-contact').value.trim(),
+      logo: ImageDropzone.value('sup-logo',original.logo||''),
+      richDetails: RichTextEditor.value('sup-rich-details')
     };
 
     await window.syncController.enqueueMutation('suppliers', 'save', payload);
@@ -319,8 +320,11 @@ const SuppliersModule = {
     await this.render();
   },
 
+  async openDetail(id){return Partner360.open('supplier',id);},async open360(id){return Partner360.open('supplier',id);},
+
   async deleteSupplier(id) {
-    if (!confirm('Supprimer ce fournisseur médical ?')) return;
+    if (!auth.can('suppliers','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer ce fournisseur médical ?')) return;
     await window.syncController.enqueueMutation('suppliers', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();

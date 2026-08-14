@@ -13,7 +13,7 @@ class DBAdapter {
     this.defaultConfigs = {
       indexeddb: {
         dbName: 'SariSystemeDB',
-        version: 2,
+        version: 12,
         storageType: 'Local IndexedDB (Offline PWA)'
       },
       mysql: {
@@ -97,7 +97,7 @@ class DBAdapter {
         driver: type,
         latencyMs,
         message: 'Connexion IndexedDB locale active (Offline-First PWA)',
-        details: '11 Object Stores prêts (Products, Warehouses, Suppliers, Shipments, Tenders, Customers, Orders, Notifications, Settings, AuditLogs, SyncQueue)'
+        details: '63 Object Stores prêts, incluant GED, checklists, RH, TVA, références ERP, messagerie, permissions et tâches Kanban'
       };
     } else if (type === 'mysql') {
       return {
