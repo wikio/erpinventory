@@ -8,6 +8,22 @@ const SariUtils = {
   /**
    * Render a clean 1D barcode on an HTML5 canvas element
    */
+  /** Render a barcode into an image data URL (used for PDF/print and template merge fields). */
+  barcodeImageDataUrl(codeText, width = 180, height = 55) {
+    if (typeof document === 'undefined') return '';
+    const c = document.createElement('canvas');
+    this.drawBarcode(c, codeText, width, height);
+    return c.toDataURL('image/png');
+  },
+
+  /** Render a QR code into an image data URL (used for PDF/print and template merge fields). */
+  qrImageDataUrl(textData, size = 88) {
+    if (typeof document === 'undefined') return '';
+    const c = document.createElement('canvas');
+    this.drawQRCode(c, textData, size);
+    return c.toDataURL('image/png');
+  },
+
   drawBarcode(canvasEl, codeText, width = 200, height = 80) {
     if (!canvasEl) return;
     const ctx = canvasEl.getContext('2d');
@@ -163,7 +179,11 @@ const SariUtils = {
   async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4') {
     const element=document.getElementById(elementId);if(!element)return;
     if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined'){window.app?.showToast('Moteur PDF indisponible : ouverture de l’impression PDF.','warning');window.print();return;}
-    const clone=element.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxWidth:'none',maxHeight:'none',minHeight:'0',height:'auto',overflow:'visible',background:'#fff',padding:'0',margin:'0',border:'0',boxShadow:'none',transform:'none'});clone.querySelectorAll(':scope > *').forEach(child=>Object.assign(child.style,{maxWidth:'100%',marginLeft:'0',marginRight:'0',transform:'none'}));document.body.appendChild(clone);
+    const clone=element.cloneNode(true);
+    // Canvas pixels are NOT cloned by cloneNode: convert barcode/QR canvases to <img> so html2canvas renders them.
+    const srcCanvases=element.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');
+    cloneCanvases.forEach((canvas,index)=>{try{const src=srcCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});
+    clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxWidth:'none',maxHeight:'none',minHeight:'0',height:'auto',overflow:'visible',background:'#fff',padding:'0',margin:'0',border:'0',boxShadow:'none',transform:'none'});clone.querySelectorAll(':scope > *').forEach(child=>Object.assign(child.style,{maxWidth:'100%',marginLeft:'0',marginRight:'0',transform:'none'}));document.body.appendChild(clone);
     const canvas=await html2canvas(clone,{scale:1.5,useCORS:true,backgroundColor:'#ffffff',windowWidth:clone.scrollWidth,windowHeight:clone.scrollHeight});clone.remove();
     const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),marginX=10,topMargin=10,bottomMargin=18,headerH=20,footerH=8,contentW=pageW-marginX*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-topMargin-bottomMargin-footerH,continuationCapacity=pageH-topMargin-bottomMargin-headerH-footerH,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
     let consumed=0;
@@ -177,7 +197,54 @@ const SariUtils = {
     pdf.save(filename);
   },
 
-  openPrintWindow(elementId,paperFormat='A4',title='SARI Système Document'){const source=document.getElementById(elementId);if(!source)return;const clone=source.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());const sourceCanvases=source.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');cloneCanvases.forEach((canvas,index)=>{try{const image=document.createElement('img');image.src=sourceCanvases[index].toDataURL('image/png');image.style.maxWidth='100%';canvas.replaceWith(image);}catch(_){canvas.remove();}});const styles=[...document.querySelectorAll('style,link[rel="stylesheet"]')].map(node=>node.outerHTML).join('\n'),popup=window.open('','_blank','width=1000,height=900');if(!popup)return app?.showToast?.('Autorisez les fenêtres contextuelles pour imprimer.','warning');popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title>${styles}<style>@page{size:${paperFormat==='Letter'?'Letter':'A4'};margin:10mm}html,body{margin:0!important;padding:0!important;background:#fff!important}body{font-family:Arial,sans-serif}.print-window-document{width:100%;max-width:none;margin:0;padding:0;box-shadow:none;border:0}.document-continuation-header{display:table-row}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}@media print{html,body{width:100%!important;height:auto!important}body *{visibility:visible!important}.print-window-document,.print-window-document *{visibility:visible!important}.print-window-document{display:block!important;position:static!important}.sari-tile{box-shadow:none!important;border:0!important}}</style></head><body><main class="print-window-document">${clone.innerHTML}</main></body></html>`);popup.document.close();setTimeout(()=>{popup.focus();popup.print();},700);},
+  /** Collect app stylesheets + embed the @font-face rules (base64) so the print window keeps the correct typography. */
+  async collectPrintAssets() {
+    const parts = [];
+    document.querySelectorAll('style').forEach(s => parts.push(s.outerHTML));
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(l => { if (l.href) parts.push(`<link rel="stylesheet" href="${this.escapeHtml(l.href)}">`); });
+    const fonts = await this.embedFonts();
+    if (fonts) parts.push(`<style>${fonts}</style>`);
+    return parts.join('\n');
+  },
+
+  /** Embed every reachable @font-face rule (incl. @import'ed Google Fonts) as base64 data URIs. */
+  async embedFonts() {
+    const faces = [];
+    const visit = sheet => {
+      if (!sheet) return;
+      let rules; try { rules = sheet.cssRules; } catch (_) { return; }
+      if (!rules) return;
+      for (const rule of Array.from(rules)) {
+        try {
+          if (rule.type === 3 && rule.styleSheet) visit(rule.styleSheet);
+          else if (rule.type === 5 && rule.style && rule.style.getPropertyValue('src')) faces.push(rule);
+        } catch (_) {}
+      }
+    };
+    try { for (const sheet of Array.from(document.styleSheets || [])) visit(sheet); } catch (_) {}
+    const out = [];
+    for (const face of faces) {
+      try {
+        let src = face.style.getPropertyValue('src');
+        const family = face.style.getPropertyValue('font-family');
+        if (!family || !src) continue;
+        for (const url of [...src.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/g)].map(m => m[2])) {
+          try {
+            const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+            if (res.ok) {
+              const blob = await res.blob();
+              const dataUrl = await new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.onerror = reject; fr.readAsDataURL(blob); });
+              src = src.replace(url, dataUrl);
+            }
+          } catch (_) {}
+        }
+        out.push(`@font-face{font-family:${family};font-style:${face.style.getPropertyValue('font-style') || 'normal'};font-weight:${face.style.getPropertyValue('font-weight') || '400'};font-display:swap;src:${src};}`);
+      } catch (_) {}
+    }
+    return out.join('\n');
+  },
+
+  async openPrintWindow(elementId,paperFormat='A4',title='SARI Système Document'){const source=document.getElementById(elementId);if(!source)return;const clone=source.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());const sourceCanvases=source.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');cloneCanvases.forEach((canvas,index)=>{try{const src=sourceCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});const assets=await Promise.race([this.collectPrintAssets().catch(()=>''),new Promise(res=>setTimeout(()=>res(''),1500))]),popup=window.open('','_blank','width=1000,height=900');if(!popup)return app?.showToast?.('Autorisez les fenêtres contextuelles pour imprimer.','warning');popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title>${assets}<style>@page{size:${paperFormat==='Letter'?'Letter':'A4'};margin:10mm}html,body{margin:0!important;padding:0!important;background:#fff!important}body{font-family:'Plus Jakarta Sans','IBM Plex Sans Arabic',Arial,sans-serif}.print-window-document{width:100%;max-width:none;margin:0;padding:0;box-shadow:none;border:0}.document-continuation-header{display:table-row}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}@media print{html,body{width:100%!important;height:auto!important}body *{visibility:visible!important}.print-window-document,.print-window-document *{visibility:visible!important}.print-window-document{display:block!important;position:static!important}.sari-tile{box-shadow:none!important;border:0!important}}</style></head><body><main class="print-window-document">${clone.innerHTML}</main></body></html>`);popup.document.close();setTimeout(()=>{popup.focus();popup.print();},900);},
   printElement(elementId, title = 'SARI Système Document') { this.openPrintWindow(elementId,'A4',title); },
 
   /**

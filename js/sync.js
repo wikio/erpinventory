@@ -69,11 +69,26 @@ class SyncController {
     const keys = [...new Set([...Object.keys(before||{}),...Object.keys(after||{})])].filter(key=>!['data','photo','logo'].includes(key));
     const changes = keys.filter(key=>JSON.stringify(before?.[key])!==JSON.stringify(after?.[key])).map(key=>({field:key,before:before?.[key],after:after?.[key]}));
     if(window.sariDB && window.auth?.currentUser && !['auditLogs','syncQueue'].includes(storeName)) await window.sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:window.auth.currentUser.name,role:window.auth.currentRole,actingUserId:window.auth.currentUser.id,action:action==='delete'?'DELETE_RECORD':before?'UPDATE_RECORD':'CREATE_RECORD',module:storeName,affectedRecordId:payload?.id||'',recordType:storeName,changes,beforeSummary:before?JSON.stringify(before).slice(0,500):'',afterSummary:after?JSON.stringify(after).slice(0,500):'',description:`${action} ${storeName} ${payload?.id||''} • ${changes.length} champ(s) modifié(s)`,timestamp:new Date().toISOString()});
+
+    // Apply the mutation to local IndexedDB immediately so list views refresh right after a save
+    // (without a page reload); the queue entry below still drives the external DB migration / offline replay.
+    let appliedPayload = payload;
+    if (typeof window !== 'undefined' && window.sariDB && !['auditLogs','syncQueue','recordSequences'].includes(storeName)) {
+      this.suppressBridge = true;
+      try {
+        if (action === 'save') appliedPayload = await window.sariDB.save(storeName, payload);
+        else if (action === 'delete') await window.sariDB.delete(storeName, payload.id);
+      } finally {
+        this.suppressBridge = false;
+      }
+    }
+
     const item = {
       id: `sync-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       storeName,
       action, // 'save' | 'delete'
-      payload,
+      payload: appliedPayload,
+      numericId: before?.numericId ?? appliedPayload?.numericId,
       createdAt: new Date().toISOString(),
       status: 'pending'
     };
@@ -116,7 +131,8 @@ class SyncController {
             if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,records:[item.payload]})});if(!response.ok)throw Error((await response.json()).error||'External sync failed');}
           } else if (item.action === 'delete') {
             const existing=await window.sariDB.getById(item.storeName,item.payload.id);
-            if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/delete-record',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,numericId:existing.numericId})});if(!response.ok)throw Error((await response.json()).error||'External delete failed');}
+            const numericId=item.numericId ?? existing?.numericId;
+            if(numericId&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/delete-record',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,numericId})});if(!response.ok)throw Error((await response.json()).error||'External delete failed');}
             this.suppressBridge=true;try{await window.sariDB.delete(item.storeName,item.payload.id);}finally{this.suppressBridge=false;}
           }
           await window.sariDB.delete('syncQueue', item.id);
