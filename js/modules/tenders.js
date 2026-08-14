@@ -32,7 +32,8 @@ const TendersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('tenders');
-    const filtered = this.getFilteredTenders();
+    TableSort.ensure('tenders','referenceCode');
+    const filtered = TableSort.apply('tenders',this.getFilteredTenders(),'referenceCode');
 
     // Stats
     let wonCount = 0;
@@ -146,12 +147,12 @@ const TendersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">Réf / Code AO</th>
-                <th class="p-3">Objet du Marché & Institution</th>
-                <th class="p-3">Catégorie</th>
-                <th class="p-3">Montant Estimatif (DA)</th>
-                <th class="p-3">Échéance Dépôt</th>
-                <th class="p-3">Statut Soumission</th>
+                ${TableSort.th('tenders','referenceCode','Réf / Code AO','TendersModule.render()')}
+                ${TableSort.th('tenders','title','Objet du Marché & Institution','TendersModule.render()')}
+                ${TableSort.th('tenders','category','Catégorie','TendersModule.render()')}
+                ${TableSort.th('tenders','estimatedValue','Montant Estimatif (DA)','TendersModule.render()')}
+                ${TableSort.th('tenders','submissionDeadline','Échéance Dépôt','TendersModule.render()')}
+                ${TableSort.th('tenders','status','Statut Soumission','TendersModule.render()')}
                 <th class="p-3">Cahier des Charges & Docs</th>
                 <th class="p-3 text-right">Actions</th>
               </tr>

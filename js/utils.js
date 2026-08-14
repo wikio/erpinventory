@@ -176,6 +176,18 @@ const SariUtils = {
     URL.revokeObjectURL(url);
   },
 
+  /** Render an offscreen element to a canvas (used by the PDF pagination pipeline). */
+  async elementToCanvas(node, paperFormat) {
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll('.no-print,.hidden').forEach(x => x.remove());
+    Object.assign(clone.style, { position:'fixed', left:'-10000px', top:'0', width:paperFormat==='Letter'?'816px':'794px', maxWidth:'none', maxHeight:'none', minHeight:'0', height:'auto', overflow:'visible', background:'#ffffff', padding:'0', margin:'0', border:'0', boxShadow:'none', transform:'none' });
+    clone.querySelectorAll(':scope > *').forEach(child => Object.assign(child.style, { maxWidth:'100%', marginLeft:'0', marginRight:'0', transform:'none' }));
+    document.body.appendChild(clone);
+    const canvas = await html2canvas(clone, { scale:1.5, useCORS:true, backgroundColor:'#ffffff', windowWidth:clone.scrollWidth, windowHeight:clone.scrollHeight });
+    clone.remove();
+    return canvas;
+  },
+
   async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4') {
     const element=document.getElementById(elementId);if(!element)return;
     if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined'){window.app?.showToast('Moteur PDF indisponible : ouverture de l’impression PDF.','warning');window.print();return;}
@@ -183,15 +195,28 @@ const SariUtils = {
     // Canvas pixels are NOT cloned by cloneNode: convert barcode/QR canvases to <img> so html2canvas renders them.
     const srcCanvases=element.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');
     cloneCanvases.forEach((canvas,index)=>{try{const src=srcCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});
-    clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxWidth:'none',maxHeight:'none',minHeight:'0',height:'auto',overflow:'visible',background:'#fff',padding:'0',margin:'0',border:'0',boxShadow:'none',transform:'none'});clone.querySelectorAll(':scope > *').forEach(child=>Object.assign(child.style,{maxWidth:'100%',marginLeft:'0',marginRight:'0',transform:'none'}));document.body.appendChild(clone);
+    clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());
+    // Dynamic pagination: extract repeating header / footer blocks and re-draw them on every page.
+    const headerEl=clone.querySelector('.doc-header')||clone.querySelector('.document-print-header');
+    const footerEl=clone.querySelector('.doc-footer')||clone.querySelector('.document-print-footer');
+    if(headerEl)headerEl.remove();if(footerEl)footerEl.remove();
+    Object.assign(clone.style,{position:'fixed',left:'-10000px',top:'0',width:paperFormat==='Letter'?'816px':'794px',maxWidth:'none',maxHeight:'none',minHeight:'0',height:'auto',overflow:'visible',background:'#fff',padding:'0',margin:'0',border:'0',boxShadow:'none',transform:'none'});clone.querySelectorAll(':scope > *').forEach(child=>Object.assign(child.style,{maxWidth:'100%',marginLeft:'0',marginRight:'0',transform:'none'}));document.body.appendChild(clone);
     const canvas=await html2canvas(clone,{scale:1.5,useCORS:true,backgroundColor:'#ffffff',windowWidth:clone.scrollWidth,windowHeight:clone.scrollHeight});clone.remove();
-    const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),marginX=10,topMargin=10,bottomMargin=18,headerH=20,footerH=8,contentW=pageW-marginX*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-topMargin-bottomMargin-footerH,continuationCapacity=pageH-topMargin-bottomMargin-headerH-footerH,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
+    // Render header/footer to their own canvases (they will be stamped on every page).
+    let headerCanvas=null,footerCanvas=null;
+    if(headerEl)headerCanvas=await this.elementToCanvas(headerEl,paperFormat).catch(()=>null);
+    if(footerEl)footerCanvas=await this.elementToCanvas(footerEl,paperFormat).catch(()=>null);
+    const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),marginX=10,topMargin=10,bottomMargin=18,headerH=headerCanvas?(headerCanvas.height/(headerCanvas.width||1))*(pageW-marginX*2):0,footerH=footerCanvas?(footerCanvas.height/(footerCanvas.width||1))*(pageW-marginX*2):0,contentW=pageW-marginX*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-topMargin-bottomMargin-footerH,continuationCapacity=pageH-topMargin-bottomMargin-headerH-footerH,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),headerImg=headerCanvas?.toDataURL('image/png'),footerImg=footerCanvas?.toDataURL('image/png'),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
     let consumed=0;
     for(let page=1;page<=totalPages;page++){
-      if(page>1)pdf.addPage(format,'portrait');const continuation=page>1,contentTop=topMargin+(continuation?headerH:0),capacity=continuation?continuationCapacity:firstCapacity;
+      if(page>1)pdf.addPage(format,'portrait');const continuation=page>1,contentTop=topMargin+headerH,capacity=continuation?continuationCapacity:firstCapacity;
       pdf.addImage(img,'JPEG',marginX,contentTop-consumed,contentW,imgH,undefined,'FAST');
-      pdf.setFillColor(255,255,255);pdf.rect(0,0,pageW,contentTop,'F');pdf.rect(0,pageH-bottomMargin-footerH,pageW,bottomMargin+footerH,'F');
-      if(continuation){pdf.setTextColor(15,23,42);pdf.setFontSize(9);pdf.setFont('helvetica','bold');pdf.text(`${company} — Total: ${total} — ${reference} — Page ${page}/${totalPages}`,marginX,topMargin+5);pdf.setDrawColor(0,156,197);pdf.line(marginX,topMargin+8,pageW-marginX,topMargin+8);}
+      pdf.setFillColor(255,255,255);pdf.rect(0,0,pageW,topMargin,'F');pdf.rect(0,pageH-bottomMargin-footerH,pageW,bottomMargin+footerH,'F');
+      // Repeating header block on every page.
+      if(headerImg)pdf.addImage(headerImg,'PNG',marginX,topMargin,contentW,headerH,undefined,'FAST');
+      // Repeating footer block on every page.
+      if(footerImg)pdf.addImage(footerImg,'PNG',marginX,pageH-bottomMargin-footerH,contentW,footerH,undefined,'FAST');
+      if(!headerImg&&continuation){pdf.setTextColor(15,23,42);pdf.setFontSize(9);pdf.setFont('helvetica','bold');pdf.text(`${company} — Total: ${total} — ${reference} — Page ${page}/${totalPages}`,marginX,topMargin+5);pdf.setDrawColor(0,156,197);pdf.line(marginX,topMargin+8,pageW-marginX,topMargin+8);}
       pdf.setFontSize(8);pdf.setFont('helvetica','normal');pdf.setTextColor(100);pdf.text(`${reference} • ${page}/${totalPages}`,pageW-marginX,pageH-bottomMargin,{align:'right'});consumed+=capacity;
     }
     pdf.save(filename);
@@ -244,8 +269,28 @@ const SariUtils = {
     return out.join('\n');
   },
 
-  async openPrintWindow(elementId,paperFormat='A4',title='SARI Système Document'){const source=document.getElementById(elementId);if(!source)return;const clone=source.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());const sourceCanvases=source.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');cloneCanvases.forEach((canvas,index)=>{try{const src=sourceCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});const assets=await Promise.race([this.collectPrintAssets().catch(()=>''),new Promise(res=>setTimeout(()=>res(''),1500))]),popup=window.open('','_blank','width=1000,height=900');if(!popup)return app?.showToast?.('Autorisez les fenêtres contextuelles pour imprimer.','warning');popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title>${assets}<style>@page{size:${paperFormat==='Letter'?'Letter':'A4'};margin:10mm}html,body{margin:0!important;padding:0!important;background:#fff!important}body{font-family:'Plus Jakarta Sans','IBM Plex Sans Arabic',Arial,sans-serif}.print-window-document{width:100%;max-width:none;margin:0;padding:0;box-shadow:none;border:0}.document-continuation-header{display:table-row}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}@media print{html,body{width:100%!important;height:auto!important}body *{visibility:visible!important}.print-window-document,.print-window-document *{visibility:visible!important}.print-window-document{display:block!important;position:static!important}.sari-tile{box-shadow:none!important;border:0!important}}</style></head><body><main class="print-window-document">${clone.innerHTML}</main></body></html>`);popup.document.close();setTimeout(()=>{popup.focus();popup.print();},900);},
+  async openPrintWindow(elementId,paperFormat='A4',title='SARI Système Document'){const source=document.getElementById(elementId);if(!source)return;const clone=source.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());const sourceCanvases=source.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');cloneCanvases.forEach((canvas,index)=>{try{const src=sourceCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});const assets=await Promise.race([this.collectPrintAssets().catch(()=>''),new Promise(res=>setTimeout(()=>res(''),1500))]),popup=window.open('','_blank','width=1000,height=900');if(!popup)return app?.showToast?.('Autorisez les fenêtres contextuelles pour imprimer.','warning');popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title>${assets}<style>@page{size:${paperFormat==='Letter'?'Letter':'A4'};margin:10mm}html,body{margin:0!important;padding:0!important;background:#fff!important}body{font-family:'Plus Jakarta Sans','IBM Plex Sans Arabic',Arial,sans-serif}.print-window-document{width:100%;max-width:none;margin:0;padding:0;box-shadow:none;border:0}.document-continuation-header{display:table-row}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}.doc-body{padding-top:28mm;padding-bottom:18mm}@media print{html,body{width:100%!important;height:auto!important}body *{visibility:visible!important}.print-window-document,.print-window-document *{visibility:visible!important}.print-window-document{display:block!important;position:static!important}.sari-tile{box-shadow:none!important;border:0!important}.doc-header{position:fixed;top:0;left:0;right:0;margin:0!important;padding:8mm 10mm!important}.doc-footer{position:fixed;bottom:0;left:0;right:0;margin:0!important;padding:8mm 10mm!important}.doc-header,.doc-footer{background:#fff!important}}</style></head><body><main class="print-window-document">${clone.innerHTML}</main></body></html>`);popup.document.close();setTimeout(()=>{popup.focus();popup.print();},900);},
   printElement(elementId, title = 'SARI Système Document') { this.openPrintWindow(elementId,'A4',title); },
+
+  /**
+   * Build a verification/QR content URL from an admin-defined pattern.
+   * Supported placeholders: {code} (reference), {reference}, {sku}, {barcode},
+   * {hash} / {hashed_key}, {id} / {numericId}. Unknown placeholders are left intact.
+   */
+  buildVerificationUrl(pattern, data = {}) {
+    const base = String(pattern || 'http://sari-systeme.com/verification/{code}/{hash}');
+    const map = {
+      '{code}': data.code ?? data.referenceCode ?? data.reference ?? '',
+      '{reference}': data.referenceCode ?? data.reference ?? data.code ?? '',
+      '{sku}': data.sku ?? '',
+      '{barcode}': data.barcode ?? data.sku ?? '',
+      '{hash}': data.hash ?? '',
+      '{hashed_key}': data.hash ?? '',
+      '{id}': data.id ?? '',
+      '{numericId}': data.numericId ?? data.id ?? ''
+    };
+    return base.replace(/\{(code|reference|sku|barcode|hash|hashed_key|id|numericId)\}/g, (token) => encodeURIComponent(String(map[token] ?? '')));
+  },
 
   /**
    * Escape HTML to prevent XSS in dynamic templates

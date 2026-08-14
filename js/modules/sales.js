@@ -59,7 +59,8 @@ const SalesModule = {
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
     const historyFiltered=this.state.orders.filter(o=>(this.state.historyStatus==='all'||o.status===this.state.historyStatus)&&(this.state.historyType==='all'||(o.documentType||'order')===this.state.historyType)&&(this.state.historyCustomer==='all'||o.customerId===this.state.historyCustomer)&&(!this.state.historyFrom||new Date(o.createdAt)>=new Date(this.state.historyFrom))&&(!this.state.historyTo||new Date(o.createdAt)<=new Date(this.state.historyTo+'T23:59:59')));
-    const historyPages=Math.max(1,Math.ceil(historyFiltered.length/this.state.historyPageSize));this.state.historyPage=Math.min(this.state.historyPage,historyPages);const historyOrders=historyFiltered.slice((this.state.historyPage-1)*this.state.historyPageSize,this.state.historyPage*this.state.historyPageSize);
+    TableSort.ensure('salesHistory','referenceCode');const historySorted=TableSort.apply('salesHistory',historyFiltered,'referenceCode');
+    const historyPages=Math.max(1,Math.ceil(historySorted.length/this.state.historyPageSize));this.state.historyPage=Math.min(this.state.historyPage,historyPages);const historyOrders=historySorted.slice((this.state.historyPage-1)*this.state.historyPageSize,this.state.historyPage*this.state.historyPageSize);
 
     // Calculate totals for cart
     let subtotal = 0;
@@ -321,13 +322,13 @@ const SalesModule = {
             <table class="w-full text-left border-collapse sari-table text-sm">
               <thead>
                 <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500">
-                  <th class="p-3">N° Commande / BL</th>
-                  <th class="p-3">Client & Wilaya</th>
-                  <th class="p-3">Dépôt</th>
-                  <th class="p-3">Date Émission</th>
-                  <th class="p-3">Montant TTC (DA)</th>
-                  <th class="p-3">Mode Règlement</th>
-                  <th class="p-3">Statut Commande</th>
+                  ${TableSort.th('salesHistory','referenceCode','N° Commande / BL','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','customerName','Client & Wilaya','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','warehouseId','Dépôt','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','createdAt','Date Émission','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','total','Montant TTC (DA)','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','paymentMethod','Mode Règlement','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','status','Statut Commande','SalesModule.render()')}
                   <th class="p-3 text-right">Actions / Impression</th>
                 </tr>
               </thead>
@@ -701,7 +702,7 @@ const SalesModule = {
     if (o.shippingFee) { vatMap['0.19'] ||= { rate: .19, base: 0, tax: 0 }; vatMap['0.19'].base += Number(o.shippingFee); vatMap['0.19'].tax += Number(o.shippingFee)*.19; }
     const vatBreakdown = Object.values(vatMap);
     const formatMoney = value => new Intl.NumberFormat(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-DZ', { style: 'currency', currency }).format(Number(value || 0));
-    const htmlTemplate = template.templateMode==='html' ? TemplateEngine.render(template.htmlContent,TemplateEngine.context({document:{...o,referenceCode:docCode,verificationUrl:printVerificationUrl},partner:customer,company:companySettings,title:docTitle,formatMoney})) : '';
+    const htmlTemplate = template.templateMode==='html' ? TemplateEngine.render(template.htmlContent,TemplateEngine.context({document:{...o,referenceCode:docCode,verificationUrl:printVerificationUrl},partner:customer,company:companySettings,title:docTitle,formatMoney,columns:template.lineItemsColumns,fontFamily:template.fontFamily})) : '';
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
@@ -789,15 +790,17 @@ const SalesModule = {
   },
 
   renderDesignerOutput(template, order, customer, docCode, formatMoney, amountWords, vatBreakdown, companySettings) {
+    const lineColumns=template.lineItemsColumns&&template.lineItemsColumns.length?template.lineItemsColumns:['index','designation','qty','price','ht'];
     const values = {
       customerName: SariUtils.escapeHtml(customer.name || order.customerName), documentNumber: docCode,
       documentDate: i18n.formatDate(order.createdAt), totals: `TOTAL TTC : ${formatMoney(order.total)}`,
       amountInWords: SariUtils.escapeHtml(amountWords), documentLogo: companySettings.documentLogo ? `<img src="${companySettings.documentLogo}" style="max-width:100%;max-height:100%">` : '<b>SARI SYSTÈME</b>',
       qrCode: `<img src="${SariUtils.qrImageDataUrl(order.verificationUrl || docCode, 88)}" alt="QR" style="width:88px;height:88px">`,barcode:`<img src="${SariUtils.barcodeImageDataUrl(docCode, 180, 55)}" alt="Barcode" style="max-width:180px;height:55px">`,discount:`Remise: ${SariUtils.escapeHtml(order.discountExpression||order.discountPercent+'%')}`,shippingFee:`Livraison: ${formatMoney(order.shippingFee||0)}`,coupon:`Coupon: ${SariUtils.escapeHtml(order.couponCode||'—')}`,customerAddress:SariUtils.escapeHtml(customer.contactInfo||''),customerPhone:SariUtils.escapeHtml(customer.phone||customer.contactInfo||''),customerNif:SariUtils.escapeHtml(customer.taxId||''),customerNai:SariUtils.escapeHtml(customer.nai||''),customerNis:SariUtils.escapeHtml(customer.nis||''),supplierName:'',supplierAddress:'',supplierPhone:'',supplierNif:'',supplierNai:'',supplierNis:'',
-      lineItems: `<table class="w-full text-[10px] border"><tbody>${order.items.map(item=>`<tr><td>${SariUtils.escapeHtml(item.name)}</td><td>${item.qty}</td><td>${formatMoney(item.total)}</td></tr>`).join('')}</tbody></table>`,
+      lineItems: TemplateEngine.lineItemsTableHtml(order.items,['designation','qty','total'],formatMoney),
+      lineItemsConfigurable: TemplateEngine.lineItemsTableHtml(order.items,lineColumns,formatMoney),
       vatBreakdown: `<table class="w-full text-[10px]">${vatBreakdown.map(v=>`<tr><td>TVA ${v.rate*100}%</td><td>${formatMoney(v.tax)}</td></tr>`).join('')}</table>`
     };
-    return `<div class="relative bg-white text-slate-900 mx-auto overflow-hidden border" style="width:${template.paperFormat==='Letter'?'816':'794'}px;min-height:${template.paperFormat==='Letter'?'1056':'1123'}px;transform-origin:top left">${template.elements.map(el=>`<div style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;overflow:hidden;color:${el.color||'#0f172a'};border-color:${el.borderColor||'transparent'};${el.shape==='circle'?'border-radius:50%;':''}${el.shape==='line'?'border-top:3px solid;':''}${el.background?`background:${el.background};`:''}">${el.kind==='image'?`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`:el.kind==='field'?(values[el.field]||SariUtils.escapeHtml(el.content||'')):RichTextEditor.sanitize(el.content||'')}</div>`).join('')}</div>`;
+    return `<div class="relative bg-white text-slate-900 mx-auto overflow-hidden border" style="width:${template.paperFormat==='Letter'?'816':'794'}px;min-height:${template.paperFormat==='Letter'?'1056':'1123'}px;transform-origin:top left;font-family:${template.fontFamily||'inherit'}">${template.elements.map(el=>`<div style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;overflow:hidden;color:${el.color||'#0f172a'};border-color:${el.borderColor||'transparent'};${el.shape==='circle'?'border-radius:50%;':''}${el.shape==='line'?'border-top:3px solid;':''}${el.background?`background:${el.background};`:''}">${el.kind==='image'?`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`:el.kind==='field'?(values[el.field]||SariUtils.escapeHtml(el.content||'')):RichTextEditor.sanitize(el.content||'')}</div>`).join('')}</div>`;
   },
 
   closePrintModal() {

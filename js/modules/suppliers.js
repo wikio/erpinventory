@@ -23,7 +23,7 @@ const SuppliersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    const filtered = this.getFilteredSuppliers();
+    const filtered = TableSort.apply('suppliers',this.getFilteredSuppliers(),'name');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -89,11 +89,11 @@ const SuppliersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">Fournisseur & Pays</th>
-                <th class="p-3">Type & Devise</th>
-                <th class="p-3">Incoterm Habituel</th>
-                <th class="p-3">Certifications (ISO / CE)</th>
-                <th class="p-3">Contact</th>
+                ${TableSort.th('suppliers','name','Fournisseur & Pays','SuppliersModule.render()')}
+                ${TableSort.th('suppliers','type','Type & Devise','SuppliersModule.render()')}
+                ${TableSort.th('suppliers','incoterms','Incoterm Habituel','SuppliersModule.render()')}
+                ${TableSort.th('suppliers','certifications','Certifications (ISO / CE)','SuppliersModule.render()')}
+                ${TableSort.th('suppliers','contactInfo','Contact','SuppliersModule.render()')}
                 <th class="p-3">Performance & Fiabilité</th>
                 <th class="p-3 text-right">Actions</th>
               </tr>

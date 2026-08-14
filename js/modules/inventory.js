@@ -30,7 +30,8 @@ const InventoryModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('inventory');
-    const filtered = this.getFilteredProducts();
+    TableSort.ensure('inventory','referenceCode');
+    const filtered = TableSort.apply('inventory',this.getFilteredProducts(),'referenceCode');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -128,13 +129,13 @@ const InventoryModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">${i18n.t('skuReference')}</th>
-                <th class="p-3">${i18n.t('productCompliance')}</th>
-                <th class="p-3">${i18n.t('categoryHeader')}</th>
-                <th class="p-3">${i18n.t('stockHeader')}</th>
-                <th class="p-3">${i18n.t('purchasePriceHeader')}</th>
-                <th class="p-3">${i18n.t('sellingPriceHeader')}</th>
-                <th class="p-3">${i18n.t('lotExpiryHeader')}</th>
+                ${TableSort.th('inventory','referenceCode',i18n.t('skuReference'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','name',i18n.t('productCompliance'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','category',i18n.t('categoryHeader'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','stock',i18n.t('stockHeader'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','purchasePrice',i18n.t('purchasePriceHeader'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','sellingPrice',i18n.t('sellingPriceHeader'),'InventoryModule.render()')}
+                ${TableSort.th('inventory','expirationDate',i18n.t('lotExpiryHeader'),'InventoryModule.render()')}
                 <th class="p-3 text-right">${i18n.t('actionsHeader')}</th>
               </tr>
             </thead>
@@ -526,7 +527,7 @@ const InventoryModule = {
   async openBarcodeModal(productId) {
     const p = await window.sariDB.getById('products', productId);
     if (!p) return;
-    const labelConfig=await sariDB.getById('barcodeLabelSettings','default')||{},appSettings=await sariDB.getById('settings','app-settings')||{},productCode=p.referenceCode||p.sku,hash=labelConfig.includeHash?await DocumentSecurity.hash(productCode):'',base=String(appSettings.verificationBaseUrl||'http://sari-systeme.com/code').replace(/\/$/,''),qrContent=`${base}/${encodeURIComponent(productCode)}${hash?'-'+hash:''}`;
+    const labelConfig=await sariDB.getById('barcodeLabelSettings','default')||{},appSettings=await sariDB.getById('settings','app-settings')||{},productCode=p.referenceCode||p.sku,hash=labelConfig.includeHash?await DocumentSecurity.hash(productCode):'',pattern=labelConfig.qrPattern||String(appSettings.verificationBaseUrl||'http://sari-systeme.com/code')+'/{code}'+(labelConfig.includeHash?'-{hash}':''),qrContent=SariUtils.buildVerificationUrl(pattern,{code:productCode,referenceCode:productCode,sku:p.sku,barcode:p.barcode||p.sku,hash,numericId:p.numericId,id:p.id});
 
     const modalEl = document.getElementById('inv-barcode-modal');
     if (!modalEl) return;

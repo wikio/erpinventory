@@ -24,7 +24,8 @@ const CustomersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
-    const filtered = this.getFilteredCustomers();
+    TableSort.ensure('customers','name');
+    const filtered = TableSort.apply('customers',this.getFilteredCustomers(),'name');
 
     // Summary KPIs
     let hospitalCount = 0;
@@ -135,12 +136,12 @@ const CustomersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">Client / Établissement</th>
-                <th class="p-3">Type & Catégorie</th>
-                <th class="p-3">Wilaya & Localisation</th>
-                <th class="p-3">NIF / RC (Fiscalité)</th>
-                <th class="p-3">Conditions de Paiement</th>
-                <th class="p-3">Plafond Crédit (DA)</th>
+                ${TableSort.th('customers','name','Client / Établissement','CustomersModule.render()')}
+                ${TableSort.th('customers','type','Type & Catégorie','CustomersModule.render()')}
+                ${TableSort.th('customers','wilaya','Wilaya & Localisation','CustomersModule.render()')}
+                ${TableSort.th('customers','taxId','NIF / RC (Fiscalité)','CustomersModule.render()')}
+                ${TableSort.th('customers','paymentTerms','Conditions de Paiement','CustomersModule.render()')}
+                ${TableSort.th('customers','creditLimit','Plafond Crédit (DA)','CustomersModule.render()')}
                 <th class="p-3 text-right">Actions</th>
               </tr>
             </thead>
