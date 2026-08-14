@@ -27,7 +27,8 @@ const ImportExportModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    const filtered = this.getFilteredShipments();
+    TableSort.ensure('shipments','referenceCode');
+    const filtered = TableSort.apply('shipments',this.getFilteredShipments(),'referenceCode');
 
     // Summary KPIs
     let activeCount = 0;
@@ -133,13 +134,13 @@ const ImportExportModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">N° Expédition / Réf</th>
-                <th class="p-3">Fournisseur & Incoterm</th>
-                <th class="p-3">Statut Logistique</th>
-                <th class="p-3">Montant Devise</th>
-                <th class="p-3">Coût d'Achat (DA)</th>
+                ${TableSort.th('shipments','referenceCode','N° Expédition / Réf','ImportExportModule.render()')}
+                ${TableSort.th('shipments','supplierName','Fournisseur & Incoterm','ImportExportModule.render()')}
+                ${TableSort.th('shipments','status','Statut Logistique','ImportExportModule.render()')}
+                ${TableSort.th('shipments','foreignAmount','Montant Devise','ImportExportModule.render()')}
+                ${TableSort.th('shipments','purchaseCostDZD',"Coût d'Achat (DA)",'ImportExportModule.render()')}
                 <th class="p-3">Douane & Fret (DA)</th>
-                <th class="p-3">Coût de Revient Total (DA)</th>
+                ${TableSort.th('shipments','totalLandedCostDZD','Coût de Revient Total (DA)','ImportExportModule.render()')}
                 <th class="p-3">Documents & Échéance</th>
                 <th class="p-3 text-right">Actions</th>
               </tr>
