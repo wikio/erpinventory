@@ -19,29 +19,58 @@ class SariApp {
       reports: window.ReportsModule,
       translations: window.TranslationsModule,
       auditLogs: window.AuditModule,
-      settings: window.SettingsModule
+      settings: window.SettingsModule,
+      hr: window.HRModule,
+      tasks: window.TasksModule,
+      portal: window.EmployeePortalModule,
+      purchases: window.PurchasesModule,
+      ged: window.GEDModule,
+      taxes: window.TaxesModule,
+      masterData: window.MasterDataModule,
+      inventoryOps: window.InventoryOpsModule,
+      bulkImport: window.BulkImportModule,
+      api: window.ApiModule,
+      documentDetail: window.DocumentDetailModule,
+      bankAccountDetail: window.BankAccountDetailModule
     };
   }
 
   async init() {
     console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
 
-    // 1. Init DB Adapter & seed if empty
-    if (window.dbAdapter) {
-      await window.dbAdapter.init();
-    } else if (window.sariDB) {
-      await window.sariDB.init();
-    }
-
-    // 2. Init Internationalization (FR / AR / EN)
-    if (window.i18n) {
-      await window.i18n.init();
-    }
-
-    // 3. Init Auth & RBAC
+    // 1. Authenticate first. Do not let IndexedDB initialization block the login screen.
     if (window.auth) {
-      window.auth.init();
+      const authenticated = await window.auth.init();
+      if (!authenticated) {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+      }
     }
+
+    // 2. Open and migrate the offline database only after authentication.
+    try {
+      if (window.dbAdapter) {
+        await window.dbAdapter.init();
+      } else if (window.sariDB) {
+        await window.sariDB.init();
+      }
+    } catch (error) {
+      console.error('[SARI Système] IndexedDB startup failed:', error);
+      window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
+      return;
+    }
+
+    // 3. Initialize language after IndexedDB is available.
+    if (window.i18n) await window.i18n.init();
+    await window.DynamicI18n?.init();
+    await window.OptionCatalog?.init();
+    window.TranslationOverlay?.init();
+    const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
+    if (brandingSettings && window.SettingsModule?.applyBranding) window.SettingsModule.applyBranding(brandingSettings);
+
+    // Load database-backed role permissions and optional employee overrides.
+    if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+    window.auth?.hideLogin();
 
     // 4. Init Sync Controller
     if (window.syncController) {
@@ -55,16 +84,21 @@ class SariApp {
     // 6. Register Service Worker for PWA
     this.registerServiceWorker();
 
-    // 7. Setup Event Listeners & Shortcuts
+    // 7. Setup navigation behavior and restore the desktop sidebar preference.
     this.setupEventListeners();
+    window.AppValidator?.init();
+    this.initializeSidebarMenus();
+    this.updateNavigationPermissions();
+    this.applySidebarPreference();
 
     // 8. Load initial route from URL hash or default to 'dashboard'
     const hash = window.location.hash.replace('#', '');
     const validRoute = Object.keys(this.modules).includes(hash) ? hash : 'dashboard';
     await this.navigate(validRoute);
 
-    // 9. Update notification bell badge
+    // 9. Update notifications and run the lightweight document layout regression guard.
     await this.updateNotificationsBadge();
+    window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
 
     // 10. Render Lucide icons
     if (typeof lucide !== 'undefined') {
@@ -88,15 +122,64 @@ class SariApp {
     }
   }
 
+  permissionForModule(moduleName) {
+    if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
+    if(moduleName==='bankAccountDetail')return 'settings';
+    return ({ auditLogs:'settings', translations:'settings', settings:'settings' })[moduleName] || moduleName;
+  }
+
+  initializeSidebarMenus() {
+    const sidebar=document.getElementById('mobile-sidebar');if(!sidebar||sidebar.dataset.grouped)return;sidebar.dataset.grouped='true';const root=sidebar.firstElementChild;
+    const groups=[
+      {id:'operations',key:'menuOperations',label:i18n.t('menuOperations'),icon:'blocks',items:['inventory','inventoryOps','importExport','tenders']},
+      {id:'commerce',key:'menuCommerce',label:i18n.t('menuCommerce'),icon:'shopping-bag',items:['sales','purchases','customers','suppliers']},
+      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','tasks','portal']},
+      {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes']},
+      {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','masterData','translations','auditLogs','settings']}
+    ];
+    const saved=JSON.parse(localStorage.getItem('sari_submenus')||'{}');
+    groups.forEach(group=>{const wrapper=document.createElement('div');wrapper.className='sidebar-submenu';wrapper.dataset.menuGroup=group.id;const expanded=saved[group.id]!==false;wrapper.innerHTML=`<button class="sidebar-submenu-toggle sari-sidebar-item w-full" aria-expanded="${expanded}" title="${group.label}"><i data-lucide="${group.icon}" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="${group.key}">${group.label}</span><i data-lucide="chevron-down" class="submenu-chevron w-3 h-3"></i></button><div class="sidebar-submenu-items ${expanded?'':'collapsed'}"></div>`;const items=wrapper.querySelector('.sidebar-submenu-items');group.items.forEach(module=>{const item=root.querySelector(`[data-nav-item="${module}"]`);if(item){item.classList.add('sidebar-child-item');items.appendChild(item);}});wrapper.querySelector('.sidebar-submenu-toggle').onclick=()=>this.toggleSubmenu(group.id);root.appendChild(wrapper);});
+    root.querySelectorAll('.sidebar-section-label').forEach(label=>label.remove());this.refreshNavigationTooltips();if(typeof lucide!=='undefined')lucide.createIcons();
+  }
+
+  toggleSubmenu(id){const group=document.querySelector(`[data-menu-group="${id}"]`),items=group?.querySelector('.sidebar-submenu-items');if(!items)return;const collapsed=items.classList.toggle('collapsed');group.querySelector('.sidebar-submenu-toggle').setAttribute('aria-expanded',String(!collapsed));const saved=JSON.parse(localStorage.getItem('sari_submenus')||'{}');saved[id]=!collapsed;localStorage.setItem('sari_submenus',JSON.stringify(saved));}
+
+  refreshNavigationTooltips(){document.querySelectorAll('[data-nav-item]').forEach(item=>{const label=item.querySelector('.sari-nav-label')?.textContent.trim()||item.dataset.navItem;item.title=label;item.setAttribute('aria-label',label);});}
+
+  updateNavigationPermissions(){document.querySelectorAll('[data-nav-item]').forEach(item=>{const allowed=!window.auth||window.auth.can(this.permissionForModule(item.dataset.navItem),'view');item.classList.toggle('permission-hidden',!allowed);});document.querySelectorAll('[data-menu-group]').forEach(group=>{const visible=[...group.querySelectorAll('[data-nav-item]')].some(item=>!item.classList.contains('permission-hidden'));group.classList.toggle('permission-hidden',!visible);});this.refreshNavigationTooltips();}
+
+  applySidebarPreference() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    if (!sidebar) return;
+    const collapsed = localStorage.getItem('sari_sidebar_collapsed') === 'true';
+    sidebar.classList.toggle('sidebar-collapsed', collapsed && window.innerWidth >= 1024);
+    const icon = sidebar.querySelector('.sidebar-toggle-icon');
+    if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+  }
+
+  toggleSidebarCollapse() {
+    const sidebar = document.getElementById('mobile-sidebar'); if (!sidebar) return;
+    const collapsed = !sidebar.classList.contains('sidebar-collapsed');
+    sidebar.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('sari_sidebar_collapsed', String(collapsed));
+    this.applySidebarPreference();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  toggleMobileSidebar() { document.body.classList.toggle('sidebar-mobile-open'); }
+  closeMobileSidebar() { document.body.classList.remove('sidebar-mobile-open'); }
+
   setupEventListeners() {
     // Re-render active view on language change
     window.addEventListener('sari-language-changed', () => {
       this.navigate(this.activeModule, false);
       this.updateNavigationLabels();
+      this.refreshNavigationTooltips();
     });
 
     // Re-render active view on role change
     window.addEventListener('sari-role-changed', () => {
+      this.updateNavigationPermissions();
       this.navigate(this.activeModule, false);
     });
 
@@ -140,6 +223,14 @@ class SariApp {
       moduleName = 'dashboard';
     }
 
+    const permissionModule = this.permissionForModule(moduleName);
+    if (window.auth && !window.auth.can(permissionModule, 'view')) {
+      const view = document.getElementById('sari-main-view');
+      if (view) view.innerHTML = `<div class="sari-tile p-10 text-center max-w-2xl mx-auto"><i data-lucide="shield-x" class="w-12 h-12 text-red-500 mx-auto mb-3"></i><h2 class="text-xl font-extrabold text-slate-900 dark:text-white">Accès non autorisé</h2><p class="text-sm text-slate-500 mt-2">Votre rôle ne dispose pas de l’autorisation <code>${permissionModule}.view</code>.</p><button onclick="window.app.navigate('dashboard')" class="sari-btn px-4 py-2 mt-5 bg-sari-blue text-white">Retour au tableau de bord</button></div>`;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      return;
+    }
+
     this.activeModule = moduleName;
     if (updateHash && window.location.hash !== `#${moduleName}`) {
       window.location.hash = `#${moduleName}`;
@@ -166,6 +257,8 @@ class SariApp {
       await mod.render('sari-main-view');
     }
 
+    this.enhanceSearchInputs();
+    window.UICopy?.apply(document.getElementById('sari-main-view'), window.i18n?.currentLang || 'fr');
     // Refresh Lucide icons
     if (typeof lucide !== 'undefined') {
       lucide.createIcons();
@@ -173,6 +266,14 @@ class SariApp {
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  enhanceSearchInputs() {
+    document.querySelectorAll('input[onkeydown*="searchKeyHandler"]').forEach(input => {
+      if (input.dataset.searchEnhanced) return; input.dataset.searchEnhanced='true'; input.style.paddingInlineEnd='2.5rem';
+      const parent=input.parentElement; if(!parent)return; parent.style.position='relative';
+      if(parent.querySelector('.sari-search-submit'))return;const button=document.createElement('button');button.type='button';button.className='sari-search-submit';button.setAttribute('aria-label','Lancer la recherche');button.innerHTML='<i data-lucide="search"></i>';button.onclick=()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));parent.appendChild(button);
+    });
   }
 
   updateNavigationLabels() {
@@ -263,7 +364,8 @@ class SariApp {
   async updateNotificationsBadge() {
     if (!window.sariDB) return;
     try {
-      const notifs = await window.sariDB.getAll('notifications');
+      const allNotifs = await window.sariDB.getAll('notifications');
+      const notifs = allNotifs.filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
       const unread = notifs.filter(n => !n.isRead).length;
       const badge = document.getElementById('sari-notif-badge');
       if (badge) {
@@ -279,7 +381,7 @@ class SariApp {
     const modalEl = document.getElementById('sari-modal-root');
     if (!modalEl || !window.sariDB) return;
 
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     modalEl.innerHTML = `
@@ -310,10 +412,10 @@ class SariApp {
                     <i data-lucide="${icon}" class="w-4 h-4 text-sari-blue mt-0.5"></i>
                     <div class="flex-1">
                       <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${n.title}</span>
+                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${n.titleI18n?.[i18n.currentLang]||n.title}</span>
                         <span class="text-[10px] text-slate-400">${i18n ? i18n.formatDate(n.createdAt) : ''}</span>
                       </div>
-                      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">${n.message}</p>
+                      <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">${n.messageI18n?.[i18n.currentLang]||n.message}</p>
                     </div>
                   </div>
                 </div>
@@ -338,7 +440,7 @@ class SariApp {
 
   async markAllNotificationsRead() {
     if (!window.sariDB) return;
-    const notifs = await window.sariDB.getAll('notifications');
+    const notifs = (await window.sariDB.getAll('notifications')).filter(n => !n.targetUserId || n.targetUserId === window.auth?.currentUser?.id);
     for (const n of notifs) {
       if (!n.isRead) {
         n.isRead = true;
