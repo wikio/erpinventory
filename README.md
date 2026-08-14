@@ -46,11 +46,11 @@
 - **Tasks & supervision:** personal/team Kanban with configurable stages, priorities, linked ERP records and Day/Week/Month/Year planning scopes.
 - **Granular permissions:** database-backed role permission matrix for view/create/edit/delete plus optional employee-level overrides.
 
-IndexedDB schema version 14 now includes 65 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
+IndexedDB schema version 15 now includes 66 offline stores. It adds centrally managed VAT rates, ERP-wide configurable reference masks and sequence counters, employee career records, conversations, and messages; all are included in JSON backups.
 
 Additional administration tools include responsive/collapsible navigation, separate site and financial-document logos, a dependency-free rich text editor, an employee self-service portal, internal messaging, and a visual drag/resize document-template designer with live merge-field previews.
 
-Version 14 adds numeric auto-increment technical identifiers, ID-derived document references, full MySQL SQL dumps, a realistic numeric-ID seed, manual document/mission translation, and optional encrypted server-side MySQL/PostgreSQL/MongoDB connectors with idempotent IndexedDB migration. It retains complete module-level FR/AR/EN coverage, translated rich-editor/barcode UI, GED previews/downloads, all-store data tools, quick profiles, inline translation, configurable metadata, 250 countries, reports, templates, fixed PDFs, workflows and the public API.
+Version 15 adds numeric auto-increment technical identifiers, ID-derived SARI-prefixed references (including banks), a full DB-backed coupon manager, database-first translations with JSON exchange, full MySQL SQL dumps, a realistic numeric-ID seed, manual document/mission translation, and optional encrypted server-side MySQL/PostgreSQL/MongoDB connectors with idempotent IndexedDB migration. It retains complete module-level FR/AR/EN coverage, translated rich-editor/barcode UI, GED previews/downloads, all-store data tools, quick profiles, inline translation, configurable metadata, 250 countries, reports, templates, fixed PDFs, workflows and the public API.
 
 ## 🗄️ Optional External Database Backend
 

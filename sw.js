@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sari-systeme-v2.0.0-translation-profile';
+const CACHE_NAME = 'sari-systeme-v2.1.0-numeric-external-db';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

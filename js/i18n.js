@@ -13,7 +13,8 @@ class I18nController {
       if (typeof window !== 'undefined' && window.sariDB) {
         const settings = await window.sariDB.getById('settings', 'app-settings');
         if (settings && settings.language) this.currentLang = settings.language;
-        if (settings?.customTranslations) for (const [lang,values] of Object.entries(settings.customTranslations)) Object.assign(TRANSLATIONS[lang]||(TRANSLATIONS[lang]={}),values);
+        for(const row of await window.sariDB.getAll('translationTexts')){if(row.scope==='ui'){TRANSLATIONS[row.language]??={};TRANSLATIONS[row.language][row.translationKey]=row.value;}else if(row.scope==='copy'&&window.UICopy){UICopy.phrases[row.sourceText]??={};if(row.language!=='fr')UICopy.phrases[row.sourceText][row.language]=row.value;}}
+        if (settings?.customTranslations) for (const [key,values] of Object.entries(settings.customTranslations)) for(const [lang,value] of Object.entries(values)){TRANSLATIONS[lang]??={};TRANSLATIONS[lang][key]=value;}
         if (settings?.uiCopyOverrides && window.UICopy) for (const [source,values] of Object.entries(settings.uiCopyOverrides)) UICopy.phrases[source]={...(UICopy.phrases[source]||{}),...values};
       }
     } catch (err) {

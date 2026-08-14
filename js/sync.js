@@ -58,6 +58,11 @@ class SyncController {
     window.dispatchEvent(new CustomEvent('sari-network-status-changed', { detail: { online: actualStatus } }));
   }
 
+  async enqueueExternalOnly(storeName, action, payload) {
+    if(!window.sariDB||['syncQueue','recordSequences'].includes(storeName))return;
+    const item={id:`sync-ext-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,storeName,action,payload,externalOnly:true,createdAt:new Date().toISOString(),status:'pending'};await window.sariDB.save('syncQueue',item);await this.updateSyncBadge();if(this.getOnlineStatus())setTimeout(()=>this.processSyncQueue(),100);
+  }
+
   async enqueueMutation(storeName, action, payload) {
     const before = payload?.id && window.sariDB ? await window.sariDB.getById(storeName,payload.id) : null;
     const after = action === 'save' ? payload : null;
@@ -104,14 +109,15 @@ class SyncController {
 
       for (const item of queueItems) {
         try {
-          // Simulate server synchronization / conflict resolution
-          if (item.action === 'save') {
-            await window.sariDB.save(item.storeName, item.payload);
+          if(item.externalOnly){
+            const endpoint=item.action==='delete'?'/api/db/delete-record':'/api/db/migrate-batch',body=item.action==='delete'?{storeName:item.storeName,numericId:item.payload.numericId}:{storeName:item.storeName,records:[item.payload]};const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw Error((await response.json()).error||'External sync failed');
+          } else if (item.action === 'save') {
+            this.suppressBridge=true;try{await window.sariDB.save(item.storeName,item.payload);}finally{this.suppressBridge=false;}
             if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,records:[item.payload]})});if(!response.ok)throw Error((await response.json()).error||'External sync failed');}
           } else if (item.action === 'delete') {
             const existing=await window.sariDB.getById(item.storeName,item.payload.id);
             if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/delete-record',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,numericId:existing.numericId})});if(!response.ok)throw Error((await response.json()).error||'External delete failed');}
-            await window.sariDB.delete(item.storeName, item.payload.id);
+            this.suppressBridge=true;try{await window.sariDB.delete(item.storeName,item.payload.id);}finally{this.suppressBridge=false;}
           }
           await window.sariDB.delete('syncQueue', item.id);
         } catch (err) {

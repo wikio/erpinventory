@@ -264,8 +264,9 @@ const TranslationsModule = {
     TRANSLATIONS.ar[key] = arVal;
     TRANSLATIONS.en[key] = enVal;
 
-    // Save override to customTranslations in IndexedDB
+    // Persist every language in the database; settings override is retained for backward-compatible backups.
     this.state.customTranslations[key] = { fr: frVal, ar: arVal, en: enVal };
+    for(const [language,value] of Object.entries(this.state.customTranslations[key]))await sariDB.save('translationTexts',{id:`ui:${key}:${language}`,scope:'ui',translationKey:key,sourceText:frVal,language,value,updatedAt:new Date().toISOString(),updatedBy:auth.currentUser?.id});
 
     try {
       const s = await window.sariDB.getById('settings', 'app-settings') || { id: 'app-settings' };
@@ -386,6 +387,7 @@ const TranslationsModule = {
     TRANSLATIONS.en[key] = enVal;
 
     this.state.customTranslations[key] = { fr: frVal, ar: arVal, en: enVal };
+    for(const [language,value] of Object.entries(this.state.customTranslations[key]))await sariDB.save('translationTexts',{id:`ui:${key}:${language}`,scope:'ui',translationKey:key,sourceText:frVal,language,value,updatedAt:new Date().toISOString(),updatedBy:auth.currentUser?.id});
 
     try {
       const s = await window.sariDB.getById('settings', 'app-settings') || { id: 'app-settings' };
@@ -402,11 +404,14 @@ const TranslationsModule = {
 
   openAudit(){const staticMissing={fr:[],ar:[],en:[]};const keys=new Set(Object.keys(TRANSLATIONS.fr));for(const lang of ['fr','ar','en'])for(const key of keys)if(!TRANSLATIONS[lang]?.[key])staticMissing[lang].push(key);const runtime=window.UICopy?.audit(document.getElementById('sari-main-view'))||[],root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[92vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">i18n QA</span><h3 class="text-xl font-extrabold mt-2">Rapport de couverture des traductions</h3></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-3 gap-3 my-4">${['fr','ar','en'].map(lang=>`<div class="p-4 border rounded-xl"><b>${lang.toUpperCase()}</b><p class="text-2xl font-black ${staticMissing[lang].length?'text-red-600':'text-green-600'}">${staticMissing[lang].length}</p><small>clés statiques manquantes</small></div>`).join('')}</div><h4 class="font-extrabold">Textes dynamiques/non marqués détectés (${runtime.length})</h4><p class="text-xs text-slate-500">Cette liste prévient les régressions : ajoutez les expressions légitimes au dictionnaire ou à UICopy.</p><table class="w-full text-xs mt-3"><thead><tr><th class="text-left">Texte source</th><th>Occurrences</th><th>Couverture auto</th></tr></thead><tbody>${runtime.slice(0,300).map(row=>`<tr class="border-t"><td class="p-2">${SariUtils.escapeHtml(row.text)}</td><td>${row.count}</td><td>${UICopy.phrases[row.text]?'Oui':'À traduire'}</td></tr>`).join('')}</tbody></table></div></div>`;},
 
-  exportJSON() {
+  async exportJSON() {
     const pack = {
       exportedAt: new Date().toISOString(),
-      appName: 'SARI Système - Trilingual Language Pack',
-      defaultTranslations: TRANSLATIONS,
+      formatVersion: 2,
+      appName: 'SARI Système - Database Language Pack',
+      translations: TRANSLATIONS,
+      translationTexts: await sariDB.getAll('translationTexts'),
+      entityTranslations: await sariDB.getAll('entityTranslations'),
       customOverrides: this.state.customTranslations
     };
     const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
@@ -431,18 +436,12 @@ const TranslationsModule = {
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {
-          const pack = JSON.parse(evt.target.result);
-          if (pack.customOverrides) {
-            this.state.customTranslations = { ...this.state.customTranslations, ...pack.customOverrides };
-            Object.keys(pack.customOverrides).forEach(k => {
-              TRANSLATIONS.fr[k] = pack.customOverrides[k].fr;
-              TRANSLATIONS.ar[k] = pack.customOverrides[k].ar;
-              TRANSLATIONS.en[k] = pack.customOverrides[k].en;
-            });
-            const s = await window.sariDB.getById('settings', 'app-settings') || { id: 'app-settings' };
-            s.customTranslations = this.state.customTranslations;
-            await window.sariDB.save('settings', s);
-          }
+          const pack = JSON.parse(evt.target.result),dictionary=pack.translations||pack.defaultTranslations||{};
+          for(const [language,values] of Object.entries(dictionary))for(const [key,value] of Object.entries(values)){TRANSLATIONS[language]??={};TRANSLATIONS[language][key]=value;await sariDB.save('translationTexts',{id:`ui:${key}:${language}`,scope:'ui',translationKey:key,sourceText:dictionary.fr?.[key]||value,language,value,updatedAt:new Date().toISOString(),updatedBy:auth.currentUser?.id});}
+          for(const row of pack.translationTexts||[])await sariDB.save('translationTexts',row);
+          for(const row of pack.entityTranslations||[])await sariDB.save('entityTranslations',row);
+          if(pack.customOverrides){this.state.customTranslations={...this.state.customTranslations,...pack.customOverrides};for(const [key,values] of Object.entries(pack.customOverrides))for(const [language,value] of Object.entries(values)){TRANSLATIONS[language]??={};TRANSLATIONS[language][key]=value;await sariDB.save('translationTexts',{id:`ui:${key}:${language}`,scope:'ui',translationKey:key,sourceText:values.fr||value,language,value,updatedAt:new Date().toISOString()});}const settings=await sariDB.getById('settings','app-settings')||{id:'app-settings'};settings.customTranslations=this.state.customTranslations;await sariDB.save('settings',settings);}
+          await DynamicI18n.init();
           window.app.showToast('Traductions importées et appliquées !', 'success');
           if (window.i18n) window.i18n.translateDOM();
           await this.render();

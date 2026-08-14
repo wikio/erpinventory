@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 14) {
+  constructor(dbName = 'SariSystemeDB', version = 15) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -66,7 +66,7 @@ class SariDB {
           'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories',
           'salesStages', 'productLots', 'stockMovements', 'inventoryCounts',
           'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations',
-          'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences'
+          'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences'
         ];
 
         stores.forEach((storeName) => {
@@ -105,6 +105,8 @@ class SariDB {
               store.createIndex('partnerId','partnerId',{unique:false});
             } else if (storeName === 'entityTranslations') {
               store.createIndex('entityKey','entityKey',{unique:false});
+            } else if (storeName === 'translationTexts') {
+              store.createIndex('scope','scope',{unique:false});store.createIndex('language','language',{unique:false});
             } else if (storeName === 'configurableOptions') {
               store.createIndex('listKey','listKey',{unique:false});
             } else if (storeName === 'productLots' || storeName === 'stockMovements') {
@@ -144,6 +146,8 @@ class SariDB {
         if (!await this.getById('orders','order-multipage-sample')) await this.seedMultiPageInvoice();
         if (!await this.getById('documentTemplates','tpl-ready-html') && globalThis.TemplateEngine) await this.save('documentTemplates',{id:'tpl-ready-html',name:'HTML Professionnel',type:'all',paperFormat:'A4',accent:'#009CC5',layout:'html',templateMode:'html',htmlContent:TemplateEngine.defaultHtml(),versions:[]});
         if (await this.count('gedCategories') === 0 || await this.count('gedTypes') === 0 || !await this.getById('configurableOptions','documentStatus-quoted')) await this.seedTranslationData();
+        await this.seedTranslationTexts();
+        await this.ensureSariReferencePrefixes();
         await this.backfillNumericIdsAndReferences();
         resolve(this.db);
       };
@@ -160,8 +164,9 @@ class SariDB {
   async rawGetAll(storeName){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readonly').objectStore(storeName).getAll();request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>reject(request.error);});}
   async rawPut(storeName,data){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readwrite').objectStore(storeName).put(data);request.onsuccess=()=>resolve(data);request.onerror=()=>reject(request.error);});}
   async nextNumericId(storeName){return new Promise((resolve,reject)=>{const tx=this.db.transaction(['recordSequences'],'readwrite'),store=tx.objectStore('recordSequences'),get=store.get(storeName);get.onsuccess=()=>{const value=Number(get.result?.value||0)+1;store.put({id:storeName,value,updatedAt:new Date().toISOString()});resolve(value);};get.onerror=()=>reject(get.error);});}
-  async referenceDefinition(storeName,record){let code='',context={recordId:record.numericId};if(storeName==='products'){code='PRO';const category=await this.getById('productCategories',record.category);context.subType=category?.code||'01';}else if(storeName==='suppliers'){code='FOU';context.subType=['international','manufacturer'].includes(record.type)?'04':record.type==='local'?'02':'03';}else if(storeName==='customers'){code='CLI';context.subType=['public_hospital','government'].includes(record.type)?'01':['private_clinic','pharmacy'].includes(record.type)?'02':'03';}else if(storeName==='shipments'){code=record.type==='export'?'EXP':'IMP';context.country=record.partnerCountryCode||'DZA';}else if(storeName==='tenders'){code='CON';context.date=record.submissionDeadline;}else if(storeName==='orders')code=({invoice:'FAV',quote:'DVV',purchase_order:'BCV',delivery_note:'LIV'})[record.documentType]||'FAV';else if(storeName==='purchaseDocuments')code=({purchase_invoice:'FAC',purchase_quote:'DVA',goods_receipt:'REC',purchase_order:'BCA'})[record.documentType]||'FAC';else if(storeName==='employees'){code='EMP';context.date=record.hireDate;}else if(storeName==='missions'){code='MIS';context.date=record.startDate;}else if(storeName==='documentTemplates'){code='TEM';context.templateType=({invoice:'FAV',quote:'DVV',purchase_order:'BCA',delivery_note:'LIV'})[record.type]||'DOC';}else if(storeName==='taxRecords'){code=record.type==='G50'?'G50':record.type==='IBS'?'FIS':'RAP';context.date=String(record.period||'').length===7?record.period+'-01':undefined;}else if(storeName==='stockMovements')code=record.type==='out'?'STS':'STE';else if(storeName==='inventoryCounts')code='INV';else if(storeName==='paymentTransactions')code=record.direction==='out'?'CHA':'REV';return code?{code,context}:null;}
+  async referenceDefinition(storeName,record){let code='',context={recordId:record.numericId};if(storeName==='products'){code='PRO';const category=record.category?await this.getById('productCategories',record.category):null;context.subType=category?.code||'01';}else if(storeName==='suppliers'){code='FOU';context.subType=['international','manufacturer'].includes(record.type)?'04':record.type==='local'?'02':'03';}else if(storeName==='banks'){code='BAN';context.subType='01';}else if(storeName==='bankAccounts'){code='BAN';const bankType=record.accountType?await this.getById('bankTypes',record.accountType):null;context.subType=bankType?.code||({bank:'01',cash:'02',online:'03'}[record.accountType]||'01');}else if(storeName==='customers'){code='CLI';context.subType=['public_hospital','government'].includes(record.type)?'01':['private_clinic','pharmacy'].includes(record.type)?'02':'03';}else if(storeName==='shipments'){code=record.type==='export'?'EXP':'IMP';context.country=record.partnerCountryCode||'DZA';}else if(storeName==='tenders'){code='CON';context.date=record.submissionDeadline;}else if(storeName==='orders')code=({invoice:'FAV',quote:'DVV',purchase_order:'BCV',delivery_note:'LIV'})[record.documentType]||'FAV';else if(storeName==='purchaseDocuments')code=({purchase_invoice:'FAC',purchase_quote:'DVA',goods_receipt:'REC',purchase_order:'BCA'})[record.documentType]||'FAC';else if(storeName==='employees'){code='EMP';context.date=record.hireDate;}else if(storeName==='missions'){code='MIS';context.date=record.startDate;}else if(storeName==='documentTemplates'){code='TEM';context.templateType=({invoice:'FAV',quote:'DVV',purchase_order:'BCA',delivery_note:'LIV'})[record.type]||'DOC';}else if(storeName==='taxRecords'){code=record.type==='G50'?'G50':record.type==='IBS'?'FIS':'RAP';context.date=String(record.period||'').length===7?record.period+'-01':undefined;}else if(storeName==='stockMovements')code=record.type==='out'?'STS':'STE';else if(storeName==='inventoryCounts')code='INV';else if(storeName==='paymentTransactions')code=record.direction==='out'?'CHA':'REV';return code?{code,context}:null;}
   async applyDerivedReference(storeName,record){if(!record.numericId||!globalThis.ReferenceCodeManager)return record;const definition=await this.referenceDefinition(storeName,record);if(!definition)return record;const mask=await this.getById('documentCodes',definition.code);if(mask)record.referenceCode=ReferenceCodeManager.render(mask,record.numericId,{...definition.context,recordId:record.numericId});return record;}
+  async ensureSariReferencePrefixes(){for(const definition of await this.getAll('documentCodes')){if(!String(definition.mask||'').startsWith('SARI-')){definition.mask=`SARI-${definition.mask}`;definition.example=definition.example?.startsWith('SARI-')?definition.example:`SARI-${definition.example||definition.code}`;await this.rawPut('documentCodes',definition);}}}
   async backfillNumericIdsAndReferences(){const stores=Array.from(this.db.objectStoreNames).filter(name=>!['recordSequences'].includes(name));for(const storeName of stores){const rows=await this.rawGetAll(storeName);let next=Math.max(0,...rows.map(row=>Number(row.numericId)||0))+1;for(const row of rows){if(!Number.isInteger(row.numericId)||row.numericId<1)row.numericId=next++;await this.applyDerivedReference(storeName,row);await this.rawPut(storeName,row);}await this.rawPut('recordSequences',{id:storeName,value:Math.max(0,next-1),updatedAt:new Date().toISOString()});}}
 
   async getAll(storeName) {
@@ -196,19 +201,20 @@ class SariDB {
       const store = transaction.objectStore(storeName);
       const request = store.put(data);
 
-      request.onsuccess = () => resolve(data);
+      request.onsuccess = async () => {if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'save',data);resolve(data);};
       request.onerror = () => reject(request.error);
     });
   }
 
   async delete(storeName, id) {
     await this.init();
+    const existing=await this.getById(storeName,id);
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
       const request = store.delete(id);
 
-      request.onsuccess = () => resolve(true);
+      request.onsuccess = async () => {if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'delete',{id,numericId:existing.numericId});resolve(true);};
       request.onerror = () => reject(request.error);
     });
   }
@@ -256,7 +262,7 @@ class SariDB {
       'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals',
       'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory',
       'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages',
-      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles'
+      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -295,6 +301,8 @@ class SariDB {
     console.log('[SariDB] Successfully imported backup data');
     return true;
   }
+
+  async seedTranslationTexts(){const hash=value=>{let h=5381;for(const char of value)h=((h<<5)+h)^char.charCodeAt(0);return(h>>>0).toString(36);};for(const [language,values] of Object.entries(TRANSLATIONS))for(const [key,value] of Object.entries(values)){const id=`ui:${key}:${language}`;if(!await this.getById('translationTexts',id))await this.save('translationTexts',{id,scope:'ui',translationKey:key,sourceText:TRANSLATIONS.fr[key]||value,language,value,updatedAt:new Date().toISOString()});}if(globalThis.UICopy)for(const [source,values] of Object.entries(UICopy.phrases))for(const language of ['fr','ar','en']){const value=language==='fr'?source:values[language];if(!value)continue;const id=`copy:${hash(source)}:${language}`;if(!await this.getById('translationTexts',id))await this.save('translationTexts',{id,scope:'copy',translationKey:hash(source),sourceText:source,language,value,updatedAt:new Date().toISOString()});}}
 
   async seedTranslationData() {
     const name=(fr,ar,en)=>({fr,ar,en});
@@ -418,10 +426,10 @@ class SariDB {
       BAN: [{code:'01',label:'Standard bank account'},{code:'02',label:'Petty cash'},{code:'03',label:'Online payment account'}]
     };
     const codes = standard.map(row => { const [code, designation] = row.split('|'); return { id: code, code, designation, description: designation, mask: `SARI-${code}{YY}-{SEQ}`, example: `SARI-${code}26-00001`, maskType: 'Standard', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }; });
-    Object.entries(subtypeLists).forEach(([code, subTypeOptions]) => codes.push({ id: code, code, designation: {CLI:'Client',FOU:'Supplier',PRO:'Product',BAN:'Bank account'}[code], description: 'Sub-type based reference', mask: `${code}{SUBTYPE}-{SEQ}`, example: `${code}01-00001`, maskType: 'SubTypeBased', sequenceMinDigits: 5, resetFrequency: 'never', isActive: true, subTypeOptions }));
-    ['IMP','EXP'].forEach(code => codes.push({ id: code, code, designation: code === 'IMP' ? 'Import' : 'Export', description: 'Country-based reference', mask: `${code}{YY}{COUNTRY3}-{SEQ}`, example: `${code}26DZA-00001`, maskType: 'CountryBased', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }));
-    codes.push({ id:'G50',code:'G50',designation:'G50 Algerian tax declaration',description:'Monthly registry reference',mask:'G50{YYYY}-{MM}-R{REGISTRY}',example:'G502026-08-R12',maskType:'DateBased',sequenceMinDigits:2,resetFrequency:'monthly',isActive:true,subTypeOptions:[] });
-    codes.push({ id:'TEM',code:'TEM',designation:'Document template',description:'Template type reference',mask:'TEM{TEMPLATE3}-{SEQ}',example:'TEMFAC-00001',maskType:'TemplateBased',sequenceMinDigits:5,resetFrequency:'never',isActive:true,subTypeOptions:[] });
+    Object.entries(subtypeLists).forEach(([code, subTypeOptions]) => codes.push({ id: code, code, designation: {CLI:'Client',FOU:'Supplier',PRO:'Product',BAN:'Bank account'}[code], description: 'Sub-type based reference', mask: `SARI-${code}{SUBTYPE}-{SEQ}`, example: `SARI-${code}01-00001`, maskType: 'SubTypeBased', sequenceMinDigits: 5, resetFrequency: 'never', isActive: true, subTypeOptions }));
+    ['IMP','EXP'].forEach(code => codes.push({ id: code, code, designation: code === 'IMP' ? 'Import' : 'Export', description: 'Country-based reference', mask: `SARI-${code}{YY}{COUNTRY3}-{SEQ}`, example: `SARI-${code}26DZA-00001`, maskType: 'CountryBased', sequenceMinDigits: 5, resetFrequency: 'yearly', isActive: true, subTypeOptions: [] }));
+    codes.push({ id:'G50',code:'G50',designation:'G50 Algerian tax declaration',description:'Monthly registry reference',mask:'SARI-G50{YYYY}-{MM}-R{REGISTRY}',example:'SARI-G502026-08-R12',maskType:'DateBased',sequenceMinDigits:2,resetFrequency:'monthly',isActive:true,subTypeOptions:[] });
+    codes.push({ id:'TEM',code:'TEM',designation:'Document template',description:'Template type reference',mask:'SARI-TEM{TEMPLATE3}-{SEQ}',example:'SARI-TEMFAC-00001',maskType:'TemplateBased',sequenceMinDigits:5,resetFrequency:'never',isActive:true,subTypeOptions:[] });
     for (const x of vats) await this.save('vatRates', x);
     for (const x of codes) await this.save('documentCodes', x);
     if (globalThis.ReferenceCodeManager) {
