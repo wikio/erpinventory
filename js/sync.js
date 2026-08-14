@@ -59,6 +59,11 @@ class SyncController {
   }
 
   async enqueueMutation(storeName, action, payload) {
+    const before = payload?.id && window.sariDB ? await window.sariDB.getById(storeName,payload.id) : null;
+    const after = action === 'save' ? payload : null;
+    const keys = [...new Set([...Object.keys(before||{}),...Object.keys(after||{})])].filter(key=>!['data','photo','logo'].includes(key));
+    const changes = keys.filter(key=>JSON.stringify(before?.[key])!==JSON.stringify(after?.[key])).map(key=>({field:key,before:before?.[key],after:after?.[key]}));
+    if(window.sariDB && window.auth?.currentUser && !['auditLogs','syncQueue'].includes(storeName)) await window.sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:window.auth.currentUser.name,role:window.auth.currentRole,actingUserId:window.auth.currentUser.id,action:action==='delete'?'DELETE_RECORD':before?'UPDATE_RECORD':'CREATE_RECORD',module:storeName,affectedRecordId:payload?.id||'',recordType:storeName,changes,beforeSummary:before?JSON.stringify(before).slice(0,500):'',afterSummary:after?JSON.stringify(after).slice(0,500):'',description:`${action} ${storeName} ${payload?.id||''} • ${changes.length} champ(s) modifié(s)`,timestamp:new Date().toISOString()});
     const item = {
       id: `sync-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       storeName,

@@ -12,9 +12,9 @@ class I18nController {
     try {
       if (typeof window !== 'undefined' && window.sariDB) {
         const settings = await window.sariDB.getById('settings', 'app-settings');
-        if (settings && settings.language) {
-          this.currentLang = settings.language;
-        }
+        if (settings && settings.language) this.currentLang = settings.language;
+        if (settings?.customTranslations) for (const [lang,values] of Object.entries(settings.customTranslations)) Object.assign(TRANSLATIONS[lang]||(TRANSLATIONS[lang]={}),values);
+        if (settings?.uiCopyOverrides && window.UICopy) for (const [source,values] of Object.entries(settings.uiCopyOverrides)) UICopy.phrases[source]={...(UICopy.phrases[source]||{}),...values};
       }
     } catch (err) {
       console.warn('[i18n] Could not load language from settings, using localStorage default:', this.currentLang);
@@ -63,8 +63,10 @@ class I18nController {
       }
     });
 
-    // Translate all DOM elements with data-i18n attribute
+    // Translate keyed and legacy/dynamic UI copy, then keep auditing future nodes.
     this.translateDOM();
+    window.UICopy?.init();
+    window.UICopy?.apply(document, lang);
   }
 
   translateDOM(root = document) {
@@ -132,6 +134,8 @@ class I18nController {
   }
 
   getCategoryName(catId) {
+    const managed = window.InventoryModule?.state?.productCategories?.find(x=>x.id===catId);
+    if (managed) return managed.name?.[this.currentLang] || managed.name?.fr || catId;
     const c = SARI_CONFIG.PRODUCT_CATEGORIES.find(x => x.id === catId);
     if (!c) return catId;
     return c[this.currentLang] || c.fr || catId;
