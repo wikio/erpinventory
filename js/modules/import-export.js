@@ -19,13 +19,16 @@ const ImportExportModule = {
 
     this.state.shipments = await window.sariDB.getAll('shipments');
     this.state.suppliers = await window.sariDB.getAll('suppliers');
+    this.state.countries = (await sariDB.getAll('countries')).filter(c=>c.isActive);
+    [this.state.customers,this.state.tenders,this.state.logisticsStatuses,this.state.incoterms]=await Promise.all(['customers','tenders','logisticsStatuses','incoterms'].map(store=>sariDB.getAll(store)));
 
     this.renderView(container);
   },
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    const filtered = this.getFilteredShipments();
+    TableSort.ensure('shipments','referenceCode');
+    const filtered = TableSort.apply('shipments',this.getFilteredShipments(),'referenceCode');
 
     // Summary KPIs
     let activeCount = 0;
@@ -47,7 +50,7 @@ const ImportExportModule = {
               ${i18n.t('importExport')}
             </h2>
             <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-              Suivi des expéditions maritimes/aériennes, dédouanement au Port d'Alger, calcul du coût de revient et Incoterms.
+              ${i18n.t('importDescription')}
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -106,8 +109,8 @@ const ImportExportModule = {
             <input 
               type="text" 
               value="${this.state.searchQuery}"
-              oninput="ImportExportModule.handleSearch(this.value)"
-              placeholder="Ex: SHIP-2026, MediCare, BioMed, CIF, D10..."
+              oninput="ImportExportModule.state.searchQuery=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>ImportExportModule.render())"
+              placeholder="Ex: SARI-IMP26DZA-00001, MediCare, CIF, D10…"
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
             />
           </div>
@@ -131,13 +134,13 @@ const ImportExportModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3">N° Expédition / Réf</th>
-                <th class="p-3">Fournisseur & Incoterm</th>
-                <th class="p-3">Statut Logistique</th>
-                <th class="p-3">Montant Devise</th>
-                <th class="p-3">Coût d'Achat (DA)</th>
+                ${TableSort.th('shipments','referenceCode','N° Expédition / Réf','ImportExportModule.render()')}
+                ${TableSort.th('shipments','supplierName','Fournisseur & Incoterm','ImportExportModule.render()')}
+                ${TableSort.th('shipments','status','Statut Logistique','ImportExportModule.render()')}
+                ${TableSort.th('shipments','foreignAmount','Montant Devise','ImportExportModule.render()')}
+                ${TableSort.th('shipments','purchaseCostDZD',"Coût d'Achat (DA)",'ImportExportModule.render()')}
                 <th class="p-3">Douane & Fret (DA)</th>
-                <th class="p-3">Coût de Revient Total (DA)</th>
+                ${TableSort.th('shipments','totalLandedCostDZD','Coût de Revient Total (DA)','ImportExportModule.render()')}
                 <th class="p-3">Documents & Échéance</th>
                 <th class="p-3 text-right">Actions</th>
               </tr>
@@ -163,8 +166,8 @@ const ImportExportModule = {
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
-                      ${s.id}
-                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.type || 'import'}</div>
+                      ${s.referenceCode || s.id}
+                      <div class="text-[10px] text-slate-400 font-normal uppercase">${s.id} • ${s.type || 'import'}</div>
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.supplierName}</div>
@@ -187,13 +190,14 @@ const ImportExportModule = {
                       ${i18n.formatCurrency(s.totalLandedCostDZD)}
                     </td>
                     <td class="p-3">
-                      <button onclick="ImportExportModule.openDocsModal('${s.id}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
-                        <i class="fas fa-folder-open"></i> ${docsCount} documents &rarr;
+                      <button onclick="DocumentManager.open('shipment','${s.id}','${SariUtils.escapeHtml(s.id)}')" class="text-xs font-bold text-sari-blue underline flex items-center gap-1">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i> GED documents &rarr;
                       </button>
                       <div class="text-[10px] text-slate-500 mt-0.5">Arrivée: ${i18n.formatDate(s.expectedArrival)}</div>
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
+                        <button onclick="ImportExportModule.openDetail('${s.id}')" title="Consulter" class="p-1.5 text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="ImportExportModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
                             <i class="fas fa-edit"></i>
@@ -226,13 +230,7 @@ const ImportExportModule = {
       if (this.state.filterStatus !== 'all' && s.status !== this.state.filterStatus) {
         return false;
       }
-      if (this.state.searchQuery) {
-        const q = this.state.searchQuery.toLowerCase();
-        const matchId = s.id && s.id.toLowerCase().includes(q);
-        const matchSupplier = s.supplierName && s.supplierName.toLowerCase().includes(q);
-        const matchIncoterm = s.incoterm && s.incoterm.toLowerCase().includes(q);
-        if (!matchId && !matchSupplier && !matchIncoterm) return false;
-      }
+      if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','id','supplierName','incoterm','status','notes'])) return false;
       return true;
     });
   },
@@ -250,12 +248,15 @@ const ImportExportModule = {
   /**
    * Open modal to create or edit an import/export shipment
    */
+  async openDetail(id){const s=await sariDB.getById('shipments',id),root=document.getElementById('sari-modal-root'),country=this.state.countries.find(c=>c.iso3===s.partnerCountryCode),tender=(this.state.tenders||[]).find(t=>t.id===s.linkedTenderId);root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${s.type}</span><h3 class="text-xl font-extrabold">${s.referenceCode||s.id}</h3></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded"><small>Partenaire</small><b class="block">${SariUtils.escapeHtml(s.partnerName||s.supplierName)}</b></div><div class="p-3 border rounded"><small>Pays</small><b class="block">${country?.name?.[i18n.currentLang]||s.partnerCountryCode}</b></div><div class="p-3 border rounded"><small>Statut</small><b class="block">${s.status}</b></div><div class="p-3 border rounded"><small>Coût rendu</small><b class="block">${i18n.formatCurrency(s.totalLandedCostDZD)}</b></div></div><p class="text-sm">Consultation : <b>${tender?.referenceCode||'—'}</b></p><p class="text-sm mt-3">${SariUtils.escapeHtml(s.notes||'')}</p><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('shipment','${id}','${s.referenceCode||id}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('importExport','edit')?`<button onclick="app.closeModalRoot();ImportExportModule.openModal('${id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;},
+
   async openModal(shipmentId = null) {
     this.state.editingId = shipmentId;
     const sh = shipmentId ? await window.sariDB.getById('shipments', shipmentId) : {
       id: `SHIP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
       supplierId: this.state.suppliers[0] ? this.state.suppliers[0].id : '',
       supplierName: this.state.suppliers[0] ? this.state.suppliers[0].name : '',
+      partnerCountryCode: this.state.suppliers[0]?.countryCode || 'DZA',
       type: 'import',
       status: 'inTransit',
       currency: 'USD',
@@ -278,7 +279,7 @@ const ImportExportModule = {
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
-        <div class="sari-tile w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
+        <div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto bg-white dark:bg-slate-900 p-6 shadow-2xl relative">
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-lg text-slate-900 dark:text-white">
               ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
@@ -289,29 +290,23 @@ const ImportExportModule = {
           </div>
 
           <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Expédition / Dossier *</label>
                 <input type="text" id="sh-id" required value="${sh.id}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800 font-mono-tech font-bold" />
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Fournisseur / Expéditeur *</label>
-                <select id="sh-supplier" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
-                  ${this.state.suppliers.map(sup => `
-                    <option value="${sup.id}|${sup.name}" ${sh.supplierId === sup.id ? 'selected' : ''}>${sup.name} (${sup.country})</option>
-                  `).join('')}
-                </select>
+                <input id="sh-partner" list="shipment-partners" value="${sh.partnerId||sh.supplierId||''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" required autocomplete="off"><datalist id="shipment-partners">${this.state.suppliers.map(x=>`<option value="${x.id}">Fournisseur • ${x.name}</option>`).join('')}${this.state.customers.map(x=>`<option value="${x.id}">Client • ${x.name}</option>`).join('')}</datalist>
               </div>
+              <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Pays partenaire *</label>${ManagedAutocomplete.html({id:'sh-country',items:this.state.countries,selected:sh.partnerCountryCode||'DZA',valueFor:c=>c.iso3,labelFor:c=>(c.name?.[i18n.currentLang]||c.name?.fr)+' ('+c.iso3+')',className:'w-full px-3 py-2 border rounded bg-white dark:bg-slate-800'})}</div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Statut Logistique *</label>
-                <select id="sh-status" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
-                  <option value="orderPlaced" ${sh.status === 'orderPlaced' ? 'selected' : ''}>Commande Passée</option>
-                  <option value="inTransit" ${sh.status === 'inTransit' ? 'selected' : ''}>En Transit / Expédié</option>
-                  <option value="customsClearance" ${sh.status === 'customsClearance' ? 'selected' : ''}>Dédouanement en Cours</option>
-                  <option value="received" ${sh.status === 'received' ? 'selected' : ''}>Réceptionné au Dépôt</option>
-                </select>
+                <select id="sh-status" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">${this.state.logisticsStatuses.filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${x.id===sh.status?'selected':''}>${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}</select>
               </div>
             </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><label class="doc-label">Type transaction<select id="sh-type" class="doc-input"><option value="import" ${sh.type!=='export'?'selected':''}>Import</option><option value="export" ${sh.type==='export'?'selected':''}>Export</option></select></label><label class="doc-label">Consultation / appel d’offres<select id="sh-tender" class="doc-input"><option value="">Aucune</option>${this.state.tenders.map(t=>`<option value="${t.id}" ${t.id===sh.linkedTenderId?'selected':''}>${t.referenceCode||t.id} • ${t.title}</option>`).join('')}</select></label></div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
@@ -332,11 +327,7 @@ const ImportExportModule = {
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Incoterm *</label>
-                <select id="sh-incoterm" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">
-                  ${SARI_CONFIG.INCOTERMS.map(i => `
-                    <option value="${i.code}" ${sh.incoterm === i.code ? 'selected' : ''}>${i.code}</option>
-                  `).join('')}
-                </select>
+                <select id="sh-incoterm" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800">${this.state.incoterms.filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${x.id===sh.incoterm?'selected':''}>${x.name?.[i18n.currentLang]||x.code}</option>`).join('')}</select>
               </div>
             </div>
 
@@ -408,8 +399,13 @@ const ImportExportModule = {
   },
 
   async saveShipment(e) {
+    if (!auth.can('importExport', this.state.editingId ? 'edit' : 'create')) return window.app.showToast('Action non autorisée', 'error');
     e.preventDefault();
-    const supSplit = document.getElementById('sh-supplier').value.split('|');
+    const partnerId = document.getElementById('sh-partner').value.trim();
+    const supplier = this.state.suppliers.find(item=>item.id===partnerId), customer=this.state.customers.find(item=>item.id===partnerId), partner=supplier||customer;
+    if(!partner)return app.showToast('Sélectionnez un fournisseur ou client configuré.','error');
+    const transactionType=document.getElementById('sh-type').value;
+    const countryInput=document.getElementById('sh-country').value.trim().toUpperCase(),countryRecord=this.state.countries.find(c=>c.iso3===countryInput||c.iso2===countryInput);if(!countryRecord)return app.showToast('Sélectionnez un pays configuré.','error');
     const foreign = Number(document.getElementById('sh-foreign').value) || 0;
     const rate = Number(document.getElementById('sh-rate').value) || 1;
     const freight = Number(document.getElementById('sh-freight').value) || 0;
@@ -418,12 +414,17 @@ const ImportExportModule = {
 
     const purchaseDZD = Math.round(foreign * rate);
     const landedDZD = Math.round(purchaseDZD + freight + ins + customs);
-
+    const recordId = document.getElementById('sh-id').value.trim();
+    const original = this.state.editingId ? await sariDB.getById('shipments', this.state.editingId) : {};
     const payload = {
-      id: document.getElementById('sh-id').value.trim(),
-      supplierId: supSplit[0] || '',
-      supplierName: supSplit[1] || 'Fournisseur International',
-      type: 'import',
+      ...original,
+      id: recordId,
+      referenceCode: original.referenceCode || await ReferenceCodeManager.generate(transactionType==='export'?'EXP':'IMP', { country: countryRecord.iso3 }),
+      partnerCountryCode: countryRecord.iso3,
+      partnerType: supplier?'supplier':'customer', partnerId:partner.id, partnerName:partner.name,
+      supplierId: supplier?.id || '', supplierName: supplier?.name || '', customerId:customer?.id||'', customerName:customer?.name||'',
+      linkedTenderId: document.getElementById('sh-tender').value,
+      type: transactionType,
       status: document.getElementById('sh-status').value,
       currency: document.getElementById('sh-curr').value,
       foreignAmount: foreign,
@@ -446,7 +447,8 @@ const ImportExportModule = {
   },
 
   async deleteShipment(id) {
-    if (!confirm('Supprimer cette expédition ?')) return;
+    if (!auth.can('importExport','delete')) return window.app.showToast('Action non autorisée', 'error');
+    if (!await DialogManager.confirm('Supprimer cette expédition ?')) return;
     await window.syncController.enqueueMutation('shipments', 'delete', { id });
     window.app.showToast(i18n.t('deletedSuccessfully'), 'info');
     await this.render();
