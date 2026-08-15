@@ -160,4 +160,4 @@ if (typeof window !== 'undefined') {
   window.i18n = i18n;
 }
 
-export {};
+export { I18nController, i18n };

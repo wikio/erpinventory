@@ -26,7 +26,9 @@ class AuthController {
       // The app controller hides the gate only after the offline database is ready.
       return true;
     } catch (error) {
-      this.showLogin('Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.');
+      console.error('[Auth] Session initialization failed:', error);
+      this.showLogin(`Initialisation de la session impossible : ${error?.message || 'erreur inconnue'}.`);
+      await this.refreshCaptcha();
       return false;
     }
   }
@@ -159,8 +161,9 @@ class AuthController {
       }
       this.setAuthenticatedUser(data.user);
       window.location.reload();
-    } catch (_) {
-      this.setLoginError('Le serveur ne répond pas. Vérifiez votre connexion.');
+    } catch (error) {
+      console.error('[Auth] Login finalization failed:', error);
+      this.setLoginError(`La connexion n’a pas pu être finalisée : ${error?.message || 'erreur inconnue'}.`);
       await this.refreshCaptcha();
     } finally {
       if (button) {
@@ -231,4 +234,4 @@ class AuthController {
 const auth = new AuthController();
 if (typeof window !== 'undefined') window.auth = auth;
 
-export {};
+export { AuthController, auth };
