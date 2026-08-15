@@ -6,5 +6,15 @@
   },
   "appName": "نظام ساري",
   "offline": "غير متصل",
-  "online": "متصل"
+  "online": "متصل",
+  "documentTypeFilter": "نوع الوثيقة",
+  "allDocumentTypes": "كل أنواع الوثائق",
+  "paymentMethod": "طريقة الدفع",
+  "salesStatistics": "إحصائيات المبيعات",
+  "documentLifecycle": "دورة حياة الوثيقة",
+  "purchaseWorkflow": "مسار المشتريات",
+  "country": "البلد",
+  "allCountries": "كل البلدان",
+  "notes": "ملاحظات",
+  "loadingModule": "تحميل الوحدة"
 }

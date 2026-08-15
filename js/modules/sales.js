@@ -49,16 +49,26 @@ const SalesModule = {
     this.state.vatRates = (await window.sariDB.getAll('vatRates')).filter(rate => rate.isActive);
     [this.state.purchaseDocuments,this.state.tenders,this.state.bankAccounts,this.state.referrals,this.state.coupons,this.state.paymentMethods,this.state.salesStages,this.state.documentCodes] = await Promise.all(['purchaseDocuments','tenders','bankAccounts','referrals','coupons','paymentMethods','salesStages','documentCodes'].map(s=>sariDB.getAll(s)));
 
-    if (!this.state.selectedCustomerId && this.state.customers[0]) {
-      this.state.selectedCustomerId = this.state.customers[0].id;
+    const pendingCustomerId=sessionStorage.getItem('sari_sales_customer_id');
+    if(pendingCustomerId&&this.state.customers.some(customer=>customer.id===pendingCustomerId)){
+      this.state.selectedCustomerId=pendingCustomerId;
+      sessionStorage.removeItem('sari_sales_customer_id');
     }
+    if (!this.state.selectedCustomerId && this.state.customers[0]) this.state.selectedCustomerId = this.state.customers[0].id;
 
     this.renderView(container);
   },
 
+  documentTypeOptions(){const definitions=[['invoice','FAV'],['quote','DVV'],['purchase_order','BCV'],['delivery_note','LIV']];return definitions.map(([value,code])=>{const definition=this.state.documentCodes.find(item=>item.code===code);return{value,code,label:definition?.designationI18n?.[i18n.currentLang]||definition?.designation||({invoice:'Facture vente',quote:'Devis vente',purchase_order:'Commande vente',delivery_note:'Bon de livraison'}[value])};});},
+  normalizeDocumentType(order){return window.SariCore.commerce.normalizeSalesDocumentType(order);},
+  documentTypeLabel(type){return this.documentTypeOptions().find(option=>option.value===type)?.label||type;},
+  paymentMethodLabel(code){return window.SariCore.commerce.localizedPaymentMethod(code||'bank_transfer',this.state.paymentMethods,i18n.currentLang)||i18n.t('paymentMethod','Mode de règlement');},
+  salesStats(){const stats=window.SariCore.commerce.salesStatistics(this.state.orders),max=Math.max(1,...stats.trend.map(([,value])=>value));return{...stats,max};},
+  statisticsHtml(){const stats=this.salesStats();return `<section class="space-y-4"><div class="flex justify-between items-end"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${i18n.t('salesStatistics','Statistiques des ventes')}</span><h3 class="font-extrabold text-lg mt-2">${i18n.t('monthlyTrend','Tendance mensuelle')}</h3></div><i data-lucide="chart-no-axes-combined" class="w-8 h-8 text-sari-blue"></i></div><div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3"><article class="sales-stat-card"><small>${i18n.t('recognizedRevenue','Chiffre d’affaires reconnu')}</small><b>${i18n.formatCurrency(stats.revenue)}</b></article><article class="sales-stat-card"><small>${i18n.t('documentCount','Nombre de documents')}</small><b>${stats.count}</b></article><article class="sales-stat-card"><small>${i18n.t('averageOrderValue','Panier moyen')}</small><b>${i18n.formatCurrency(stats.average)}</b></article><article class="sales-stat-card"><small>${i18n.t('topProduct','Produit vedette')}</small><b class="text-base">${SariUtils.escapeHtml(stats.top.name||'—')}</b><span>${stats.top.qty} unité(s)</span></article></div><div class="sales-trend-chart">${stats.trend.length?stats.trend.map(([month,value])=>`<div class="sales-trend-column"><span class="sales-trend-value">${i18n.formatCurrency(value)}</span><div style="height:${Math.max(8,Math.round(value/stats.max*100))}%"></div><small>${month}</small></div>`).join(''):`<p class="text-sm text-slate-400">${i18n.t('noDataFound','Aucune donnée')}</p>`}</div></section>`;},
+
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
-    const historyFiltered=this.state.orders.filter(o=>(this.state.historyStatus==='all'||o.status===this.state.historyStatus)&&(this.state.historyType==='all'||(o.documentType||'order')===this.state.historyType)&&(this.state.historyCustomer==='all'||o.customerId===this.state.historyCustomer)&&(!this.state.historyFrom||new Date(o.createdAt)>=new Date(this.state.historyFrom))&&(!this.state.historyTo||new Date(o.createdAt)<=new Date(this.state.historyTo+'T23:59:59')));
+    const historyFiltered=this.state.orders.filter(o=>(this.state.historyStatus==='all'||o.status===this.state.historyStatus)&&(this.state.historyType==='all'||this.normalizeDocumentType(o)===this.state.historyType)&&(this.state.historyCustomer==='all'||o.customerId===this.state.historyCustomer)&&(!this.state.historyFrom||new Date(o.createdAt)>=new Date(this.state.historyFrom))&&(!this.state.historyTo||new Date(o.createdAt)<=new Date(this.state.historyTo+'T23:59:59')));
     TableSort.ensure('salesHistory','referenceCode');const historySorted=TableSort.apply('salesHistory',historyFiltered,'referenceCode');
     const historyPages=Math.max(1,Math.ceil(historySorted.length/this.state.historyPageSize));this.state.historyPage=Math.min(this.state.historyPage,historyPages);const historyOrders=historySorted.slice((this.state.historyPage-1)*this.state.historyPageSize,this.state.historyPage*this.state.historyPageSize);
 
@@ -180,7 +190,7 @@ const SalesModule = {
               <!-- Client Selector -->
               <div class="mb-4">
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Client / Institution Algérie *</label>
-                <select
+                <select data-sales-customer-field
                   onchange="SalesModule.handleCustomerSelect(this.value)"
                   class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm font-bold focus:outline-none focus:border-sari-blue"
                 >
@@ -224,7 +234,7 @@ const SalesModule = {
 
               <!-- Commercial document configuration -->
               <div class="grid grid-cols-2 gap-2 mb-3 text-xs p-3 rounded-lg border bg-sari-blue/5">
-                <div><label class="block font-bold mb-1">Type document</label><select onchange="SalesModule.setDocumentField('documentType',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${[['FAV','invoice'],['DVV','quote'],['BCV','purchase_order'],['LIV','delivery_note']].map(([code,value])=>{const def=this.state.documentCodes.find(d=>d.code===code),label=def?.designationI18n?.[i18n.currentLang]||def?.designation||code;return `<option value="${value}" ${this.state.documentType===value?'selected':''}>${SariUtils.escapeHtml(label)} (${code})</option>`}).join('')}</select></div>
+                <div><label class="block font-bold mb-1">${i18n.t('documentTypeFilter','Type de document')}</label><select onchange="SalesModule.setDocumentField('documentType',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.documentTypeOptions().map(option=>`<option value="${option.value}" ${this.state.documentType===option.value?'selected':''}>${SariUtils.escapeHtml(option.label)} (${option.code})</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Devise</label><select onchange="SalesModule.setDocumentField('currency',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${['DZD','EUR','USD'].map(c=>`<option ${c===this.state.currency?'selected':''}>${c}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Frais livraison</label><input type="number" value="${this.state.shippingFee}" onchange="SalesModule.setDocumentField('shippingFee',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
                 <div><label class="block font-bold mb-1">TVA globale optionnelle</label><select onchange="SalesModule.setDocumentField('globalVatRateId',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800"><option value="">Taux par produit</option>${this.state.vatRates.map(rate=>`<option value="${rate.id}" ${rate.id===this.state.globalVatRateId?'selected':''}>${rate.name?.[i18n.currentLang]||rate.label}</option>`).join('')}</select></div>
@@ -242,7 +252,7 @@ const SalesModule = {
               <!-- Payment Method & Discount -->
               <div class="grid grid-cols-2 gap-2 mb-4 text-xs">
                 <div>
-                  <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Mode Règlement</label>
+                  <label class="block font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('paymentMethod','Mode de règlement')}</label>
                   <select
                     onchange="SalesModule.handlePaymentSelect(this.value)"
                     class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800 font-semibold"
@@ -305,6 +315,9 @@ const SalesModule = {
         </div>
         ` : ''}
 
+        <!-- Sales analytics -->
+        <section class="sari-tile p-5">${this.statisticsHtml()}</section>
+
         <!-- Sales workflow pipeline -->
         <section class="sari-tile p-5"><div class="flex justify-between"><div><h3 class="font-extrabold text-lg">Workflow commercial</h3><p class="text-xs text-slate-500">Devis → Commande → Livraison → Facture → Paiement</p></div><span class="sari-badge">${this.state.orders.length} opportunités</span></div><div class="flex gap-3 overflow-x-auto mt-4 pb-2">${this.state.salesStages.sort((a,b)=>a.order-b.order).map(stage=>{const docs=this.state.orders.filter(o=>(o.salesStage||this.inferSalesStage(o))===stage.id);return `<div class="kanban-column p-3 w-64 shrink-0" ondragover="event.preventDefault()" ondrop="SalesModule.moveSalesDocument(event,'${stage.id}')"><h4 class="font-bold text-xs uppercase mb-3" style="color:${stage.color}">${stage.name?.[i18n.currentLang]||stage.name?.fr} <span class="float-right sari-badge">${docs.length}</span></h4>${docs.map(o=>`<article draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${o.id}')" class="kanban-card p-3 bg-white dark:bg-slate-900 rounded-lg border mb-2"><b class="font-mono-tech text-sari-blue text-xs">${o.referenceCode||o.id}</b><p class="text-xs font-bold mt-1">${SariUtils.escapeHtml(o.customerName)}</p><span class="text-[10px]">${i18n.formatCurrency(o.total,o.currency||'DZD')}</span></article>`).join('')}</div>`}).join('')}</div></section>
 
@@ -317,7 +330,7 @@ const SalesModule = {
             <span class="sari-badge bg-sari-blue/10 text-sari-blue">${historyFiltered.length} document(s)</span>
           </div>
 
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4"><select onchange="SalesModule.setHistoryFilter('historyStatus',this.value)" class="doc-input"><option value="all">Tous statuts</option>${OptionCatalog.html('documentStatus',this.state.historyStatus)}</select><select onchange="SalesModule.setHistoryFilter('historyType',this.value)" class="doc-input"><option value="all">Tous types</option>${['invoice','quote','purchase_order','delivery_note'].map(x=>`<option ${x===this.state.historyType?'selected':''}>${x}</option>`).join('')}</select><select onchange="SalesModule.setHistoryFilter('historyCustomer',this.value)" class="doc-input"><option value="all">Tous clients</option>${this.state.customers.map(c=>`<option value="${c.id}" ${c.id===this.state.historyCustomer?'selected':''}>${c.name}</option>`).join('')}</select><input type="date" value="${this.state.historyFrom}" onchange="SalesModule.setHistoryFilter('historyFrom',this.value)" class="doc-input" title="Date début"><input type="date" value="${this.state.historyTo}" onchange="SalesModule.setHistoryFilter('historyTo',this.value)" class="doc-input" title="Date fin"></div>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4"><select onchange="SalesModule.setHistoryFilter('historyStatus',this.value)" class="doc-input"><option value="all">Tous statuts</option>${OptionCatalog.html('documentStatus',this.state.historyStatus)}</select><label class="sr-only" for="sales-document-type-filter">${i18n.t('documentTypeFilter','Type de document')}</label><select id="sales-document-type-filter" title="${i18n.t('documentTypeFilter','Type de document')}" onchange="SalesModule.setHistoryFilter('historyType',this.value)" class="doc-input"><option value="all">${i18n.t('allDocumentTypes','Tous les types de documents')}</option>${this.documentTypeOptions().map(option=>`<option value="${option.value}" ${option.value===this.state.historyType?'selected':''}>${SariUtils.escapeHtml(option.label)} (${option.code})</option>`).join('')}</select><select onchange="SalesModule.setHistoryFilter('historyCustomer',this.value)" class="doc-input"><option value="all">Tous clients</option>${this.state.customers.map(c=>`<option value="${c.id}" ${c.id===this.state.historyCustomer?'selected':''}>${c.name}</option>`).join('')}</select><input type="date" value="${this.state.historyFrom}" onchange="SalesModule.setHistoryFilter('historyFrom',this.value)" class="doc-input" title="Date début"><input type="date" value="${this.state.historyTo}" onchange="SalesModule.setHistoryFilter('historyTo',this.value)" class="doc-input" title="Date fin"></div>
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse sari-table text-sm">
               <thead>
@@ -327,7 +340,7 @@ const SalesModule = {
                   ${TableSort.th('salesHistory','warehouseId','Dépôt','SalesModule.render()')}
                   ${TableSort.th('salesHistory','createdAt','Date Émission','SalesModule.render()')}
                   ${TableSort.th('salesHistory','total','Montant TTC (DA)','SalesModule.render()')}
-                  ${TableSort.th('salesHistory','paymentMethod','Mode Règlement','SalesModule.render()')}
+                  ${TableSort.th('salesHistory','paymentMethod',i18n.t('paymentMethod','Mode de règlement'),'SalesModule.render()')}
                   ${TableSort.th('salesHistory','status','Statut Commande','SalesModule.render()')}
                   <th class="p-3 text-right">Actions / Impression</th>
                 </tr>
@@ -353,7 +366,7 @@ const SalesModule = {
                     <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td class="p-3 font-mono-tech font-bold text-sari-blue">
                         ${o.referenceCode || o.id}
-                        <div class="text-[9px] text-slate-400">${o.id}</div>
+                        <div class="text-[9px] text-slate-400">${SariUtils.escapeHtml(this.documentTypeLabel(this.normalizeDocumentType(o)))} • ${o.id}</div>
                       </td>
                       <td class="p-3">
                         <div class="font-bold text-slate-900 dark:text-white">${o.customerName}</div>
@@ -370,7 +383,7 @@ const SalesModule = {
                       </td>
                       <td class="p-3 text-xs">
                         <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          ${o.paymentMethod || 'bank_transfer'}
+                          ${this.paymentMethodLabel(o.paymentMethod || 'bank_transfer')}
                         </span>
                       </td>
                       <td class="p-3">
@@ -387,6 +400,7 @@ const SalesModule = {
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'bl')" title="Imprimer Bon de Livraison" class="px-2 py-1 rounded bg-sari-lime/20 hover:bg-sari-lime/30 text-sari-lime-dark text-xs font-bold flex items-center gap-1">
                             <i data-lucide="truck"></i> BL
                           </button>
+                          <button onclick="DocumentLifecycle.open('order','${o.id}')" class="p-1 text-violet-600" title="${i18n.t('viewLifecycle','Voir le processus complet')}" aria-label="${i18n.t('viewLifecycle','Voir le processus complet')}"><i data-lucide="history" class="w-4 h-4"></i></button>
                           <button onclick="DocumentTranslationManager.open('order','${o.id}')" class="p-1 text-sari-lime-dark" title="Traduire"><i data-lucide="languages" class="w-4 h-4"></i></button>
                           ${o.status!=='closed'&&canWrite?`<button onclick="SalesModule.editOrder('${o.id}')" class="p-1 text-sari-blue" title="Modifier"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="SalesModule.convertOrder('${o.id}')" class="p-1 text-sari-amber" title="Convertir"><i data-lucide="repeat-2" class="w-4 h-4"></i></button>`:''}
                           <button onclick="DocumentManager.open('order','${o.id}','${o.id}')" title="Documents" class="p-1 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
@@ -415,7 +429,7 @@ const SalesModule = {
 
   setHistoryFilter(field,value){this.state[field]=value;this.state.historyPage=1;this.render();},goHistoryPage(page){this.state.historyPage=Math.max(1,page);this.render();},
   inferSalesStage(order){if(order.status==='paid'||order.status==='closed')return'payment';if(order.documentType==='invoice'||order.status==='invoiced')return'invoice';if(order.documentType==='delivery_note'||order.status==='delivered')return'delivery';if(order.documentType==='quote'||order.status==='quoted')return'quote';return'order';},
-  async moveSalesDocument(event,toStage){const id=event.dataTransfer.getData('text/plain'),order=await sariDB.getById('orders',id);if(!order)return;const fromStage=order.salesStage||this.inferSalesStage(order);order.salesStage=toStage;order.updatedAt=new Date().toISOString();await sariDB.save('orders',order);await sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:auth.currentUser.name,role:auth.currentRole,action:'MOVE_SALES_WORKFLOW',module:'Sales',description:`${order.referenceCode||id}: ${fromStage} → ${toStage}`,timestamp:new Date().toISOString()});this.render();},
+  async moveSalesDocument(event,toStage){const id=event.dataTransfer.getData('text/plain'),order=await sariDB.getById('orders',id);if(!order)return;const fromStage=order.salesStage||this.inferSalesStage(order);order.salesStage=toStage;order.updatedAt=new Date().toISOString();await sariDB.save('orders',order);await DocumentLifecycle.record('order',order,'WORKFLOW_MOVED',{fromStage,toStage,description:`${order.referenceCode||id}: ${fromStage} → ${toStage}`});this.render();},
 
   getFilteredCatalog() {
     return this.state.products.filter(p => SariUtils.matchesAdvancedSearch(p, this.state.searchQuery, ['referenceCode','sku','barcode','name','extendedDescription','category']));
@@ -570,6 +584,8 @@ const SalesModule = {
       referralId: this.state.referralId,
       couponCode: this.state.couponCode,
       assignedEmployeeId: window.auth.employee?.id || '',
+      createdBy: existingOrder?.createdBy || window.auth.currentUser?.id || '',
+      createdByName: existingOrder?.createdByName || window.auth.currentUser?.name || '',
       paymentMethod: this.state.paymentMethod,
       status: existingOrder?.status || 'draft',
       createdAt: existingOrder?.createdAt || new Date().toISOString(),
@@ -577,6 +593,7 @@ const SalesModule = {
     };
     await DocumentSecurity.sign(newOrder);
     await window.syncController.enqueueMutation('orders', 'save', newOrder);
+    await DocumentLifecycle.record('order',newOrder,existingOrder?'DOCUMENT_UPDATED':'DOCUMENT_CREATED',{fromStatus:existingOrder?.status||null,toStatus:newOrder.status,description:`${newOrder.referenceCode} • ${existingOrder?'document mis à jour':'document créé'}`});
     if(newOrder.couponCode){const coupon=this.state.coupons.find(c=>c.code===newOrder.couponCode);if(coupon){coupon.usageCount=Number(coupon.usageCount||0)+1;await sariDB.save('coupons',coupon);}}
     for(const targetId of [...newOrder.linkedPurchaseDocumentIds,newOrder.linkedTenderId].filter(Boolean)) await sariDB.save('documentLinks',{id:`link-${crypto.randomUUID()}`,sourceType:'salesDocument',sourceId:newOrder.id,targetType:targetId.startsWith('AO-')?'tender':'purchaseDocument',targetId,relation:'related',createdAt:new Date().toISOString()});
 
@@ -601,8 +618,8 @@ const SalesModule = {
   },
 
   async editOrder(id){const o=await sariDB.getById('orders',id);if(!o||o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');this.state.editingOrderId=id;this.state.cart=SariUtils.deepClone(o.items||[]);this.state.selectedCustomerId=o.customerId;this.state.currency=o.currency||'DZD';this.state.documentType=o.documentType||'invoice';this.state.documentNote=o.documentNote||'';this.state.shippingFee=o.shippingFee||0;this.state.discountPercent=o.discountPercent||0;this.state.discountExpression=o.discountExpression||(o.discountPercent?o.discountPercent+'%':'0');this.state.linkedTenderId=o.linkedTenderId||'';this.state.linkedPurchaseDocumentIds=o.linkedPurchaseDocumentIds||[];this.state.bankAccountId=o.bankAccountId||'';this.state.referralId=o.referralId||'';this.state.couponCode=o.couponCode||'';await this.render();window.scrollTo({top:0,behavior:'smooth'});},
-  async changeOrderStatus(id,status){const o=await sariDB.getById('orders',id);if(o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');o.status=status;o.updatedAt=new Date().toISOString();await sariDB.save('orders',o);for(const link of (await sariDB.getAll('documentLinks')).filter(l=>l.sourceId===id||l.targetId===id)){link.statusFlag=`sales:${status}`;await sariDB.save('documentLinks',link);}this.render();},
-  async convertOrder(id){const o=await sariDB.getById('orders',id);const v=await DialogManager.form('Convertir le document',[{name:'target',label:'Document cible',type:'select',options:[{value:'sales_invoice',label:'Facture vente'},{value:'purchase_invoice',label:'Facture achat'}]}]);if(!v)return;if(v.target==='purchase_invoice')return PurchasesModule.createFromSales(o);await this.createFromDocument(o);},
+  async changeOrderStatus(id,status){const o=await sariDB.getById('orders',id);if(!o)return;if(o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');const fromStatus=o.status;if(fromStatus===status)return;o.status=status;o.updatedAt=new Date().toISOString();await sariDB.save('orders',o);await DocumentLifecycle.record('order',o,'STATUS_CHANGED',{fromStatus,toStatus:status,description:`${o.referenceCode||id}: ${fromStatus} → ${status}`});for(const link of (await sariDB.getAll('documentLinks')).filter(l=>l.sourceId===id||l.targetId===id)){link.statusFlag=`sales:${status}`;await sariDB.save('documentLinks',link);}this.render();},
+  async convertOrder(id){const o=await sariDB.getById('orders',id);const v=await DialogManager.form('Convertir le document',[{name:'target',label:'Document cible',type:'select',options:[{value:'sales_invoice',label:'Facture vente'},{value:'purchase_invoice',label:'Facture achat'}]}]);if(!v)return;await DocumentLifecycle.record('order',o,'DOCUMENT_CONVERTED',{description:`${o.referenceCode||o.id} → ${v.target}`});if(v.target==='purchase_invoice')return PurchasesModule.createFromSales(o);await this.createFromDocument(o);},
   async createFromDocument(source){this.state.editingOrderId='';this.state.cart=SariUtils.deepClone(source.items||[]);this.state.selectedCustomerId=source.customerId||this.state.customers[0]?.id;this.state.currency=source.currency||'DZD';this.state.documentType='invoice';this.state.documentNote=`Conversion de ${source.referenceCode||source.id}`;this.state.shippingFee=source.shippingFee||0;this.state.discountPercent=source.discountPercent||0;this.state.discountExpression=source.discountExpression||(source.discountPercent?source.discountPercent+'%':'0');this.state.linkedTenderId=source.linkedTenderId||'';await app.navigate('sales');await this.render();window.scrollTo({top:0});},
 
   async deleteOrder(id) {
@@ -779,7 +796,7 @@ const SalesModule = {
 
             <!-- Summary, VAT breakdown, QR & signature -->
             <div class="grid ${hideAmounts ? 'grid-cols-1' : 'grid-cols-2'} gap-8 items-start">
-              <div><p class="text-xs text-slate-600"><strong>Mode de Règlement :</strong> ${o.paymentMethod || 'Virement Bancaire'}<br/><strong>Compte Bancaire SARI :</strong> BNA Agence 001 - RIB 00100161609876543209</p>${o.documentNote?`<div class="mt-3 p-2 border rounded text-xs"><strong>Note :</strong> <span ${DynamicI18n.attributes('orders',o.id,'documentNote',o.documentNote)}>${SariUtils.escapeHtml(DynamicI18n.get('orders',o.id,'documentNote',o.documentNote))}</span></div>`:''}<div class="flex items-end gap-4 mt-4"><div><canvas id="commercial-qr" width="88" height="88" class="border"></canvas><p class="text-[8px] text-slate-400 max-w-28 break-all">${SariUtils.escapeHtml(printVerificationUrl)}</p><canvas id="commercial-barcode" width="180" height="55" class="mt-2 border"></canvas></div><div class="pt-2 border-t border-slate-300 text-center w-48"><p class="text-xs font-bold">Cachet & Signature</p><div class="h-10 text-slate-300 text-xs italic pt-3">(Approuvé & Certifié)</div></div></div></div>
+              <div><p class="text-xs text-slate-600"><strong>Mode de Règlement :</strong> ${this.paymentMethodLabel(o.paymentMethod || 'bank_transfer')}<br/><strong>Compte Bancaire SARI :</strong> BNA Agence 001 - RIB 00100161609876543209</p>${o.documentNote?`<div class="mt-3 p-2 border rounded text-xs"><strong>Note :</strong> <span ${DynamicI18n.attributes('orders',o.id,'documentNote',o.documentNote)}>${SariUtils.escapeHtml(DynamicI18n.get('orders',o.id,'documentNote',o.documentNote))}</span></div>`:''}<div class="flex items-end gap-4 mt-4"><div><canvas id="commercial-qr" width="88" height="88" class="border"></canvas><p class="text-[8px] text-slate-400 max-w-28 break-all">${SariUtils.escapeHtml(printVerificationUrl)}</p><canvas id="commercial-barcode" width="180" height="55" class="mt-2 border"></canvas></div><div class="pt-2 border-t border-slate-300 text-center w-48"><p class="text-xs font-bold">Cachet & Signature</p><div class="h-10 text-slate-300 text-xs italic pt-3">(Approuvé & Certifié)</div></div></div></div>
               ${hideAmounts ? '' : `<div class="space-y-3"><div class="border rounded p-3 bg-slate-50 space-y-1.5 text-xs"><div class="flex justify-between"><span>Sous-total HT :</span><b>${formatMoney(o.subtotal)}</b></div>${o.discountAmount>0?`<div class="flex justify-between text-amber-700"><span>Remise globale (${SariUtils.escapeHtml(o.discountExpression || o.discountPercent+'%')}) :</span><b>-${formatMoney(o.discountAmount)}</b></div>`:''}${o.shippingFee?`<div class="flex justify-between"><span>Livraison / transport :</span><b>${formatMoney(o.shippingFee)}</b></div>`:''}<div class="flex justify-between"><span>Total TVA :</span><b>${formatMoney(o.taxAmount)}</b></div><div class="flex justify-between pt-2 border-t-2 font-black text-sm"><span>NET TTC :</span><span style="color:${template.accent}">${formatMoney(o.total)}</span></div></div><table class="w-full text-[10px] border"><thead><tr class="bg-slate-100"><th class="p-1">Taux TVA</th><th>Base taxable</th><th>Taxe</th></tr></thead><tbody>${vatBreakdown.map(v=>`<tr class="text-center border-t"><td class="p-1">${Math.round(v.rate*100)}%</td><td>${formatMoney(v.base)}</td><td>${formatMoney(v.tax)}</td></tr>`).join('')}</tbody></table><p class="text-xs p-2 border-l-4" style="border-color:${template.accent}"><strong>Arrêté à la somme de :</strong><br>${amountWords}</p></div>`}
             </div>
           </div>

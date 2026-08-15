@@ -19,82 +19,92 @@ class SariApp {
   }
 
   async init() {
-    console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
-
-    // 1. Authenticate first. Do not let IndexedDB initialization block the login screen.
+    console.log('[SARI Système] Initializing secure application shell...');
     if (window.auth) {
       const authenticated = await window.auth.init();
       if (!authenticated) {
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-        return;
+        window.SariIcons?.hydrate();
+        return false;
       }
     }
+    return this.initializeWorkspace();
+  }
 
-    // 2. Open and migrate the offline database only after authentication.
-    try {
-      if (window.dbAdapter) {
-        await window.dbAdapter.init();
-      } else if (window.sariDB) {
-        await window.sariDB.init();
-      }
-    } catch (error) {
-      console.error('[SARI Système] IndexedDB startup failed:', error);
-      window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
-      return;
+  loadingMarkup(message = i18n?.t?.('loadingModule', 'Chargement du module') || 'Chargement du module') {
+    return `<div class="sari-grid-loader-wrap" role="status" aria-live="polite"><div class="sari-grid-loader" aria-hidden="true">${Array.from({length:9},(_,index)=>`<span style="--grid-index:${index}"></span>`).join('')}</div><p>${SariUtils.escapeHtml(message)}…</p></div>`;
+  }
+
+  showBootLoader() {
+    let loader = document.getElementById('sari-boot-loader');
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'sari-boot-loader';
+      loader.className = 'sari-boot-loader sari-grid-pattern';
+      document.body.appendChild(loader);
     }
+    loader.innerHTML = this.loadingMarkup(i18n?.t?.('loadingModule', 'Ouverture de votre espace SARI') || 'Ouverture de votre espace SARI');
+    loader.classList.remove('hidden');
+  }
 
-    // 3. Initialize language after IndexedDB is available.
-    if (window.i18n) await window.i18n.init();
-    await window.UICopy?.persistCatalog();
-    await window.DynamicI18n?.init();
-    await window.OptionCatalog?.init();
-    window.TranslationOverlay?.init();
-    const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
-    let portableSettings = {};
-    try {
-      const response = await fetch('/api/content/config/site.json', { credentials: 'same-origin' });
-      if (response.ok) portableSettings = (await response.json()).content || {};
-    } catch (_) { /* offline: IndexedDB settings remain authoritative */ }
-    this.applyBranding({ ...(brandingSettings || {}), ...portableSettings });
+  hideBootLoader() { document.getElementById('sari-boot-loader')?.classList.add('hidden'); }
 
-    // Load database-backed role permissions and optional employee overrides.
-    if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+  async continueAfterAuthentication() {
     window.auth?.hideLogin();
+    this.showBootLoader();
+    return this.initializeWorkspace();
+  }
 
-    // 4. Init Sync Controller
-    if (window.syncController) {
-      await window.syncController.init();
-    }
+  async initializeWorkspace() {
+    if (this.workspaceReady) return true;
+    if (this.workspacePromise) return this.workspacePromise;
+    this.showBootLoader();
+    this.workspacePromise = (async () => {
+      try {
+        if (window.dbAdapter) await window.dbAdapter.init();
+        else if (window.sariDB) await window.sariDB.init();
+      } catch (error) {
+        console.error('[SARI Système] IndexedDB startup failed:', error);
+        this.hideBootLoader();
+        window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
+        return false;
+      }
 
-    // 5. Apply saved Native Theme (Classic / Clinical / Sunset / Midnight)
-    const savedTheme = localStorage.getItem('sari_native_theme') || 'classic';
-    this.setNativeTheme(savedTheme, false);
+      if (window.i18n) await window.i18n.init();
+      await window.UICopy?.persistCatalog();
+      await window.DynamicI18n?.init();
+      await window.OptionCatalog?.init();
+      window.TranslationOverlay?.init();
+      const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
+      let portableSettings = {};
+      try {
+        const response = await fetch('/api/content/config/site.json', { credentials: 'same-origin' });
+        if (response.ok) portableSettings = (await response.json()).content || {};
+      } catch (_) { /* offline: IndexedDB settings remain authoritative */ }
+      this.applyBranding({ ...(brandingSettings || {}), ...portableSettings });
 
-    // 6. Register Service Worker for PWA
-    this.registerServiceWorker();
+      if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+      window.auth?.hideLogin();
+      if (window.syncController) await window.syncController.init();
 
-    // 7. Setup navigation behavior and restore the desktop sidebar preference.
-    this.setupEventListeners();
-    window.AppValidator?.init();
-    this.initializeSidebarMenus();
-    this.updateNavigationPermissions();
-    this.applySidebarPreference();
+      this.setNativeTheme(localStorage.getItem('sari_native_theme') || 'classic', false);
+      this.registerServiceWorker();
+      this.setupEventListeners();
+      window.AppValidator?.init();
+      this.initializeSidebarMenus();
+      this.updateNavigationPermissions();
+      this.applySidebarPreference();
 
-    // 8. Load initial route from URL hash or default to 'dashboard'
-    const hash = window.location.hash.replace('#', '');
-    const validRoute = Object.keys(this.modules).includes(hash) ? hash : 'dashboard';
-    await this.navigate(validRoute);
-
-    // 9. Update notifications and run the lightweight document layout regression guard.
-    await this.updateNotificationsBadge();
-    window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
-
-    // 10. Render Lucide icons
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
-
-    console.log('[SARI Système] Application ready in offline-first PWA mode!');
+      const hash = window.location.hash.replace('#', '');
+      await this.navigate(Object.prototype.hasOwnProperty.call(this.modules, hash) ? hash : 'dashboard');
+      await this.updateNotificationsBadge();
+      window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
+      this.workspaceReady = true;
+      this.hideBootLoader();
+      window.SariIcons?.hydrate();
+      console.log('[SARI Système] Application ready in offline-first PWA mode!');
+      return true;
+    })().catch(error=>{console.error('[SARI Système] Workspace initialization failed:',error);this.hideBootLoader();window.auth?.showLogin(`Initialisation de l’application impossible : ${error?.message||'erreur inconnue'}.`);return false;}).finally(() => { this.workspacePromise = null; });
+    return this.workspacePromise;
   }
 
   applyBranding(settings = {}) {
@@ -119,6 +129,10 @@ class SariApp {
   }
 
   registerServiceWorker() {
+    if (import.meta.env?.DEV) {
+      navigator.serviceWorker?.getRegistrations?.().then(registrations=>registrations.forEach(registration=>registration.unregister()));
+      return;
+    }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
@@ -202,7 +216,7 @@ class SariApp {
     // Hash navigation
     window.addEventListener('hashchange', () => {
       const hash = window.location.hash.replace('#', '');
-      if (this.modules[hash] && hash !== this.activeModule) {
+      if (Object.prototype.hasOwnProperty.call(this.modules, hash) && hash !== this.activeModule) {
         this.navigate(hash, false);
       }
     });
@@ -263,7 +277,7 @@ class SariApp {
     let mod = this.modules[moduleName];
     if (!mod && window.SariModuleLoader) {
       const view = document.getElementById('sari-main-view');
-      if (view) view.innerHTML = '<div class="sari-tile p-10 text-center"><div class="module-loading-indicator" aria-hidden="true"></div><p class="mt-3 text-sm text-slate-500">Chargement du module…</p></div>';
+      if (view) view.innerHTML = `<div class="sari-tile p-10 text-center sari-grid-pattern">${this.loadingMarkup()}</div>`;
       try {
         mod = await window.SariModuleLoader.load(moduleName);
         this.modules[moduleName] = mod;
@@ -274,14 +288,13 @@ class SariApp {
       }
     }
     if (mod && typeof mod.render === 'function') await mod.render('sari-main-view');
+    await new Promise(resolve => requestAnimationFrame(resolve));
 
     this.enhanceSearchInputs();
     this.enhanceResponsiveTables();
     window.UICopy?.apply(document.getElementById('sari-main-view'), window.i18n?.currentLang || 'fr');
     // Refresh Lucide icons
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    window.SariIcons?.hydrate();
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });

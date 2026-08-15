@@ -52,6 +52,15 @@ Additional administration tools include responsive/collapsible navigation, separ
 
 Version 16 adds configurable barcode/QR product labels, translated sales/purchase/partner/HR workflows, instant coupon feedback and linked manual discounts, dedicated print-only windows, larger PDF bottom margins, and a complete recruitment workflow with JOB references, advanced job HTML, sortable objectives/prerequisites and candidate CRUD. Numeric IDs, SARI references, DB-backed translations/coupons, SQL dumps and optional encrypted external database connectors remain included. It retains complete module-level FR/AR/EN coverage, translated rich-editor/barcode UI, GED previews/downloads, all-store data tools, quick profiles, inline translation, configurable metadata, 250 countries, reports, templates, fixed PDFs, workflows and the public API.
 
+## 🆕 Commerce workflow and document UX (Sections 222–239)
+
+- Sales document filters use configured document codes and translated labels; payment methods use the active-language configurable list.
+- Sales and purchase documents expose a complete actor/timestamp lifecycle, sales statistics, and draggable commercial/purchase workflows.
+- Purchase consultation sheets include per-line HT, VAT and TTC totals with direct supplier/transaction navigation.
+- Client/supplier country filters and notes are supported; client cart actions carry the selected client into Sales.
+- The designer includes the editable **SARI Total** template and materializes legacy blank compositions into movable rendered blocks.
+- Rich text supports foreground/highlight colors, icons hydrate after every dynamic render, login transitions no longer reload/flash, and lazy pages use the animated SARI grid loader.
+
 ## 🗄️ Optional External Database Backend
 
 The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.

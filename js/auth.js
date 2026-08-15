@@ -12,21 +12,28 @@ class AuthController {
   }
 
   async init() {
-    // The gate is visible immediately, even while session detection is pending.
-    this.showLogin();
+    // A short-lived session hint prevents the empty login form flashing while
+    // the HttpOnly session is verified after a refresh.
+    const sessionHint=sessionStorage.getItem('sari_authenticated_hint')==='true';
+    if(sessionHint){this.hideLogin();window.app?.showBootLoader?.();}else this.showLogin();
     try {
       const response = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) {
+        sessionStorage.removeItem('sari_authenticated_hint');
+        window.app?.hideBootLoader?.();
         this.showLogin();
         await this.refreshCaptcha();
         return false;
       }
       const data = await response.json();
       this.setAuthenticatedUser(data.user);
+      sessionStorage.setItem('sari_authenticated_hint','true');
       // The app controller hides the gate only after the offline database is ready.
       return true;
     } catch (error) {
       console.error('[Auth] Session initialization failed:', error);
+      sessionStorage.removeItem('sari_authenticated_hint');
+      window.app?.hideBootLoader?.();
       this.showLogin(`Initialisation de la session impossible : ${error?.message || 'erreur inconnue'}.`);
       await this.refreshCaptcha();
       return false;
@@ -160,10 +167,17 @@ class AuthController {
         return;
       }
       this.setAuthenticatedUser(data.user);
-      window.location.reload();
+      sessionStorage.setItem('sari_authenticated_hint','true');
+      document.body.classList.add('auth-transitioning');
+      this.hideLogin();
+      const ready = await window.app?.continueAfterAuthentication();
+      document.body.classList.remove('auth-transitioning');
+      if (ready === false) return;
     } catch (error) {
       console.error('[Auth] Login finalization failed:', error);
-      this.setLoginError(`La connexion n’a pas pu être finalisée : ${error?.message || 'erreur inconnue'}.`);
+      sessionStorage.removeItem('sari_authenticated_hint');
+      window.app?.hideBootLoader?.();
+      this.showLogin(`La connexion n’a pas pu être finalisée : ${error?.message || 'erreur inconnue'}.`);
       await this.refreshCaptcha();
     } finally {
       if (button) {
@@ -180,6 +194,7 @@ class AuthController {
     } finally {
       this.currentUser = null;
       this.currentRole = null;
+      sessionStorage.removeItem('sari_authenticated_hint');
       window.location.hash = '';
       window.location.reload();
     }

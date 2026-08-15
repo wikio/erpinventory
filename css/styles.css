@@ -509,3 +509,44 @@ h2 { font-size: clamp(1.15rem, calc(1rem + .6vw), 1.5rem); }
     animation-iteration-count: 1 !important; transition-duration: .01ms !important;
   }
 }
+
+/* Sections 224–239: lifecycle, analytics, modern consultation and grid loading. */
+.sari-boot-loader{position:fixed;inset:0;z-index:105;display:grid;place-items:center;background:color-mix(in srgb,var(--color-bg) 92%,transparent);backdrop-filter:blur(12px);color:var(--color-text)}
+.sari-boot-loader.hidden{display:none}
+.sari-grid-loader-wrap{display:grid;justify-items:center;gap:.85rem;color:var(--color-text-muted);font-size:.78rem;font-weight:800}
+.sari-grid-loader{display:grid;grid-template-columns:repeat(3,.7rem);gap:.25rem;padding:.65rem;border:1px solid color-mix(in srgb,var(--color-primary) 35%,transparent);border-radius:10px;background:color-mix(in srgb,var(--color-card) 90%,var(--color-primary) 10%);box-shadow:0 12px 30px color-mix(in srgb,var(--color-primary) 16%,transparent)}
+.sari-grid-loader span{width:.7rem;height:.7rem;background:var(--color-primary);border-radius:2px;animation:sariGridPulse 1.15s calc(var(--grid-index) * .07s) infinite ease-in-out}
+@keyframes sariGridPulse{0%,100%{opacity:.2;transform:scale(.7)}45%{opacity:1;transform:scale(1)}}
+
+.lifecycle-timeline{position:relative;margin-left:.8rem;padding-left:1.8rem;border-left:2px solid color-mix(in srgb,var(--color-primary) 35%,var(--color-border))}
+.lifecycle-event{position:relative;padding:0 0 1.2rem}
+.lifecycle-event:last-child{padding-bottom:0}
+.lifecycle-dot{position:absolute;left:-2.55rem;top:0;width:1.45rem;height:1.45rem;display:grid;place-items:center;border-radius:5px;background:var(--color-primary);color:white;font:700 .62rem var(--font-mono);box-shadow:0 0 0 4px var(--color-card)}
+.lifecycle-event article{padding:.8rem;border:1px solid var(--color-border);border-radius:10px;background:color-mix(in srgb,var(--color-card) 95%,var(--color-primary) 5%)}
+.lifecycle-event time,.lifecycle-event small{font-size:.65rem;color:var(--color-text-muted)}
+
+.sales-stat-card{display:flex;flex-direction:column;gap:.25rem;padding:1rem;border:1px solid var(--color-border);border-radius:12px;background:linear-gradient(145deg,var(--color-card),color-mix(in srgb,var(--color-card) 88%,var(--color-primary) 12%))}
+.sales-stat-card small{font-size:.65rem;text-transform:uppercase;font-weight:800;color:var(--color-text-muted)}
+.sales-stat-card b{font-size:clamp(1.05rem,2vw,1.45rem);color:var(--color-primary)}
+.sales-stat-card span{font-size:.65rem;color:var(--color-text-muted)}
+.sales-trend-chart{height:11rem;display:flex;align-items:flex-end;gap:.65rem;padding:1rem 1rem .6rem;border:1px solid var(--color-border);border-radius:12px;background:linear-gradient(to top,color-mix(in srgb,var(--color-primary) 7%,var(--color-card)),var(--color-card))}
+.sales-trend-column{position:relative;display:grid;grid-template-rows:1fr auto;align-items:end;justify-items:center;flex:1;height:100%;min-width:2.5rem}
+.sales-trend-column>div{width:min(2.8rem,75%);min-height:.5rem;border-radius:5px 5px 2px 2px;background:linear-gradient(var(--color-primary),var(--color-lime));transition:height .3s cubic-bezier(.16,1,.3,1)}
+.sales-trend-column small{font-size:.58rem;margin-top:.35rem;color:var(--color-text-muted)}
+.sales-trend-value{position:absolute;top:-.25rem;font-size:.52rem;font-weight:700;color:var(--color-text-muted);white-space:nowrap}
+
+.purchase-consultation{border:1px solid var(--color-border);border-radius:16px;background:var(--color-card);color:var(--color-text);box-shadow:0 25px 75px rgba(2,8,23,.35)}
+.purchase-consultation-header{display:flex;justify-content:space-between;gap:1rem;padding:1.4rem 1.6rem;color:white;background:linear-gradient(125deg,#06394a,var(--color-primary));border-radius:16px 16px 0 0}
+.purchase-consultation-header h2{font:800 1.45rem var(--font-mono);margin-top:.55rem}.purchase-consultation-header p{font-size:.72rem;opacity:.8}
+.purchase-header-action{display:grid;place-items:center;width:2.4rem;height:2.4rem;border:1px solid rgba(255,255,255,.25);border-radius:9px;background:rgba(255,255,255,.12)}.purchase-header-action svg{width:1rem}
+.purchase-consultation-body{padding:1.4rem}
+.purchase-party-card,.purchase-summary-card{display:flex;flex-direction:column;justify-content:center;gap:.25rem;padding:1rem;border:1px solid var(--color-border);border-radius:12px;background:color-mix(in srgb,var(--color-card) 94%,var(--color-primary) 6%)}
+.purchase-party-card:hover{border-color:var(--color-primary);transform:translateY(-1px)}.purchase-party-card small,.purchase-summary-card small{font-size:.62rem;text-transform:uppercase;font-weight:800;color:var(--color-text-muted)}.purchase-party-card b,.purchase-summary-card b{font-size:1rem}.purchase-party-card span,.purchase-party-card em{font-size:.65rem;color:var(--color-text-muted)}.purchase-party-card em{color:var(--color-primary);font-weight:700}
+.purchase-summary-card.accent{border-color:var(--color-primary)}.purchase-summary-card.accent b{font-size:1.15rem;color:var(--color-primary)}
+.purchase-lines-table th{padding:.7rem .55rem;font-size:.62rem;text-transform:uppercase;background:color-mix(in srgb,var(--color-card) 86%,var(--color-primary) 14%)}.purchase-lines-table td{padding:.7rem .55rem;border-top:1px solid var(--color-border);font-size:.72rem;text-align:center}.purchase-lines-table td:first-child{text-align:left}
+.purchase-linked-docs,.purchase-total-card{padding:1rem;border:1px solid var(--color-border);border-radius:12px}.purchase-linked-docs h3{font-weight:800}.purchase-linked-docs p{font-size:.7rem;margin-top:.35rem}.purchase-total-card{background:color-mix(in srgb,var(--color-card) 91%,var(--color-primary) 9%)}.purchase-total-card p{display:flex;justify-content:space-between;gap:1rem;padding:.32rem 0;font-size:.75rem}.purchase-total-card .grand-total{margin-top:.4rem;padding-top:.65rem;border-top:2px solid var(--color-primary);font-size:1rem;color:var(--color-primary)}
+
+.rich-color-control{position:relative;display:inline-grid!important;place-items:center;min-width:2rem;height:1.75rem;padding:0!important;border:1px solid var(--color-border);border-radius:5px;overflow:hidden;cursor:pointer;font-size:.75rem!important;font-weight:800!important;color:var(--color-text)!important}
+.rich-color-control span{position:relative;z-index:1;pointer-events:none;border-bottom:3px solid #0f172a}.rich-highlight-control span{padding:0 .15rem;background:#fff59d;border:0}.rich-color-control input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+
+@media(max-width:640px){.sales-trend-value{display:none}.purchase-consultation-body{padding:.8rem}.purchase-lines-table{min-width:900px!important}}

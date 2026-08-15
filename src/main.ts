@@ -1,6 +1,7 @@
 import './styles.css';
 import '../css/styles.css';
 import './vendors';
+import './icon-runtime';
 import { SariCore } from './core';
 
 window.SariCore = SariCore;
@@ -37,5 +38,6 @@ import '../js/partner-360.js';
 import '../js/document-link-picker.js';
 import '../js/reference-translations.js';
 import '../js/documents.js';
+import '../js/document-lifecycle.js';
 import './module-loader';
 import '../js/app.js';

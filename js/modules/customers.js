@@ -9,6 +9,7 @@ const CustomersModule = {
     customers: [],
     filterType: 'all',
     filterWilaya: 'all',
+    filterCountry: 'all',
     searchQuery: '',
     editingId: null
   },
@@ -96,7 +97,7 @@ const CustomersModule = {
         </div>
 
         <!-- Filter & Search Bar -->
-        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Recherche (Nom, NIF, RC)</label>
             <input 
@@ -118,6 +119,10 @@ const CustomersModule = {
             </select>
           </div>
           <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('country','Pays')}</label>
+            <select onchange="CustomersModule.handleCountryFilter(this.value)" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"><option value="all">${i18n.t('allCountries','Tous les pays')}</option>${this.countryOptions()}</select>
+          </div>
+          ${this.state.filterCountry==='all'||this.state.filterCountry==='DZA'?`<div>
             <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Wilaya (Algérie)</label>
             <select 
               onchange="CustomersModule.handleWilayaFilter(this.value)"
@@ -128,7 +133,7 @@ const CustomersModule = {
                 <option value="${w.code}" ${this.state.filterWilaya === w.code ? 'selected' : ''}>${w[i18n.currentLang] || w.fr}</option>
               `).join('')}
             </select>
-          </div>
+          </div>`:''}
         </div>
 
         <!-- Customers Table -->
@@ -174,7 +179,7 @@ const CustomersModule = {
                       </span>
                     </td>
                     <td class="p-3 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      ${c.wilaya ? i18n.getWilayaName(c.wilaya) : '16 - Alger'}
+                      ${this.customerCountryCode(c)==='DZA'?(c.wilaya ? i18n.getWilayaName(c.wilaya) : 'Algérie'):SariUtils.escapeHtml(c.country||this.customerCountryCode(c)||'—')}
                     </td>
                     <td class="p-3 font-mono-tech text-xs text-slate-600 dark:text-slate-300">
                       <div>${c.taxId || 'NIF: Non renseigné'}</div>
@@ -187,7 +192,7 @@ const CustomersModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
-                        <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
+                        <button onclick="CustomersModule.startSale('${c.id}')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
                           <i data-lucide="shopping-cart"></i>
                         </button>
                         <button onclick="CustomersModule.openDetail('${c.id}')" title="Consulter la fiche" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
@@ -216,12 +221,14 @@ const CustomersModule = {
     `;
   },
 
+  customerCountryCode(customer){if(customer.countryCode)return customer.countryCode;if(customer.wilaya||/alg[eé]rie/i.test(customer.country||''))return'DZA';return'';},
+  countryOptions(){const used=new Set(this.state.customers.map(customer=>this.customerCountryCode(customer)).filter(Boolean));return (this.state.countries||[]).filter(country=>country.isActive&&(used.has(country.iso3)||country.iso3==='DZA')).sort((a,b)=>(a.name?.[i18n.currentLang]||a.name?.fr||'').localeCompare(b.name?.[i18n.currentLang]||b.name?.fr||'')).map(country=>`<option value="${country.iso3}" ${this.state.filterCountry===country.iso3?'selected':''}>${SariUtils.escapeHtml(country.name?.[i18n.currentLang]||country.name?.fr||country.iso3)}</option>`).join('');},
   getFilteredCustomers() {
     return this.state.customers.filter(c => {
-      if (this.state.filterType !== 'all' && c.type !== this.state.filterType) {
-        return false;
-      }
-      if (this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
+      if (this.state.filterType !== 'all' && c.type !== this.state.filterType) return false;
+      const countryCode=this.customerCountryCode(c);
+      if(this.state.filterCountry!=='all'&&countryCode!==this.state.filterCountry)return false;
+      if ((this.state.filterCountry==='all'||this.state.filterCountry==='DZA')&&this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
         return false;
       }
       if (!SariUtils.matchesAdvancedSearch(c,this.state.searchQuery,['referenceCode','name','taxId','contactInfo','richDetails'])) return false;
@@ -239,6 +246,7 @@ const CustomersModule = {
     this.render();
   },
 
+  handleCountryFilter(val){this.state.filterCountry=val;if(val!=='all'&&val!=='DZA')this.state.filterWilaya='all';this.render();},
   handleWilayaFilter(val) {
     this.state.filterWilaya = val;
     this.render();
@@ -315,6 +323,7 @@ const CustomersModule = {
               <input type="text" id="cust-contact" value="${cust.contactInfo || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('notes','Notes')}</label><textarea id="cust-notes" class="doc-input min-h-24" placeholder="Notes libres sur le client…">${SariUtils.escapeHtml(cust.notes||'')}</textarea></div>
             <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('cust-logo',cust.logo||'','Logo client')}${RichTextEditor.html('cust-rich-details',cust.richDetails||'','Informations détaillées / conditions spéciales')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="CustomersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
@@ -349,11 +358,12 @@ const CustomersModule = {
       name: document.getElementById('cust-name').value.trim(),
       type: customerType,
       countryCode:countryRecord.iso3,country:countryRecord.name?.fr||countryRecord.iso3,
-      wilaya: document.getElementById('cust-wilaya').value,
+      wilaya: countryRecord.iso3==='DZA' ? document.getElementById('cust-wilaya').value : '',
       taxId: document.getElementById('cust-tax').value.trim(),
       creditLimit: Number(document.getElementById('cust-credit').value),
       paymentTerms: document.getElementById('cust-payment').value.trim(),
       contactInfo: document.getElementById('cust-contact').value.trim(),
+      notes: document.getElementById('cust-notes').value.trim(),
       logo: ImageDropzone.value('cust-logo',original.logo||''),
       richDetails: RichTextEditor.value('cust-rich-details')
     };
@@ -364,6 +374,7 @@ const CustomersModule = {
     await this.render();
   },
 
+  async startSale(id){sessionStorage.setItem('sari_sales_customer_id',id);if(window.SalesModule?.state)window.SalesModule.state.selectedCustomerId=id;await window.app.navigate('sales');if(window.SalesModule?.state){window.SalesModule.state.selectedCustomerId=id;await window.SalesModule.render();document.querySelector('[data-sales-customer-field]')?.scrollIntoView({behavior:'smooth',block:'center'});}},
   async openDetail(id){return Partner360.open('customer',id);},async open360(id){return Partner360.open('customer',id);},
 
   async deleteCustomer(id) {

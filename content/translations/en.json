@@ -5,5 +5,15 @@
   },
   "appName": "SARI SYSTEM",
   "offline": "Offline",
-  "online": "Online"
+  "online": "Online",
+  "documentTypeFilter": "Document type",
+  "allDocumentTypes": "All document types",
+  "paymentMethod": "Payment method",
+  "salesStatistics": "Sales statistics",
+  "documentLifecycle": "Document lifecycle",
+  "purchaseWorkflow": "Purchase workflow",
+  "country": "Country",
+  "allCountries": "All countries",
+  "notes": "Notes",
+  "loadingModule": "Loading module"
 }

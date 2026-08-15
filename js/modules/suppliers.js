@@ -8,6 +8,7 @@ const SuppliersModule = {
   state: {
     suppliers: [],
     filterType: 'all',
+    filterCountry: 'all',
     searchQuery: '',
     editingId: null
   },
@@ -77,10 +78,9 @@ const SuppliersModule = {
               ${(this.state.supplierTypes||[]).filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${this.state.filterType===x.id?'selected':''}>${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}
             </select>
           </div>
-          <div class="flex items-end">
-            <div class="w-full text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded border">
-              <strong>Info Incoterms:</strong> FOB (Free On Board) • CIF (Cost Insurance & Freight) • EXW (Ex Works) • DDP (Rendu Droits Acquittés)
-            </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('country','Pays')}</label>
+            <select onchange="SuppliersModule.handleCountryFilter(this.value)" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"><option value="all">${i18n.t('allCountries','Tous les pays')}</option>${this.countryOptions()}</select>
           </div>
         </div>
 
@@ -176,11 +176,12 @@ const SuppliersModule = {
     `;
   },
 
+  supplierCountryCode(supplier){if(supplier.countryCode)return supplier.countryCode;const country=(this.state.countries||[]).find(item=>[item.name?.fr,item.name?.ar,item.name?.en,item.iso2,item.iso3].some(value=>String(value||'').toLowerCase()===String(supplier.country||'').toLowerCase()));return country?.iso3||(/alg[eé]rie/i.test(supplier.country||'')?'DZA':'');},
+  countryOptions(){const used=new Set(this.state.suppliers.map(supplier=>this.supplierCountryCode(supplier)).filter(Boolean));return(this.state.countries||[]).filter(country=>country.isActive&&used.has(country.iso3)).sort((a,b)=>(a.name?.[i18n.currentLang]||a.name?.fr||'').localeCompare(b.name?.[i18n.currentLang]||b.name?.fr||'')).map(country=>`<option value="${country.iso3}" ${this.state.filterCountry===country.iso3?'selected':''}>${SariUtils.escapeHtml(country.name?.[i18n.currentLang]||country.name?.fr||country.iso3)}</option>`).join('');},
   getFilteredSuppliers() {
     return this.state.suppliers.filter(s => {
-      if (this.state.filterType !== 'all' && s.type !== this.state.filterType) {
-        return false;
-      }
+      if (this.state.filterType !== 'all' && s.type !== this.state.filterType) return false;
+      if(this.state.filterCountry!=='all'&&this.supplierCountryCode(s)!==this.state.filterCountry)return false;
       if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','name','country','certifications','richDetails'])) return false;
       return true;
     });
@@ -195,6 +196,7 @@ const SuppliersModule = {
     this.state.filterType = val;
     this.render();
   },
+  handleCountryFilter(val){this.state.filterCountry=val;this.render();},
 
   async openModal(supplierId = null) {
     this.state.editingId = supplierId;
@@ -270,6 +272,7 @@ const SuppliersModule = {
               <input type="text" id="sup-contact" value="${sup.contactInfo || ''}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('notes','Notes')}</label><textarea id="sup-notes" class="doc-input min-h-24" placeholder="Notes libres sur le fournisseur…">${SariUtils.escapeHtml(sup.notes||'')}</textarea></div>
             <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('sup-logo',sup.logo||'','Logo fournisseur')}${RichTextEditor.html('sup-rich-details',sup.richDetails||'','Informations détaillées / certifications / conditions')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="SuppliersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
@@ -310,6 +313,7 @@ const SuppliersModule = {
       incoterms: document.getElementById('sup-incoterm').value,
       certifications: document.getElementById('sup-cert').value.trim(),
       contactInfo: document.getElementById('sup-contact').value.trim(),
+      notes: document.getElementById('sup-notes').value.trim(),
       logo: ImageDropzone.value('sup-logo',original.logo||''),
       richDetails: RichTextEditor.value('sup-rich-details')
     };
