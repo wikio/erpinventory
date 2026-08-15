@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterDocumentsByType, lineTotals, localizedPaymentMethod, normalizeSalesDocumentType, salesStatistics } from '../src/core/commerce';
+import { filterCommerceDocuments, filterDocumentsByType, lineTotals, localizedPaymentMethod, normalizeSalesDocumentType, salesStatistics } from '../src/core/commerce';
 import sariTotal from '../content/templates/sari-total.json';
 
 describe('sales document filtering and localization', () => {
@@ -20,6 +20,11 @@ describe('sales document filtering and localization', () => {
     const methods=[{code:'bank_transfer',label:{fr:'Virement bancaire',ar:'تحويل بنكي',en:'Bank transfer'}}];
     expect(localizedPaymentMethod('bank_transfer',methods,'ar')).toBe('تحويل بنكي');
     expect(localizedPaymentMethod('bank_transfer',methods,'en')).toBe('Bank transfer');
+  });
+
+  it('filters statistics by date range and business partner', () => {
+    const scoped=filterCommerceDocuments([...documents,{id:'4',documentType:'invoice',customerId:'c2',createdAt:'2026-09-01'}],{from:'2026-07-01',to:'2026-08-31',partnerId:'all'});
+    expect(scoped.map(document=>document.id)).toEqual(['1','2','3']);
   });
 
   it('computes recognized sales statistics without counting quotes', () => {

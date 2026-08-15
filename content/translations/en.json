@@ -15,5 +15,21 @@
   "country": "Country",
   "allCountries": "All countries",
   "notes": "Notes",
-  "loadingModule": "Loading module"
+  "loadingModule": "Loading module",
+  "startDate": "Start date",
+  "endDate": "End date",
+  "customer": "Customer",
+  "allCustomers": "All customers",
+  "purchaseStatistics": "Advanced purchase statistics",
+  "purchaseSpendTrend": "Spend and supplier performance",
+  "supplier": "Supplier",
+  "allSuppliers": "All suppliers",
+  "allStatuses": "All statuses",
+  "totalSpend": "Total spend",
+  "averagePurchase": "Average purchase",
+  "topSupplier": "Top supplier",
+  "topPurchasedProduct": "Top purchased product",
+  "taxInspectionOffice": "Tax inspection office",
+  "paymentProof": "Payment proof",
+  "remainingBalance": "Remaining balance"
 }

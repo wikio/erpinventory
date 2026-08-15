@@ -27,6 +27,8 @@ describe('normalized external repository', () => {
     expect(sourceValue(row, 'legacy_uid')).toBe('product-1');
     expect(sourceValue(row, 'linked_product_ids_json')).toEqual(['a', 'b']);
     expect(sourceValue(row, 'name_json')).toEqual({ fr: 'Nom' });
+    expect(sourceValue({ value:'inspection-est', order:3 }, 'option_value')).toBe('inspection-est');
+    expect(sourceValue({ value:'inspection-est', order:3 }, 'sort_order')).toBe(3);
   });
 
   it('never persists passwords in runtime metadata', () => {

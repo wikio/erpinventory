@@ -16,5 +16,21 @@
   "country": "البلد",
   "allCountries": "كل البلدان",
   "notes": "ملاحظات",
-  "loadingModule": "تحميل الوحدة"
+  "loadingModule": "تحميل الوحدة",
+  "startDate": "تاريخ البداية",
+  "endDate": "تاريخ النهاية",
+  "customer": "العميل",
+  "allCustomers": "كل العملاء",
+  "purchaseStatistics": "إحصائيات المشتريات المتقدمة",
+  "purchaseSpendTrend": "النفقات وأداء الموردين",
+  "supplier": "المورد",
+  "allSuppliers": "كل الموردين",
+  "allStatuses": "كل الحالات",
+  "totalSpend": "إجمالي النفقات",
+  "averagePurchase": "متوسط الشراء",
+  "topSupplier": "المورد الرئيسي",
+  "topPurchasedProduct": "المنتج الأكثر شراءً",
+  "taxInspectionOffice": "مفتشية الضرائب",
+  "paymentProof": "إثبات الدفع",
+  "remainingBalance": "الرصيد المتبقي"
 }

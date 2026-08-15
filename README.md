@@ -61,6 +61,15 @@ Version 16 adds configurable barcode/QR product labels, translated sales/purchas
 - The designer includes the editable **SARI Total** template and materializes legacy blank compositions into movable rendered blocks.
 - Rich text supports foreground/highlight colors, icons hydrate after every dynamic render, login transitions no longer reload/flash, and lazy pages use the animated SARI grid loader.
 
+## 🆕 Filtered analytics and Algerian fiscal management (Sections 240–248)
+
+- Sales and purchase statistics now support date ranges plus client/supplier/status filters, with spend/revenue trends and top partner/product KPIs.
+- G50 records include invoice/client/supplier associations, NIF/NAI, filing date, configurable tax inspection office and rich HTML notes.
+- G50, IBS and Bilan share remaining-balance payment allocation, detailed histories and GED-linked proof uploads.
+- The Bilan editor/consultation provides organized Algerian Actif and Passif fiscal lines with balance validation.
+- Tax inspection offices are managed through the configurable-list repository and exposed through searchable autocompletes.
+- Audit entries accept directly linked GED supporting evidence.
+
 ## 🗄️ Optional External Database Backend
 
 The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.

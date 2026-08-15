@@ -38,7 +38,7 @@ const FOREIGN_TABLES = Object.freeze({
 
 const SOURCE_ALIASES = Object.freeze({
   user_name: ['user', 'userName'], user_role: ['role', 'userRole'], is_read: ['isRead'],
-  legacy_uid: ['id'], name_json: ['name'], label_json: ['label'], items_json: ['items'],
+  legacy_uid: ['id'], option_value: ['value'], sort_order: ['order', 'sortOrder'], name_json: ['name'], label_json: ['label'], items_json: ['items'],
   lines_json: ['lines'], documents_json: ['documents'], objectives_json: ['objectives'],
   prerequisites_json: ['prerequisites'], custom_translations_json: ['customTranslations'],
   sub_type_options_json: ['subTypeOptions'], participant_user_ids_json: ['participantUserIds'],

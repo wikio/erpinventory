@@ -15,5 +15,21 @@
   "country": "Pays",
   "allCountries": "Tous les pays",
   "notes": "Notes",
-  "loadingModule": "Chargement du module"
+  "loadingModule": "Chargement du module",
+  "startDate": "Date début",
+  "endDate": "Date fin",
+  "customer": "Client",
+  "allCustomers": "Tous les clients",
+  "purchaseStatistics": "Statistiques avancées des achats",
+  "purchaseSpendTrend": "Dépenses et performance fournisseurs",
+  "supplier": "Fournisseur",
+  "allSuppliers": "Tous les fournisseurs",
+  "allStatuses": "Tous les statuts",
+  "totalSpend": "Dépenses totales",
+  "averagePurchase": "Achat moyen",
+  "topSupplier": "Fournisseur principal",
+  "topPurchasedProduct": "Produit le plus acheté",
+  "taxInspectionOffice": "Inspection fiscale",
+  "paymentProof": "Preuve de paiement",
+  "remainingBalance": "Solde restant"
 }

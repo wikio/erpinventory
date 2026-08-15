@@ -179,6 +179,12 @@ class SariDB {
       {id:'purchaseStage-payment',listKey:'purchaseStage',value:'payment',name:{fr:'Paiement',ar:'دفع',en:'Payment'},color:'#8B5CF6',order:5,isActive:true}
     ];
     for(const stage of purchaseStages)if(!await this.getById('configurableOptions',stage.id))await this.save('configurableOptions',stage);
+    const inspectionOffices=[
+      {id:'taxInspectionOffice-alger-est',listKey:'taxInspectionOffice',value:'alger-est',code:'DIW-16E',name:{fr:'Inspection des impôts Alger Est',ar:'مفتشية الضرائب الجزائر شرق',en:'Algiers East Tax Inspection'},address:'Bab Ezzouar, Alger',wilaya:'16',order:1,isActive:true},
+      {id:'taxInspectionOffice-alger-centre',listKey:'taxInspectionOffice',value:'alger-centre',code:'DIW-16C',name:{fr:'Inspection des impôts Alger Centre',ar:'مفتشية الضرائب الجزائر وسط',en:'Algiers Centre Tax Inspection'},address:'Alger Centre',wilaya:'16',order:2,isActive:true},
+      {id:'taxInspectionOffice-oran',listKey:'taxInspectionOffice',value:'oran',code:'DIW-31',name:{fr:'Inspection des impôts Oran',ar:'مفتشية الضرائب وهران',en:'Oran Tax Inspection'},address:'Oran',wilaya:'31',order:3,isActive:true}
+    ];
+    for(const office of inspectionOffices)if(!await this.getById('configurableOptions',office.id))await this.save('configurableOptions',office);
     if(!await this.getById('documentTemplates','doc-tpl-sari-total'))await this.save('documentTemplates',{
       id:'doc-tpl-sari-total',name:'SARI Total',nameI18n:{fr:'SARI Total',ar:'ساري الإجمالي',en:'SARI Total'},type:'invoice',paperFormat:'A4',accent:'#009CC5',layout:'designer',templateMode:'designer',isDefault:false,
       lineItemsColumns:['index','designation','qty','price','discountAmount','vat','ht','ttc'],versions:[],

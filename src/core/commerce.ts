@@ -1,6 +1,6 @@
 export type LocalizedLabel = { fr?: string; ar?: string; en?: string };
 export interface CommerceLine { productId?: string; name?: string; qty?: number; unitPrice?: number; total?: number; vatRate?: number; discountPercent?: number; discountAmount?: number; discountExpression?: string; }
-export interface CommerceDocument { id?: string; referenceCode?: string; documentType?: string; status?: string; total?: number; createdAt?: string; items?: CommerceLine[]; }
+export interface CommerceDocument { id?: string; referenceCode?: string; documentType?: string; status?: string; total?: number; createdAt?: string; customerId?: string; supplierId?: string; items?: CommerceLine[]; }
 
 const SALES_TYPES = new Set(['invoice', 'quote', 'purchase_order', 'delivery_note']);
 
@@ -29,6 +29,10 @@ export function lineTotals(line: CommerceLine) {
 
 export function filterDocumentsByType<T extends CommerceDocument>(documents: T[], type: string): T[] {
   return type === 'all' ? documents : documents.filter(document => normalizeSalesDocumentType(document) === type);
+}
+
+export function filterCommerceDocuments<T extends CommerceDocument>(documents: T[], filters: {from?:string;to?:string;partnerId?:string;partnerField?:'customerId'|'supplierId';status?:string}): T[] {
+  return documents.filter(document=>(!filters.from||new Date(document.createdAt||0)>=new Date(filters.from))&&(!filters.to||new Date(document.createdAt||0)<=new Date(`${filters.to}T23:59:59`))&&(!filters.partnerId||filters.partnerId==='all'||document[filters.partnerField||'customerId']===filters.partnerId)&&(!filters.status||filters.status==='all'||document.status===filters.status));
 }
 
 export function localizedPaymentMethod(code: string, methods: Array<{id?:string;code?:string;label?:LocalizedLabel}>, language: keyof LocalizedLabel): string {
