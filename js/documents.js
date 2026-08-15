@@ -62,7 +62,8 @@ const DocumentManager = {
       <div class="flex gap-3"><div class="w-10 h-10 rounded-lg bg-sari-blue/10 text-sari-blue grid place-items-center shrink-0"><i data-lucide="file-text" class="w-5 h-5"></i></div><div class="min-w-0 flex-1"><h4 class="font-bold text-sm truncate text-slate-900 dark:text-white" title="${escapedName}">${escapedName}</h4><p class="text-[10px] text-slate-500">${SariUtils.escapeHtml(this.typeLabel(doc.documentType))} • ${this.formatBytes(doc.size)}${doc.expirationDate ? ` • Exp. ${i18n.formatDate(doc.expirationDate)}` : ''}</p><p class="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2">${SariUtils.escapeHtml(doc.notes || 'Sans description')}</p></div></div>
       <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t">
         <button onclick="DocumentManager.preview('${doc.id}')" class="doc-action"><i data-lucide="eye" class="w-3.5 h-3.5"></i>Voir</button>
-        ${canWrite ? `<button onclick="DocumentManager.editMetadata('${doc.id}')" class="doc-action"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Métadonnées</button><button onclick="DocumentManager.replace('${doc.id}')" class="doc-action"><i data-lucide="replace" class="w-3.5 h-3.5"></i>Remplacer</button><button onclick="DocumentManager.unlink('${doc.id}')" class="doc-action text-red-600"><i data-lucide="unlink" class="w-3.5 h-3.5"></i>Délier</button>` : ''}
+        <button onclick="DocumentManager.download('${doc.id}')" class="doc-action"><i data-lucide="download" class="w-3.5 h-3.5"></i>Télécharger</button>
+        ${canWrite ? `<button onclick="DocumentManager.editMetadata('${doc.id}')" class="doc-action"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Titre & métadonnées</button><button onclick="DocumentManager.replace('${doc.id}')" class="doc-action"><i data-lucide="replace" class="w-3.5 h-3.5"></i>Remplacer</button><button onclick="DocumentManager.unlink('${doc.id}')" class="doc-action text-amber-600"><i data-lucide="unlink" class="w-3.5 h-3.5"></i>Délier</button><button onclick="DocumentManager.unlinkAll('${doc.id}')" class="doc-action text-amber-700"><i data-lucide="unlink-2" class="w-3.5 h-3.5"></i>Tout délier</button><button onclick="DocumentManager.deleteDocument('${doc.id}')" class="doc-action text-red-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Supprimer</button>` : ''}
       </div></article>`;
   },
 
@@ -86,7 +87,7 @@ const DocumentManager = {
     const doc = { id: `doc-${crypto.randomUUID()}`, name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, data: await this.readFile(file), documentType: document.getElementById('ged-type').value, expirationDate: document.getElementById('ged-expiry').value, notes: document.getElementById('ged-notes').value.trim(), tags: document.getElementById('ged-tags').value.split(',').map(x=>x.trim()).filter(Boolean), uploaderId: auth.currentUser?.id, uploaderName: auth.currentUser?.name, links: [{ recordType: this.context.recordType, recordId: this.context.recordId }], version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await window.sariDB.save('documents', doc);
     window.app.showToast('Document enregistré hors-ligne.', 'success');
-    await this.open(this.context.recordType, this.context.recordId, this.context.recordLabel);
+    await this._refresh();
   },
 
   async createObjectUrl(doc){if(!doc?.data)return'';const response=await fetch(doc.data),blob=await response.blob();return URL.createObjectURL(blob);},
@@ -99,14 +100,35 @@ const DocumentManager = {
 
   async editMetadata(id) {
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
-    const values = await DialogManager.form('Métadonnées du document',[{name:'documentType',label:i18n.t('gedTypeLabel','Type GED'),type:'select',value:doc.documentType||'other',options:(this.gedTypes||[]).filter(x=>x.isActive).map(x=>({value:x.id,label:x.name?.[i18n.currentLang]||x.name?.fr}))},{name:'expirationDate',label:'Expiration',type:'date',value:doc.expirationDate||''},{name:'tags',label:'Tags (séparés par virgules)',value:(doc.tags||[]).join(', ')},{name:'notes',label:'Description / notes',type:'textarea',value:doc.notes||''}]); if (!values) return;
-    Object.assign(doc, { documentType: values.documentType.trim(), expirationDate: values.expirationDate, tags:values.tags.split(',').map(x=>x.trim()).filter(Boolean), notes: values.notes.trim(), updatedAt: new Date().toISOString() });
-    await window.sariDB.save('documents', doc); await this.open(this.context.recordType, this.context.recordId, this.context.recordLabel);
+    const values = await DialogManager.form('Titre & métadonnées du document',[{name:'name',label:i18n.t('gedTitleLabel','Titre / nom du fichier'),value:doc.name||'',required:true},{name:'documentType',label:i18n.t('gedTypeLabel','Type GED'),type:'select',value:doc.documentType||'other',options:(this.gedTypes||[]).filter(x=>x.isActive).map(x=>({value:x.id,label:x.name?.[i18n.currentLang]||x.name?.fr}))},{name:'expirationDate',label:'Expiration',type:'date',value:doc.expirationDate||''},{name:'tags',label:'Tags (séparés par virgules)',value:(doc.tags||[]).join(', ')},{name:'notes',label:'Description / notes',type:'textarea',value:doc.notes||''}]); if (!values) return;
+    Object.assign(doc, { name: values.name.trim() || doc.name, documentType: values.documentType.trim(), expirationDate: values.expirationDate, tags:values.tags.split(',').map(x=>x.trim()).filter(Boolean), notes: values.notes.trim(), updatedAt: new Date().toISOString() });
+    await window.sariDB.save('documents', doc); await this._refresh();
+  },
+
+  async deleteDocument(id) {
+    const doc = await window.sariDB.getById('documents', id); if (!doc) return;
+    const linkCount = (doc.links || []).length;
+    const extra = linkCount ? `\n\nIl est actuellement lié à ${linkCount} enregistrement(s).` : '';
+    if (!await DialogManager.confirm(`Supprimer définitivement le fichier « ${doc.name} » de la GED ?${extra}`)) return;
+    await window.sariDB.delete('documents', id);
+    window.app.showToast('Fichier supprimé de la GED.', 'success');
+    await this._refresh();
+  },
+
+  async unlinkAll(id) {
+    const doc = await window.sariDB.getById('documents', id); if (!doc) return;
+    const count = (doc.links || []).length;
+    if (!count) return window.app.showToast('Ce document n’est lié à aucun enregistrement.', 'info');
+    if (!await DialogManager.confirm(`Retirer toutes les associations (${count}) de ce document, sans supprimer le fichier ?`)) return;
+    doc.links = []; doc.updatedAt = new Date().toISOString();
+    await window.sariDB.save('documents', doc);
+    window.app.showToast('Toutes les associations ont été retirées. Le fichier est conservé dans la GED.', 'success');
+    await this._refresh();
   },
 
   replace(id) {
     const input = document.createElement('input'); input.type = 'file';
-    input.onchange = async () => { const file = input.files[0]; if (!file) return; const doc = await window.sariDB.getById('documents', id); Object.assign(doc, { name: file.name, mimeType: file.type, size: file.size, data: await this.readFile(file), version: (doc.version || 1) + 1, updatedAt: new Date().toISOString() }); await window.sariDB.save('documents', doc); window.app.showToast(`Document remplacé • version ${doc.version}`, 'success'); await this.open(this.context.recordType, this.context.recordId, this.context.recordLabel); }; input.click();
+    input.onchange = async () => { const file = input.files[0]; if (!file) return; const doc = await window.sariDB.getById('documents', id); Object.assign(doc, { name: file.name, mimeType: file.type, size: file.size, data: await this.readFile(file), version: (doc.version || 1) + 1, updatedAt: new Date().toISOString() }); await window.sariDB.save('documents', doc); window.app.showToast(`Document remplacé • version ${doc.version}`, 'success'); await this._refresh(); }; input.click();
   },
 
   async unlink(id) {
@@ -114,16 +136,21 @@ const DocumentManager = {
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
     doc.links = (doc.links || []).filter(link => !(link.recordType === this.context.recordType && link.recordId === this.context.recordId));
     if (doc.links.length) await window.sariDB.save('documents', doc); else if (await DialogManager.confirm('Ce document ne sera plus lié. Le supprimer définitivement de la GED ?')) await window.sariDB.delete('documents', id); else await window.sariDB.save('documents', doc);
-    await this.open(this.context.recordType, this.context.recordId, this.context.recordLabel);
+    await this._refresh();
   },
 
   async linkExisting() {
     const id = document.getElementById('ged-existing')?.value; if (!id) return;
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
-    doc.links = [...(doc.links || []), { recordType: this.context.recordType, recordId: this.context.recordId }]; doc.updatedAt = new Date().toISOString(); await window.sariDB.save('documents', doc); await this.open(this.context.recordType, this.context.recordId, this.context.recordLabel);
+    doc.links = [...(doc.links || []), { recordType: this.context.recordType, recordId: this.context.recordId }]; doc.updatedAt = new Date().toISOString(); await window.sariDB.save('documents', doc); await this._refresh();
   },
 
   formatBytes(bytes = 0) { if (!bytes) return '0 o'; const units = ['o','Ko','Mo','Go']; const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), 3); return `${(bytes / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`; },
-  close() { document.getElementById('document-manager-root')?.remove(); }
+  close() { document.getElementById('document-manager-root')?.remove(); },
+  /** Refresh the host view: the inline document manager if open, otherwise the central GED page. */
+  async _refresh() {
+    if (this.context?.recordType) await this._refresh();
+    else if (window.GEDModule) await GEDModule.render();
+  }
 };
 window.DocumentManager = DocumentManager;
