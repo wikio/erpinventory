@@ -588,6 +588,5 @@ const reportKeysAr={reportsDescription:"تقييم المخزون وتحليلا
 const reportKeysEn={reportsDescription:"Stock assessments, sales analysis by wilaya, import costs and profitability.",customizeReport:"Customize Report",customizeReportHelp:"Report header and rows with dynamic fields {reference}, {label}, {status}, {amount}, {type}, {company}, {title}, {date}.",reportHeaderTemplate:"Report Header",reportRowTemplate:"Report Row",detailedReport:"Detailed Report",printPDF:"Print / PDF",reportTab_inventory:"Stock & Expirations",reportTab_sales:"Sales & Receivables",reportTab_costs:"Costs",reportTab_imports:"Imports",reportTab_tenders:"Tenders",reportTab_finance:"Profitability & Finance",reportTab_partners:"Clients & Suppliers",costFreight:"Freight / Transport",costInsurance:"Insurance",costCustoms:"Customs",costTotal:"Total Logistics",costShipment:"Shipment",costSupplier:"Supplier",costPurchases:"Total local purchases"};
 Object.assign(TRANSLATIONS.fr,reportKeysFr);Object.assign(TRANSLATIONS.ar,reportKeysAr);Object.assign(TRANSLATIONS.en,reportKeysEn);
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SARI_CONFIG, TRANSLATIONS };
-}
+
+export {};

@@ -204,7 +204,7 @@ class SariDB {
       const store = transaction.objectStore(storeName);
       const request = store.put(data);
 
-      request.onsuccess = async () => {if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'save',data);resolve(data);};
+      request.onsuccess = async () => {if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&window.SariCore?.db?.isExternalSyncStore(storeName)!==false)await window.syncController?.enqueueExternalOnly(storeName,'save',data);resolve(data);};
       request.onerror = () => reject(request.error);
     });
   }
@@ -217,7 +217,7 @@ class SariDB {
       const store = transaction.objectStore(storeName);
       const request = store.delete(id);
 
-      request.onsuccess = async () => {if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'delete',{id,numericId:existing.numericId});resolve(true);};
+      request.onsuccess = async () => {if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&window.SariCore?.db?.isExternalSyncStore(storeName)!==false)await window.syncController?.enqueueExternalOnly(storeName,'delete',{id,numericId:existing.numericId});resolve(true);};
       request.onerror = () => reject(request.error);
     });
   }
@@ -1044,6 +1044,5 @@ const sariDB = new SariDB();
 if (typeof window !== 'undefined') {
   window.sariDB = sariDB;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SariDB, sariDB };
-}
+
+export {};

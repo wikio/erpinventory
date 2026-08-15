@@ -230,4 +230,5 @@ class AuthController {
 
 const auth = new AuthController();
 if (typeof window !== 'undefined') window.auth = auth;
-if (typeof module !== 'undefined' && module.exports) module.exports = { AuthController, auth };
+
+export {};

@@ -40,16 +40,16 @@ const SuppliersModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="SuppliersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addSupplier">${i18n.t('addSupplier')}</span>
               </button>
             ` : ''}
             <button onclick="SuppliersModule.openComparatorModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-balance-scale"></i>
+              <i data-lucide="scale"></i>
               <span>${i18n.t('sourcingCalc')}</span>
             </button>
             <button onclick="SuppliersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -102,7 +102,7 @@ const SuppliersModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="7" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-industry text-2xl mb-2 block"></i>
+                    <i data-lucide="factory" class="text-2xl mb-2 block"></i>
                     Aucun fournisseur ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -116,7 +116,7 @@ const SuppliersModule = {
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <i class="fas fa-map-marker-alt text-sari-blue"></i> ${s.country}
+                        <i data-lucide="map-pin" class="text-sari-blue"></i> ${s.country}
                       </div>
                     </td>
                     <td class="p-3">
@@ -153,10 +153,10 @@ const SuppliersModule = {
                         <button onclick="DocumentManager.open('supplier','${s.id}','${SariUtils.escapeHtml(s.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="SuppliersModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="SuppliersModule.deleteSupplier('${s.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -220,7 +220,7 @@ const SuppliersModule = {
               ${supplierId ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur Médical'}
             </h3>
             <button onclick="SuppliersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -352,7 +352,7 @@ const SuppliersModule = {
               </h3>
             </div>
             <button onclick="SuppliersModule.closeComparatorModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -501,6 +501,5 @@ const SuppliersModule = {
 if (typeof window !== 'undefined') {
   window.SuppliersModule = SuppliersModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SuppliersModule;
-}
+
+export {};

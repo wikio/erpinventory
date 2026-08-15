@@ -1,0 +1,10 @@
+{
+  "_meta": {
+    "language": "ar",
+    "direction": "rtl",
+    "description": "مصدر محمول للتحرير والاستيراد إلى مخزن الترجمة."
+  },
+  "appName": "نظام ساري",
+  "offline": "غير متصل",
+  "online": "متصل"
+}

@@ -27,3 +27,5 @@ const TasksModule = {
   async addStage(){const v=await DialogManager.form('Nouvelle étape',[{name:'name',label:'Nom',required:true},{name:'color',label:'Couleur',type:'color',value:'#8B5CF6'}]);if(!v)return;const name=v.name;const id=`stage-${crypto.randomUUID()}`;await sariDB.save('taskStages',{id,label:{fr:name,ar:name,en:name},color:v.color,order:this.state.stages.length+1});this.render();},closeModal(){document.getElementById('task-modal').innerHTML='';}
 };
 window.TasksModule=TasksModule;
+
+export {};

@@ -66,6 +66,5 @@ const TableSort = {
 if (typeof window !== 'undefined') {
   window.TableSort = TableSort;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = TableSort;
-}
+
+export {};

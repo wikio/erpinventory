@@ -46,20 +46,20 @@ const InventoryModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="InventoryModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addProduct">${i18n.t('addProduct')}</span>
               </button>
             ` : ''}
             <button onclick="InventoryModule.openTraceabilityModal()" class="sari-btn px-3 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm">
-              <i class="fas fa-search-location"></i>
+              <i data-lucide="locate"></i>
               <span>${i18n.t('traceability')}</span>
             </button>
             <button onclick="InventoryModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
             <button onclick="InventoryModule.openImportModal()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-import"></i>
+              <i data-lucide="file-down"></i>
               <span>${i18n.t('importCSV')}</span>
             </button>
           </div>
@@ -79,7 +79,7 @@ const InventoryModule = {
                 placeholder="${i18n.t('searchProducts')}" data-i18n-placeholder="searchProducts"
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
-              <i class="fas fa-search absolute right-3 top-2.5 text-slate-400 text-xs"></i>
+              <i data-lucide="search" class="absolute right-3 top-2.5 text-slate-400 text-xs"></i>
             </div>
           </div>
 
@@ -143,7 +143,7 @@ const InventoryModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="8" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-inbox text-2xl mb-2 block"></i>
+                    <i data-lucide="inbox" class="text-2xl mb-2 block"></i>
                     ${i18n.t('noDataFound')}
                   </td>
                 </tr>
@@ -199,18 +199,18 @@ const InventoryModule = {
                       <div class="flex justify-end gap-1">
                         <button onclick="InventoryModule.openDetail('${p.id}')" title="Consulter" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="InventoryModule.openBarcodeModal('${p.id}')" title="Imprimer Barcode/QR" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
-                          <i class="fas fa-barcode"></i>
+                          <i data-lucide="barcode"></i>
                         </button>
                         <button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="InventoryModule.openModal('${p.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="InventoryModule.duplicateProduct('${p.id}')" title="Dupliquer" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
-                            <i class="fas fa-copy"></i>
+                            <i data-lucide="copy"></i>
                           </button>
                           <button onclick="InventoryModule.deleteProduct('${p.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -322,7 +322,7 @@ const InventoryModule = {
               ${productId ? 'Modifier le Produit Médical' : 'Nouveau Produit Médical & Consommable'}
             </h3>
             <button onclick="InventoryModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times text-lg"></i>
+              <i data-lucide="x" class="text-lg"></i>
             </button>
           </div>
 
@@ -538,7 +538,7 @@ const InventoryModule = {
           <div class="flex justify-between items-center border-b pb-3 mb-4 no-print">
             <h4 class="font-bold text-slate-900 dark:text-white">Étiquette Code-barres & QR</h4>
             <button onclick="InventoryModule.closeBarcodeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -565,7 +565,7 @@ const InventoryModule = {
               Fermer
             </button>
             <button onclick="window.print()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
-              <i class="fas fa-print"></i> Imprimer l'Étiquette
+              <i data-lucide="printer"></i> Imprimer l'Étiquette
             </button>
           </div>
         </div>
@@ -600,7 +600,7 @@ const InventoryModule = {
               Traçabilité Médicale par N° Lot / Batch
             </h3>
             <button onclick="InventoryModule.closeTraceModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -736,6 +736,5 @@ const InventoryModule = {
 if (typeof window !== 'undefined') {
   window.InventoryModule = InventoryModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = InventoryModule;
-}
+
+export {};

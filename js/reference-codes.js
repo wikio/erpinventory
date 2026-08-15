@@ -28,3 +28,5 @@ const ReferenceCodeManager = {
   }
 };
 window.ReferenceCodeManager=ReferenceCodeManager;
+
+export {};

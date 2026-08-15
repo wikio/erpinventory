@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "language": "fr",
+    "description": "Portable bulk-edit source. Import into the translationTexts store for live use."
+  },
+  "appName": "SARI SYSTÈME",
+  "offline": "Hors ligne",
+  "online": "En ligne"
+}

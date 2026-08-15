@@ -56,16 +56,16 @@ const ImportExportModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="ImportExportModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addShipment">${i18n.t('addShipment')}</span>
               </button>
             ` : ''}
             <button onclick="ImportExportModule.openLandedCostModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-calculator"></i>
+              <i data-lucide="calculator"></i>
               <span>${i18n.t('landedCostCalc')}</span>
             </button>
             <button onclick="ImportExportModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -149,7 +149,7 @@ const ImportExportModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="9" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-ship text-2xl mb-2 block"></i>
+                    <i data-lucide="ship" class="text-2xl mb-2 block"></i>
                     Aucune expédition ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -200,10 +200,10 @@ const ImportExportModule = {
                         <button onclick="ImportExportModule.openDetail('${s.id}')" title="Consulter" class="p-1.5 text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="ImportExportModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="ImportExportModule.deleteShipment('${s.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -285,7 +285,7 @@ const ImportExportModule = {
               ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
             </h3>
             <button onclick="ImportExportModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -476,7 +476,7 @@ const ImportExportModule = {
               </h3>
             </div>
             <button onclick="ImportExportModule.closeLandedCostModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -597,7 +597,7 @@ const ImportExportModule = {
               </h3>
             </div>
             <button onclick="ImportExportModule.closeDocsModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -640,6 +640,5 @@ const ImportExportModule = {
 if (typeof window !== 'undefined') {
   window.ImportExportModule = ImportExportModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ImportExportModule;
-}
+
+export {};

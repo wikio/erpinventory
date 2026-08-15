@@ -3,3 +3,5 @@ const GEDModule={state:{documents:[],query:'',type:'all',recordType:'all',catego
   async unlinkAll(id){const doc=await sariDB.getById('documents',id);if(!doc)return;const count=(doc.links||[]).length;if(!count)return app.showToast('Ce document n’est lié à aucun enregistrement.','info');if(!await DialogManager.confirm(`Retirer toutes les associations (${count}) de ce document, sans supprimer le fichier ?`))return;doc.links=[];doc.updatedAt=new Date().toISOString();await sariDB.save('documents',doc);app.showToast('Toutes les associations ont été retirées.','success');this.render();},
   async deleteFile(id){const doc=await sariDB.getById('documents',id);if(!doc)return;if(!await DialogManager.confirm(`Supprimer définitivement le fichier « ${doc.name} » de la GED ?`))return;await sariDB.delete('documents',id);app.showToast('Fichier supprimé de la GED.','success');this.render();}
 };window.GEDModule=GEDModule;
+
+export {};

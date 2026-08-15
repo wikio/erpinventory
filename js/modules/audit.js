@@ -39,7 +39,7 @@ const AuditModule = {
           </div>
           <div class="flex items-center gap-2">
             <button onclick="AuditModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i> Exporter CSV
+              <i data-lucide="file-up"></i> Exporter CSV
             </button>
           </div>
         </div>
@@ -90,7 +90,7 @@ const AuditModule = {
                 <div class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div class="flex items-start gap-3">
                     <div class="w-10 h-10 rounded bg-sari-blue/10 text-sari-blue flex items-center justify-center text-base flex-shrink-0">
-                      <i class="fas fa-shield-alt"></i>
+                      <i data-lucide="shield"></i>
                     </div>
                     <div>
                       <div class="flex flex-wrap items-center gap-2">
@@ -143,6 +143,5 @@ const AuditModule = {
 if (typeof window !== 'undefined') {
   window.AuditModule = AuditModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = AuditModule;
-}
+
+export {};

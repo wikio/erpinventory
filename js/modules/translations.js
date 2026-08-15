@@ -458,6 +458,5 @@ const TranslationsModule = {
 if (typeof window !== 'undefined') {
   window.TranslationsModule = TranslationsModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = TranslationsModule;
-}
+
+export {};

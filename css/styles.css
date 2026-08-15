@@ -7,7 +7,6 @@
    4. Sari Midnight: True Native Dark #030712, #0F172A
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
   --color-primary: #009CC5;
@@ -16,13 +15,13 @@
   --color-lime-dark: #9BB024;
   --color-amber: #EBB51A;
   --color-amber-dark: #C69512;
-  
+
   --color-bg: #F8FAFC;
   --color-card: #FFFFFF;
   --color-border: #E2E8F0;
   --color-text: #0F172A;
   --color-text-muted: #64748B;
-  
+
   --font-sans: 'Plus Jakarta Sans', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'IBM Plex Sans Arabic', monospace;
 }
@@ -166,14 +165,14 @@ body.theme-dark .sari-tile {
 /* Grid Pattern Background Accent */
 .sari-grid-pattern {
   background-size: 24px 24px;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(0, 156, 197, 0.06) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(0, 156, 197, 0.06) 1px, transparent 1px);
 }
 
 body.theme-midnight .sari-grid-pattern,
 body.theme-dark .sari-grid-pattern {
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
 }
@@ -383,8 +382,8 @@ body.theme-dark .sari-table tbody tr:nth-child(even) {
 .kanban-card { cursor: grab; border-left: 3px solid var(--color-primary); }
 .kanban-card:active { cursor: grabbing; }
 
-/* Secure authentication. Critical layout is self-contained so login remains
-   usable even if the optional Tailwind CDN is unavailable. */
+/* Secure authentication. Critical layout remains usable before the compiled
+   Tailwind bundle has painted, including in offline/service-worker startup. */
 .auth-gate.hidden, #sari-site-logo.hidden { display: none; }
 body.auth-locked { overflow: hidden; }
 .auth-gate {
@@ -440,11 +439,11 @@ body.auth-locked { overflow: hidden; }
   .html-document-template { width:100% !important; min-height:0 !important; }
   .sari-modal-backdrop { position:static !important; background:none !important; padding:0 !important; display:block !important; }
   .hidden { display:none !important; }
-  
+
   .no-print {
     display: none !important;
   }
-  
+
   .print-only {
     display: block !important;
   }
@@ -453,10 +452,60 @@ body.auth-locked { overflow: hidden; }
     box-shadow: none !important;
     border: 1px solid #CCCCCC !important;
   }
-  
+
   #main-content {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+  }
+}
+
+/* ==========================================================================
+   Modern responsive polish: fluid type, mobile table cards and low-cost motion
+   ========================================================================== */
+html { font-size: clamp(14px, calc(13px + .18vw), 16px); }
+h1, .text-2xl { font-size: clamp(1.35rem, calc(1.05rem + 1vw), 1.75rem); }
+h2 { font-size: clamp(1.15rem, calc(1rem + .6vw), 1.5rem); }
+
+#sari-main-view > * { animation: sariViewIn .2s cubic-bezier(.16,1,.3,1); }
+.sari-modal-backdrop { animation: sariBackdropIn .16s ease-out; }
+.sari-modal-backdrop > .sari-tile,
+.sari-modal-backdrop > form { animation: sariModalIn .22s cubic-bezier(.16,1,.3,1); }
+.module-loading-indicator {
+  width: 2rem; height: 2rem; margin-inline: auto; border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary); border-radius: 50%; animation: authSpin .7s linear infinite;
+}
+@keyframes sariViewIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes sariBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sariModalIn { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 640px) {
+  .overflow-x-auto:has(> table.sari-table) { overflow: visible; }
+  table.sari-table { display: block; min-width: 0 !important; width: 100%; background: transparent; }
+  table.sari-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  table.sari-table tbody { display: grid; gap: .75rem; width: 100%; }
+  table.sari-table tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: .35rem;
+    width: 100%; padding: .85rem; border: 1px solid var(--color-border) !important;
+    border-radius: 12px; background: var(--color-card); box-shadow: 0 3px 12px rgba(15,23,42,.06);
+  }
+  table.sari-table tbody td {
+    display: grid; grid-template-columns: minmax(7rem,.7fr) minmax(0,1.3fr); gap: .65rem;
+    align-items: center; text-align: start !important; white-space: normal !important; padding: .15rem 0;
+  }
+  table.sari-table tbody td::before {
+    content: attr(data-label); display: block; color: var(--color-text-muted);
+    font-size: .63rem; line-height: 1.25; font-weight: 800; text-transform: uppercase; letter-spacing: .025em;
+  }
+  table.sari-table tbody td > * { grid-column: 2; min-width: 0; max-width: 100%; }
+  table.sari-table tbody td[colspan] { display: block; grid-column: 1 / -1; }
+  table.sari-table tbody td[colspan]::before { display: none; }
+  table.sari-table tbody td:last-child > div { justify-content: flex-start; flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important; animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important; transition-duration: .01ms !important;
   }
 }

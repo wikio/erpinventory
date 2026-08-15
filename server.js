@@ -2,9 +2,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { ExternalDatabaseManager } = require('./external-db');
+const { FileContentRepository } = require('./file-content');
 
 const PORT = process.env.PORT || 3000;
+const STATIC_ROOT = fs.existsSync(path.join(__dirname, 'dist', 'index.html'))
+  ? path.join(__dirname, 'dist')
+  : __dirname;
 const HOST = '0.0.0.0';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const CAPTCHA_TTL_MS = 5 * 60 * 1000;
@@ -39,6 +44,7 @@ const integrationData = new Map(['products','customers','suppliers','sales','pur
 const integrationEndpointAliases = new Map(['products','customers','suppliers','sales','purchases'].map(name => [name,name]));
 let integrationBasePath = '/api/v1';
 const externalDB = new ExternalDatabaseManager(__dirname);
+const fileContent = new FileContentRepository(__dirname);
 
 const TOKEN_FILE = path.join(__dirname,'.runtime','api-tokens.json');
 try { for (const item of JSON.parse(fs.readFileSync(TOKEN_FILE,'utf8'))) integrationTokens.set(item.id,item); } catch (_) { /* first run */ }
@@ -49,8 +55,20 @@ function bearerToken(req) { const value=req.headers.authorization||''; return va
 function validApiToken(req) { const hash=hashApiToken(bearerToken(req)); return [...integrationTokens.values()].find(item => !item.revokedAt && item.tokenHash === hash); }
 
 function json(res, status, body) {
-  res.writeHead(status, { 'Content-Type': MIME_TYPES['.json'], 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(body));
+  const raw = Buffer.from(JSON.stringify(body));
+  const accepted = String(res.req?.headers['accept-encoding'] || '');
+  let payload = raw;
+  const headers = { 'Content-Type': MIME_TYPES['.json'], 'Cache-Control': 'no-store' };
+  if (raw.length > 1024 && accepted.includes('br')) {
+    payload = zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } });
+    headers['Content-Encoding'] = 'br'; headers.Vary = 'Accept-Encoding';
+  } else if (raw.length > 1024 && accepted.includes('gzip')) {
+    payload = zlib.gzipSync(raw, { level: 5 });
+    headers['Content-Encoding'] = 'gzip'; headers.Vary = 'Accept-Encoding';
+  }
+  headers['Content-Length'] = payload.length;
+  res.writeHead(status, headers);
+  res.end(payload);
 }
 
 function parseCookies(req) {
@@ -101,6 +119,26 @@ function clearSessionCookie(req, res) {
 }
 
 async function handleApi(req, res, pathname) {
+  if (pathname === '/api/content/reload' && req.method === 'POST') {
+    if (!requireAdmin(req)) return json(res, 403, { error: 'Administrator access required' });
+    try { return json(res, 200, { reloadedAt: new Date().toISOString(), content: fileContent.snapshot() }); }
+    catch (error) { return json(res, 400, { error: error.message }); }
+  }
+  if (pathname.startsWith('/api/content/')) {
+    if (!getSession(req)) return json(res, 401, { error: 'Authentication required' });
+    const [, , , kind, ...fileParts] = pathname.split('/');
+    const name = fileParts.join('/');
+    try {
+      if (req.method === 'GET' && !name) return json(res, 200, { kind, files: fileContent.list(kind) });
+      if (req.method === 'GET') return json(res, 200, fileContent.read(kind, name));
+      if (req.method === 'PUT') {
+        if (!requireAdmin(req)) return json(res, 403, { error: 'Administrator access required' });
+        const body = await readJson(req, 5 * 1024 * 1024);
+        return json(res, 200, fileContent.write(kind, name, body.content));
+      }
+      return json(res, 405, { error: 'Method not allowed' });
+    } catch (error) { return json(res, error.code === 'ENOENT' ? 404 : 400, { error: error.message }); }
+  }
   if (pathname === '/api/db/config' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,externalDB.publicConfig()); }
   if (pathname === '/api/db/status' && req.method === 'GET') { if(!getSession(req))return json(res,401,{error:'Authentication required'});const config=externalDB.publicConfig();return json(res,200,{active:config.active,type:config.type,configured:config.configured}); }
   if (pathname === '/api/db/test' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,await externalDB.test(await readJson(req)));}catch(error){return json(res,400,{success:false,error:error.message});} }
@@ -217,8 +255,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-  const absolutePath = path.resolve(__dirname, requested);
-  if (!absolutePath.startsWith(`${path.resolve(__dirname)}${path.sep}`) && absolutePath !== path.resolve(__dirname, 'index.html')) {
+  const absolutePath = path.resolve(STATIC_ROOT, requested);
+  if (!absolutePath.startsWith(`${path.resolve(STATIC_ROOT)}${path.sep}`) && absolutePath !== path.resolve(STATIC_ROOT, 'index.html')) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     return res.end('403 Forbidden');
   }
@@ -226,16 +264,41 @@ const server = http.createServer(async (req, res) => {
   fs.stat(absolutePath, (err, stats) => {
     let target = absolutePath;
     if (err || !stats.isFile()) {
-      if (!path.extname(requested)) target = path.join(__dirname, 'index.html');
+      if (!path.extname(requested)) target = path.join(STATIC_ROOT, 'index.html');
       else { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('404 File Not Found'); }
     }
     fs.readFile(target, (readErr, content) => {
       if (readErr) { res.writeHead(500, { 'Content-Type': 'text/plain' }); return res.end('500 Internal Server Error'); }
       const ext = path.extname(target).toLowerCase();
-      if (path.basename(target) === 'sw.js' || path.basename(target) === 'index.html') res.setHeader('Cache-Control', 'no-cache');
-      if (path.basename(target) === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      res.end(req.method === 'HEAD' ? undefined : content);
+      const basename = path.basename(target);
+      const etag = `"${crypto.createHash('sha256').update(content).digest('base64url').slice(0, 24)}"`;
+      const isHashedAsset = pathname.startsWith('/assets/') && /-[A-Za-z0-9_-]{8,}\.[^.]+$/.test(basename);
+      const isRevalidated = basename === 'sw.js' || basename === 'index.html' || basename === 'manifest.json';
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', isHashedAsset
+        ? 'public, max-age=31536000, immutable'
+        : isRevalidated ? 'no-cache' : 'public, max-age=3600, stale-while-revalidate=86400');
+      if (basename === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
+      if (req.headers['if-none-match'] === etag) {
+        res.writeHead(304);
+        return res.end();
+      }
+
+      const type = MIME_TYPES[ext] || 'application/octet-stream';
+      const compressible = /^(text\/|application\/(javascript|json|manifest\+json)|image\/svg\+xml)/.test(type);
+      const accepted = String(req.headers['accept-encoding'] || '');
+      let payload = content;
+      if (compressible && content.length > 1024 && accepted.includes('br')) {
+        payload = zlib.brotliCompressSync(content, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } });
+        res.setHeader('Content-Encoding', 'br');
+        res.setHeader('Vary', 'Accept-Encoding');
+      } else if (compressible && content.length > 1024 && accepted.includes('gzip')) {
+        payload = zlib.gzipSync(content, { level: 6 });
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Vary', 'Accept-Encoding');
+      }
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': payload.length });
+      res.end(req.method === 'HEAD' ? undefined : payload);
     });
   });
 });
@@ -249,5 +312,16 @@ setInterval(() => {
 
 server.listen(PORT, HOST, () => {
   console.log(`[SARI Système] Secure ERP server listening on http://${HOST}:${PORT}`);
+  console.log(`[Assets] Serving ${STATIC_ROOT} with ETag + Brotli/gzip caching`);
   console.log('[Auth] CAPTCHA, scrypt passwords, secure sessions and role-based access enabled');
 });
+
+async function shutdown(signal) {
+  console.log(`[SARI Système] ${signal} received; draining database pools...`);
+  server.close(async () => {
+    try { await externalDB.close(); } finally { process.exit(0); }
+  });
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

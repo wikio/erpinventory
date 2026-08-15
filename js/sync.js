@@ -125,7 +125,7 @@ class SyncController {
       for (const item of queueItems) {
         try {
           if(item.externalOnly){
-            const endpoint=item.action==='delete'?'/api/db/delete-record':'/api/db/migrate-batch',body=item.action==='delete'?{storeName:item.storeName,numericId:item.payload.numericId}:{storeName:item.storeName,records:[item.payload]};const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw Error((await response.json()).error||'External sync failed');
+            const {endpoint,body}=window.SariCore.sync.externalMutationRequest(item);const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw Error((await response.json()).error||'External sync failed');
           } else if (item.action === 'save') {
             this.suppressBridge=true;try{await window.sariDB.save(item.storeName,item.payload);}finally{this.suppressBridge=false;}
             if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,records:[item.payload]})});if(!response.ok)throw Error((await response.json()).error||'External sync failed');}
@@ -179,6 +179,5 @@ const syncController = new SyncController();
 if (typeof window !== 'undefined') {
   window.syncController = syncController;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SyncController, syncController };
-}
+
+export {};

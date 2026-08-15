@@ -90,11 +90,11 @@ const SalesModule = {
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button onclick="SalesModule.openScannerModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-barcode"></i>
+              <i data-lucide="barcode"></i>
               <span>Scanner Code-barres</span>
             </button>
             <button onclick="SalesModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -108,7 +108,7 @@ const SalesModule = {
             <div>
               <div class="flex justify-between items-center mb-4">
                 <h3 class="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <i class="fas fa-boxes text-sari-blue"></i>
+                  <i data-lucide="boxes" class="text-sari-blue"></i>
                   Catalogue Produits SARI & Ajout au Panier
                 </h3>
                 <div class="flex items-center gap-2 text-xs">
@@ -194,7 +194,7 @@ const SalesModule = {
               <div class="space-y-2 max-h-[220px] overflow-y-auto mb-4 pr-1">
                 ${this.state.cart.length === 0 ? `
                   <div class="p-6 text-center text-slate-400 border-2 border-dashed rounded text-xs">
-                    <i class="fas fa-shopping-cart text-xl mb-1 block"></i>
+                    <i data-lucide="shopping-cart" class="text-xl mb-1 block"></i>
                     Aucun produit dans le panier.<br/>Cliquez ou scannez pour ajouter.
                   </div>
                 ` : this.state.cart.map(item => `
@@ -215,7 +215,7 @@ const SalesModule = {
                       <label class="text-[9px] text-slate-400">TVA<select onchange="SalesModule.updateLineVat('${item.productId}',this.value)" class="block w-16 px-1 py-1 border rounded">${this.state.vatRates.map(rate=>`<option value="${rate.percentage/100}" ${Number(item.vatRate??.19)===rate.percentage/100?'selected':''}>${rate.percentage}%</option>`).join('')}</select></label>
                       <span class="font-mono-tech font-extrabold text-sari-blue w-20 text-right">${i18n.formatCurrency(item.total)}</span>
                       <button onclick="SalesModule.removeFromCart('${item.productId}')" class="text-red-500 hover:text-red-700 p-1">
-                        <i class="fas fa-times"></i>
+                        <i data-lucide="x"></i>
                       </button>
                     </div>
                   </div>
@@ -298,7 +298,7 @@ const SalesModule = {
                 ${this.state.cart.length === 0 ? 'disabled' : ''}
                 class="sari-btn flex-1 py-2.5 bg-sari-blue hover:bg-sari-blue/90 text-white font-extrabold text-sm shadow-sm disabled:opacity-50"
               >
-                <i class="fas fa-check-circle"></i> Confirmer & Facturer
+                <i data-lucide="circle-check"></i> Confirmer & Facturer
               </button>
             </div>
           </div>
@@ -380,19 +380,19 @@ const SalesModule = {
                         <div class="flex justify-end gap-1">
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'facture')" title="Consulter" class="px-2 py-1 rounded bg-slate-800 text-white text-xs font-bold">Voir</button>
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'facture')" title="Imprimer Facture" class="px-2 py-1 rounded bg-sari-blue/10 hover:bg-sari-blue/20 text-sari-blue text-xs font-bold flex items-center gap-1">
-                            <i class="fas fa-file-invoice"></i> Facture
+                            <i data-lucide="file-text"></i> Facture
                           </button>
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'purchase_order')" title="Bon de commande" class="px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-bold">BC</button>
-                          <button onclick="SalesModule.openPrintModal('${o.id}', 'quote')" title="Imprimer Devis" class="px-2 py-1 rounded bg-sari-amber/10 text-sari-amber text-xs font-bold flex items-center gap-1"><i class="fas fa-file-signature"></i> Devis</button>
+                          <button onclick="SalesModule.openPrintModal('${o.id}', 'quote')" title="Imprimer Devis" class="px-2 py-1 rounded bg-sari-amber/10 text-sari-amber text-xs font-bold flex items-center gap-1"><i data-lucide="file-pen-line"></i> Devis</button>
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'bl')" title="Imprimer Bon de Livraison" class="px-2 py-1 rounded bg-sari-lime/20 hover:bg-sari-lime/30 text-sari-lime-dark text-xs font-bold flex items-center gap-1">
-                            <i class="fas fa-truck-loading"></i> BL
+                            <i data-lucide="truck"></i> BL
                           </button>
                           <button onclick="DocumentTranslationManager.open('order','${o.id}')" class="p-1 text-sari-lime-dark" title="Traduire"><i data-lucide="languages" class="w-4 h-4"></i></button>
                           ${o.status!=='closed'&&canWrite?`<button onclick="SalesModule.editOrder('${o.id}')" class="p-1 text-sari-blue" title="Modifier"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="SalesModule.convertOrder('${o.id}')" class="p-1 text-sari-amber" title="Convertir"><i data-lucide="repeat-2" class="w-4 h-4"></i></button>`:''}
                           <button onclick="DocumentManager.open('order','${o.id}','${o.id}')" title="Documents" class="p-1 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                           ${canWrite ? `
                             <button onclick="SalesModule.deleteOrder('${o.id}')" title="Supprimer" class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                              <i class="fas fa-trash"></i>
+                              <i data-lucide="trash-2"></i>
                             </button>
                           ` : ''}
                         </div>
@@ -630,12 +630,12 @@ const SalesModule = {
           <div class="flex justify-between items-center border-b pb-3 mb-4">
             <h3 class="font-bold text-base text-slate-900 dark:text-white">Simulateur Lecteur Code-barres USB/Bluetooth</h3>
             <button onclick="SalesModule.closeScannerModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
           <div class="p-6 bg-slate-100 dark:bg-slate-800 rounded mb-4 border-2 border-dashed border-sari-blue">
-            <i class="fas fa-barcode text-4xl text-sari-blue mb-2 block animate-pulse"></i>
+            <i data-lucide="barcode" class="text-4xl text-sari-blue mb-2 block animate-pulse"></i>
             <p class="text-xs text-slate-600 dark:text-slate-300 font-bold">
               Prêt à lire un code-barres EAN13 ou SKU SARI Système
             </p>
@@ -715,7 +715,7 @@ const SalesModule = {
               </button>
               <button onclick="SariUtils.downloadPDF('print-doc-area','${docCode}.pdf','${template.paperFormat||'A4'}')" class="sari-btn px-4 py-1.5 bg-sari-lime text-slate-900 font-bold text-xs"><i data-lucide="file-down" class="w-4 h-4"></i> PDF</button>
               <button onclick="SariUtils.openPrintWindow('print-doc-area','${template.paperFormat||'A4'}','${docCode}')" class="sari-btn px-4 py-1.5 bg-sari-blue text-white font-bold text-xs">
-                <i class="fas fa-print"></i> Lancer l'Impression
+                <i data-lucide="printer"></i> Lancer l'Impression
               </button>
             </div>
           </div>
@@ -812,6 +812,5 @@ const SalesModule = {
 if (typeof window !== 'undefined') {
   window.SalesModule = SalesModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SalesModule;
-}
+
+export {};

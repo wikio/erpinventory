@@ -8,31 +8,14 @@
 class SariApp {
   constructor() {
     this.activeModule = 'dashboard';
-    this.modules = {
-      dashboard: window.DashboardModule,
-      inventory: window.InventoryModule,
-      suppliers: window.SuppliersModule,
-      importExport: window.ImportExportModule,
-      tenders: window.TendersModule,
-      sales: window.SalesModule,
-      customers: window.CustomersModule,
-      reports: window.ReportsModule,
-      translations: window.TranslationsModule,
-      auditLogs: window.AuditModule,
-      settings: window.SettingsModule,
-      hr: window.HRModule,
-      tasks: window.TasksModule,
-      portal: window.EmployeePortalModule,
-      purchases: window.PurchasesModule,
-      ged: window.GEDModule,
-      taxes: window.TaxesModule,
-      masterData: window.MasterDataModule,
-      inventoryOps: window.InventoryOpsModule,
-      bulkImport: window.BulkImportModule,
-      api: window.ApiModule,
-      documentDetail: window.DocumentDetailModule,
-      bankAccountDetail: window.BankAccountDetailModule
-    };
+    // Values are populated on first navigation by the Vite dynamic-import
+    // registry. Keeping the route keys here preserves hash routing and RBAC.
+    this.modules = Object.fromEntries([
+      'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
+      'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
+      'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
+      'inventoryOps', 'bulkImport', 'api', 'documentDetail', 'bankAccountDetail'
+    ].map(name => [name, null]));
   }
 
   async init() {
@@ -67,7 +50,12 @@ class SariApp {
     await window.OptionCatalog?.init();
     window.TranslationOverlay?.init();
     const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
-    if (brandingSettings && window.SettingsModule?.applyBranding) window.SettingsModule.applyBranding(brandingSettings);
+    let portableSettings = {};
+    try {
+      const response = await fetch('/api/content/config/site.json', { credentials: 'same-origin' });
+      if (response.ok) portableSettings = (await response.json()).content || {};
+    } catch (_) { /* offline: IndexedDB settings remain authoritative */ }
+    this.applyBranding({ ...(brandingSettings || {}), ...portableSettings });
 
     // Load database-backed role permissions and optional employee overrides.
     if (window.auth?.loadPermissions) await window.auth.loadPermissions();
@@ -107,6 +95,27 @@ class SariApp {
     }
 
     console.log('[SARI Système] Application ready in offline-first PWA mode!');
+  }
+
+  applyBranding(settings = {}) {
+    const img = document.getElementById('sari-site-logo');
+    const fallback = document.getElementById('sari-default-logo');
+    if (img) {
+      img.src = settings.siteLogo || '';
+      img.classList.toggle('hidden', !settings.siteLogo);
+    }
+    if (fallback) fallback.classList.toggle('hidden', Boolean(settings.siteLogo));
+    const values = {
+      'sidebar-company-name': settings.companyName,
+      'footer-company-name': settings.companyName,
+      'sidebar-company-nif': settings.nif,
+      'sidebar-company-address': settings.address,
+      'footer-company-address': settings.address
+    };
+    for (const [id, value] of Object.entries(values)) {
+      const element = document.getElementById(id);
+      if (element && value) element.textContent = value;
+    }
   }
 
   registerServiceWorker() {
@@ -220,9 +229,7 @@ class SariApp {
   }
 
   async navigate(moduleName, updateHash = true) {
-    if (!this.modules[moduleName]) {
-      moduleName = 'dashboard';
-    }
+    if (!(moduleName in this.modules)) moduleName = 'dashboard';
 
     const permissionModule = this.permissionForModule(moduleName);
     if (window.auth && !window.auth.can(permissionModule, 'view')) {
@@ -252,13 +259,24 @@ class SariApp {
       window.auth.updateUIForPermissions(moduleName);
     }
 
-    // Render active module
-    const mod = this.modules[moduleName];
-    if (mod && typeof mod.render === 'function') {
-      await mod.render('sari-main-view');
+    // Load and render the functional domain only when it is first visited.
+    let mod = this.modules[moduleName];
+    if (!mod && window.SariModuleLoader) {
+      const view = document.getElementById('sari-main-view');
+      if (view) view.innerHTML = '<div class="sari-tile p-10 text-center"><div class="module-loading-indicator" aria-hidden="true"></div><p class="mt-3 text-sm text-slate-500">Chargement du module…</p></div>';
+      try {
+        mod = await window.SariModuleLoader.load(moduleName);
+        this.modules[moduleName] = mod;
+      } catch (error) {
+        console.error(`[SARI Système] Failed to load module ${moduleName}:`, error);
+        if (view) view.innerHTML = `<div class="sari-tile p-10 text-center"><h2 class="font-extrabold text-red-600">Module indisponible</h2><p class="mt-2 text-sm text-slate-500">${String(error.message || error)}</p><button onclick="window.app.navigate('dashboard')" class="sari-btn px-4 py-2 mt-4 bg-sari-blue text-white">Retour</button></div>`;
+        return;
+      }
     }
+    if (mod && typeof mod.render === 'function') await mod.render('sari-main-view');
 
     this.enhanceSearchInputs();
+    this.enhanceResponsiveTables();
     window.UICopy?.apply(document.getElementById('sari-main-view'), window.i18n?.currentLang || 'fr');
     // Refresh Lucide icons
     if (typeof lucide !== 'undefined') {
@@ -267,6 +285,17 @@ class SariApp {
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  enhanceResponsiveTables() {
+    document.querySelectorAll('table.sari-table').forEach(table => {
+      const labels = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach(row => {
+        [...row.children].forEach((cell, index) => {
+          if (!cell.dataset.label) cell.dataset.label = labels[index] || '';
+        });
+      });
+    });
   }
 
   enhanceSearchInputs() {
@@ -404,7 +433,7 @@ class SariApp {
             ` : notifs.map(n => {
               let icon = 'info';
               if (n.type === 'near_expiry') icon = 'alert-triangle';
-              if (n.type === 'tender_deadline') icon = 'file-contract';
+              if (n.type === 'tender_deadline') icon = 'file-check';
               if (n.type === 'shipment') icon = 'ship';
 
               return `
@@ -628,6 +657,5 @@ if (typeof window !== 'undefined') {
   window.app = app;
   window.addEventListener('DOMContentLoaded', () => app.init());
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SariApp, app };
-}
+
+export {};

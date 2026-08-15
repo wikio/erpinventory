@@ -154,3 +154,5 @@ const DocumentManager = {
   }
 };
 window.DocumentManager = DocumentManager;
+
+export {};

@@ -53,12 +53,12 @@ const CustomersModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="CustomersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addCustomer">${i18n.t('addCustomer')}</span>
               </button>
             ` : ''}
             <button onclick="CustomersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -149,7 +149,7 @@ const CustomersModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="7" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-hospital-user text-2xl mb-2 block"></i>
+                    <i data-lucide="user-round" class="text-2xl mb-2 block"></i>
                     Aucun client ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -188,17 +188,17 @@ const CustomersModule = {
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
                         <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
-                          <i class="fas fa-shopping-cart"></i>
+                          <i data-lucide="shopping-cart"></i>
                         </button>
                         <button onclick="CustomersModule.openDetail('${c.id}')" title="Consulter la fiche" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="CustomersModule.open360('${c.id}')" title="Transactions & statistiques" class="p-1.5 rounded text-sari-lime-dark"><i data-lucide="chart-no-axes-combined" class="w-4 h-4"></i></button>
                         <button onclick="DocumentManager.open('customer','${c.id}','${SariUtils.escapeHtml(c.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="CustomersModule.openModal('${c.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="CustomersModule.deleteCustomer('${c.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -268,7 +268,7 @@ const CustomersModule = {
               ${customerId ? 'Modifier le Client / Hôpital' : 'Nouveau Client ou Institution Algérie'}
             </h3>
             <button onclick="CustomersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -382,6 +382,5 @@ const CustomersModule = {
 if (typeof window !== 'undefined') {
   window.CustomersModule = CustomersModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = CustomersModule;
-}
+
+export {};

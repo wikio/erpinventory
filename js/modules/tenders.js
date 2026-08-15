@@ -67,16 +67,16 @@ const TendersModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="TendersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addTender">${i18n.t('addTender')}</span>
               </button>
             ` : ''}
             <button onclick="TendersModule.openBidWorkspace('${this.state.tenders[0] ? this.state.tenders[0].id : ''}')" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-edit"></i>
+              <i data-lucide="pencil"></i>
               <span>${i18n.t('bidCalculator')}</span>
             </button>
             <button onclick="TendersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -161,7 +161,7 @@ const TendersModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="8" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-file-contract text-2xl mb-2 block"></i>
+                    <i data-lucide="file-check" class="text-2xl mb-2 block"></i>
                     Aucun appel d'offres ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -188,7 +188,7 @@ const TendersModule = {
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white" ${DynamicI18n.attributes('tenders',t.id,'title',t.title)}>${SariUtils.escapeHtml(DynamicI18n.get('tenders',t.id,'title',t.title))}</div>
                       <div class="text-xs text-slate-500 mt-0.5">
-                        <i class="fas fa-hospital text-sari-blue"></i> ${t.issuingOrganization}
+                        <i data-lucide="hospital" class="text-sari-blue"></i> ${t.issuingOrganization}
                       </div>
                     </td>
                     <td class="p-3 text-xs">
@@ -219,14 +219,14 @@ const TendersModule = {
                         <button onclick="TendersModule.openDetail('${t.id}')" title="Consulter" class="p-1.5 text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="TendersModule.openDocumentChain('${t.id}')" title="Chaîne documentaire" class="p-1.5 text-sari-amber"><i data-lucide="git-branch" class="w-4 h-4"></i></button>
                         <button onclick="TendersModule.openBidWorkspace('${t.id}')" title="Espace Préparation Offre (Devis)" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
-                          <i class="fas fa-calculator"></i>
+                          <i data-lucide="calculator"></i>
                         </button>
                         ${canWrite ? `
                           <button onclick="TendersModule.openModal('${t.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="TendersModule.deleteTender('${t.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -301,7 +301,7 @@ const TendersModule = {
               ${tenderId ? 'Modifier l\'Appel d\'Offres / Consultation' : 'Nouvel Appel d\'Offres Médical'}
             </h3>
             <button onclick="TendersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -480,7 +480,7 @@ const TendersModule = {
               </h3>
             </div>
             <button onclick="TendersModule.closeBidWorkspace()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -500,7 +500,7 @@ const TendersModule = {
             </div>
             <div class="flex items-end">
               <button onclick="TendersModule.addItemToBidWorkspace()" class="sari-btn w-full px-4 py-2 bg-sari-blue text-white font-bold text-sm">
-                <i class="fas fa-plus"></i> Ajouter au Devis
+                <i data-lucide="plus"></i> Ajouter au Devis
               </button>
             </div>
           </div>
@@ -531,7 +531,7 @@ const TendersModule = {
               Fermer
             </button>
             <button onclick="TendersModule.saveBidWorkspace()" class="sari-btn px-5 py-2 bg-sari-blue text-white font-bold">
-              <i class="fas fa-save"></i> Enregistrer l'Offre Financière
+              <i data-lucide="save"></i> Enregistrer l'Offre Financière
             </button>
           </div>
         </div>
@@ -577,7 +577,7 @@ const TendersModule = {
           </td>
           <td class="p-2.5 text-right">
             <button onclick="this.closest('tr').remove(); TendersModule.recalculateBPU();" class="text-red-500 hover:text-red-700">
-              <i class="fas fa-trash"></i>
+              <i data-lucide="trash-2"></i>
             </button>
           </td>
         </tr>
@@ -611,7 +611,7 @@ const TendersModule = {
       <td class="p-2.5 font-mono-tech font-bold text-sari-blue bpu-unit-price">${i18n.formatCurrency(unitOffer)}</td>
       <td class="p-2.5"><input type="number" value="10" oninput="TendersModule.recalculateBPU()" class="bpu-qty w-16 px-2 py-1 border rounded text-center font-mono-tech font-bold" /></td>
       <td class="p-2.5 font-mono-tech font-extrabold text-sari-blue bpu-line-total">${i18n.formatCurrency(unitOffer * 10)}</td>
-      <td class="p-2.5 text-right"><button onclick="this.closest('tr').remove(); TendersModule.recalculateBPU();" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></td>
+      <td class="p-2.5 text-right"><button onclick="this.closest('tr').remove(); TendersModule.recalculateBPU();" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2"></i></button></td>
     `;
     tbody.appendChild(tr);
     this.recalculateBPU();
@@ -718,6 +718,5 @@ const TendersModule = {
 if (typeof window !== 'undefined') {
   window.TendersModule = TendersModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = TendersModule;
-}
+
+export {};

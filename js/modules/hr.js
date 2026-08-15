@@ -46,3 +46,5 @@ const HRModule = {
   async remove(store,id){if(await DialogManager.confirm('Supprimer cet enregistrement ?')){await sariDB.delete(store,id);this.render();}}, closeModal(){document.getElementById('hr-modal').innerHTML='';}
 };
 window.HRModule=HRModule;
+
+export {};

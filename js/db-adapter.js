@@ -180,6 +180,5 @@ const dbAdapter = new DBAdapter();
 if (typeof window !== 'undefined') {
   window.dbAdapter = dbAdapter;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { DBAdapter, dbAdapter };
-}
+
+export {};

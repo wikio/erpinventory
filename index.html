@@ -10,42 +10,9 @@
   <meta name="theme-color" content="#009CC5" />
   <link rel="icon" type="image/svg+xml" href="/assets/icon-192.svg" />
 
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Keep the application bootable when the Tailwind CDN is temporarily unavailable.
-    window.tailwind = window.tailwind || {};
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            'sari-blue': '#009CC5',
-            'sari-blue-dark': '#007D9E',
-            'sari-lime': '#C6DA34',
-            'sari-lime-dark': '#9BB024',
-            'sari-amber': '#EBB51A',
-            'sari-amber-dark': '#C69512',
-            'sari-dark-bg': '#030712',
-            'sari-dark-card': '#0F172A'
-          }
-        }
-      }
-    };
-  </script>
-
-  <!-- Lucide Icons CDN (Apple-Style UI) -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Chart.js + SheetJS (Excel import; CSV/grid remain fully offline) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <!-- FontAwesome Icons CDN (for compatibility fallback) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
-  <!-- Custom Stylesheet (4 Native Themes + Full-Width Apple Layout) -->
-  <link rel="stylesheet" href="/css/styles.css" />
+  <!-- Compiled Tailwind, self-hosted fonts/icons and application bundles are
+       emitted by Vite from this single ES-module entry. No runtime CDN. -->
+  <script type="module" src="/src/main.ts"></script>
 </head>
 
 <body class="theme-classic theme-light antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
@@ -354,63 +321,6 @@
   <!-- Global Modal Root Container -->
   <div id="sari-modal-root"></div>
 
-  <!-- JavaScript App Scripts -->
-  <script src="/js/config.js"></script>
-  <script src="/js/countries-data.js"></script>
-  <script src="/js/db.js"></script>
-  <script src="/js/reference-codes.js"></script>
-  <script src="/js/document-security.js"></script>
-  <script src="/js/document-translation.js"></script>
-  <script src="/js/db-adapter.js"></script>
-  <script src="/js/ui-copy.js"></script>
-  <script src="/js/module-translations.js"></script>
-  <script src="/js/i18n.js"></script>
-  <script src="/js/translation-overlay.js"></script>
-  <script src="/js/translation-coverage.js"></script>
-  <script src="/js/option-catalog.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/sync.js"></script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/table-sort.js"></script>
-  <script src="/js/dialogs.js"></script>
-  <script src="/js/validation.js"></script>
-  <script src="/js/managed-autocomplete.js"></script>
-  <script src="/js/image-dropzone.js"></script>
-  <script src="/js/rich-editor.js"></script>
-  <script src="/js/template-engine.js"></script>
-  <script src="/js/template-designer.js"></script>
-  <script src="/js/document-regression.js"></script>
-  <script src="/js/catalog-picker.js"></script>
-  <script src="/js/partner-360.js"></script>
-  <script src="/js/document-link-picker.js"></script>
-  <script src="/js/reference-translations.js"></script>
-  <script src="/js/documents.js"></script>
-  <script src="/js/charts.js"></script>
-
-  <script src="/js/modules/dashboard.js"></script>
-  <script src="/js/modules/inventory.js"></script>
-  <script src="/js/modules/suppliers.js"></script>
-  <script src="/js/modules/import-export.js"></script>
-  <script src="/js/modules/tenders.js"></script>
-  <script src="/js/modules/sales.js"></script>
-  <script src="/js/modules/customers.js"></script>
-  <script src="/js/modules/reports.js"></script>
-  <script src="/js/modules/translations.js"></script>
-  <script src="/js/modules/audit.js"></script>
-  <script src="/js/modules/settings.js"></script>
-  <script src="/js/modules/hr.js"></script>
-  <script src="/js/modules/tasks.js"></script>
-  <script src="/js/modules/portal.js"></script>
-  <script src="/js/modules/purchases.js"></script>
-  <script src="/js/modules/ged.js"></script>
-  <script src="/js/modules/taxes.js"></script>
-  <script src="/js/modules/master-data.js"></script>
-  <script src="/js/modules/inventory-ops.js"></script>
-  <script src="/js/modules/bulk-import.js"></script>
-  <script src="/js/modules/api.js"></script>
-  <script src="/js/modules/document-detail.js"></script>
-  <script src="/js/modules/bank-account-detail.js"></script>
-  
-  <script src="/js/app.js"></script>
+  <!-- Application code is loaded by the hashed Vite entry in <head>. -->
 </body>
 </html>

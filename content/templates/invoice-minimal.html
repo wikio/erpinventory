@@ -1,0 +1,14 @@
+<article class="sari-document">
+  <header class="document-print-header">
+    <h1>{{company.name}}</h1>
+    <strong>{{document.title}} — {{document.reference}}</strong>
+  </header>
+  <section>
+    <h2>{{partner.name}}</h2>
+    <p>{{partner.details}}</p>
+  </section>
+  {{lineItemsVatTable}}
+  {{vatBreakdownTable}}
+  {{totalsTable}}
+  <footer class="document-print-footer">{{verificationUrl}}</footer>
+</article>

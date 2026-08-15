@@ -5,3 +5,5 @@ const CatalogPicker = {
   filter(query){const result=document.getElementById('catalog-panel-results');if(!result)return;const rows=this.products.filter(p=>SariUtils.matchesAdvancedSearch(p,query,['referenceCode','sku','barcode','name','extendedDescription','category']));result.innerHTML=rows.map(p=>`<button onclick="CatalogPicker.choose('${p.id}')" class="catalog-result"><div><b>${SariUtils.escapeHtml(p.name)}</b><small>${SariUtils.escapeHtml(p.referenceCode||p.sku)} • ${SariUtils.escapeHtml(p.sku)}</small></div><span>${i18n.formatCurrency(p.sellingPrice)}</span></button>`).join('')||'<p class="p-8 text-center text-slate-400">Aucun produit</p>';},
   choose(id){const p=this.products.find(x=>x.id===id);if(p&&this.callback)this.callback(p);this.close();},close(){document.getElementById('catalog-picker-root')?.remove();this.callback=null;}
 };window.CatalogPicker=CatalogPicker;
+
+export {};

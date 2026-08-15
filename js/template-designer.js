@@ -91,3 +91,5 @@ const TemplateDesigner = {
   async saveAsHtml(){if(this.htmlMode==='visual')this.syncHtmlSource();const name=document.getElementById('html-template-name').value.trim()||this.template.name||'Modèle HTML';const clone=SariUtils.deepClone(this.template);clone.id=`html-tpl-${crypto.randomUUID()}`;clone.name=name;clone.isDefault=false;clone.referenceCode='';clone.versions=[];clone.templateMode='html';clone.htmlContent=TemplateEngine.sanitize(document.getElementById('html-template-source').value);clone.createdAt=new Date().toISOString();clone.updatedAt=new Date().toISOString();await sariDB.save('documentTemplates',clone);app.showToast(`Copie indépendante « ${name} » enregistrée.`,'success');this.template=clone;const nameInput=document.getElementById('html-template-name');if(nameInput)nameInput.value=clone.name;if(app.activeModule==='settings')SettingsModule.render();}
 };
 window.TemplateDesigner=TemplateDesigner;
+
+export {};

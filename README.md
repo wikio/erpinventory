@@ -10,7 +10,7 @@
 ## 🌟 Key Apple-Style Visual & System Highlights
 
 1. **Apple-Style Full-Width Layout (100% Large) + Lucide Icons**:
-   - Sleek frosted glass (`backdrop-blur-xl`) sidebar navigation menu integrated with **Lucide Icons** (`https://unpkg.com/lucide@latest`).
+   - Sleek frosted glass (`backdrop-blur-xl`) sidebar navigation with **locally bundled Lucide icons** (no runtime CDN).
    - Unconstrained full-width (`100%`) viewport content area so tables, KPI cards, and Chart.js analytics stretch across large screens.
 2. **4 Native Themes (Apple Style)**:
    - *Sari Classic (Default)*: Official palette (`#009CC5`, `#C6DA34`, `#EBB51A`, `#FFFFFF`).
@@ -54,9 +54,18 @@ Version 16 adds configurable barcode/QR product labels, translated sales/purchas
 
 ## 🗄️ Optional External Database Backend
 
-The browser never connects to a database protocol directly. Configure MySQL, PostgreSQL, or MongoDB from **Settings → Database**; credentials are sent to the Node server, encrypted with AES-256-GCM under `.runtime/`, and never returned to or stored by IndexedDB. Without a configured backend, the ERP remains fully offline-first. With one active, IndexedDB remains the local cache/sync queue.
+The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.
 
-Install server drivers with `npm install`. For production, set a stable `SARI_CONFIG_KEY` environment secret before saving a connection. The migration tool performs idempotent upserts keyed by store + numeric record ID and reports progress/failures per store.
+External persistence now uses long-lived connection pools, prepared statements and one normalized table per entity. Migration batches are transactional, idempotent upserts keyed by `numericId`, preserve offline IDs in `legacy_uid`, and report failures per record. Sales and purchase lines are written to normalized child tables in the same transaction. Reporting queries use an optional read-replica pool.
+
+Database passwords are **never written to `.runtime/`**. Set `SARI_DB_PASSWORD` in the server environment; optional connection metadata entered under **Settings → Database** contains no secret. Initialize/upgrade MySQL with:
+
+```bash
+SARI_DB_HOST=localhost SARI_DB_NAME=sari_erp_prod \
+SARI_DB_USER=sari_admin SARI_DB_PASSWORD='...' npm run db:migrate
+```
+
+Replica variables use the `SARI_DB_REPLICA_` prefix (`HOST`, `PORT`, `NAME`, `USER`, `PASSWORD`).
 
 ## 🏥 Core Functional Modules
 
@@ -102,14 +111,17 @@ Demo accounts use the password **`Sari@2026`**:
 
 These accounts are for demonstration. Replace the built-in repository in `server.js` with your production user database and rotate all credentials before deployment.
 
-## 🚀 Quick Start (Node.js Server included)
-
-In the project directory, start the lightweight zero-dependency server:
+## 🚀 Build and run
 
 ```bash
-npm start
-# or directly:
-node server.js
+npm install
+npm run dev       # Vite on :3000 + API server on :3001
+npm test
+npm run typecheck
+npm run test:e2e  # Playwright desktop + mobile responsive checks
+npm start         # production build, then the API/static server on :3000
 ```
 
-The application will start listening on `http://0.0.0.0:3000` and can be accessed from any browser or live preview environment.
+The production build compiles Tailwind, self-hosts/subsets fonts, emits hashed core and lazy domain chunks, and generates the Workbox service worker. The server adds ETags, immutable caching for hashed assets, revalidation for the app shell, and Brotli/gzip compression.
+
+Portable settings, templates and translations can be mounted with `SARI_CONTENT_DIR`; see [`docs/portable-content.md`](docs/portable-content.md). Architecture decisions and target Next.js/NestJS boundaries are documented in [`docs/architecture.md`](docs/architecture.md), and Tauri/Capacitor commands in [`docs/packaging.md`](docs/packaging.md).

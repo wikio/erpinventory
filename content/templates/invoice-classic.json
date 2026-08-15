@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "file-invoice-classic",
+  "name": "SARI Classic Invoice",
+  "type": "invoice",
+  "templateMode": "designer",
+  "paperFormat": "A4",
+  "accent": "#009CC5",
+  "elements": [
+    { "id": "reference", "kind": "field", "field": "documentNumber", "x": 35, "y": 35, "w": 260, "h": 45 },
+    { "id": "customer", "kind": "field", "field": "customerName", "x": 35, "y": 100, "w": 300, "h": 50 },
+    { "id": "items", "kind": "field", "field": "lineItems", "x": 35, "y": 180, "w": 720, "h": 420 },
+    { "id": "totals", "kind": "field", "field": "totals", "x": 460, "y": 630, "w": 295, "h": 100 }
+  ]
+}

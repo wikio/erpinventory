@@ -19,3 +19,5 @@ const DialogManager = {
   form(title, fields, options = {}) { return this.open({ title, fields, message: options.message || '', confirmText: options.confirmText || 'Enregistrer', danger: options.danger || false }); }
 };
 window.DialogManager = DialogManager;
+
+export {};

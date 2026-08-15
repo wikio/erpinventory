@@ -16,3 +16,5 @@ const EmployeePortalModule = {
   async newConversation(){const others=this.state.employees.filter(e=>e.userId&&e.userId!==auth.currentUser.id);const v=await DialogManager.form('Nouvelle conversation',[{name:'targetUserId',label:'Collaborateur',type:'select',options:others.map(e=>({value:e.userId,label:`${e.firstName} ${e.lastName}`}))},{name:'title',label:'Titre',value:'Discussion interne',required:true}]);if(!v)return;const conv={id:`conv-${crypto.randomUUID()}`,title:v.title,participantUserIds:[auth.currentUser.id,v.targetUserId],updatedAt:new Date().toISOString()};await sariDB.save('conversations',conv);this.state.activeConversation=conv.id;await this.render();}
 };
 window.EmployeePortalModule=EmployeePortalModule;
+
+export {};

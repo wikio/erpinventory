@@ -34,7 +34,7 @@ const ReportsModule = {
   renderView(container) {
     const tab = this.state.activeTab;
 
-    const tabs=[['inventory','fa-box','Stock & Péremptions'],['sales','fa-chart-line','Ventes & Créances'],['costs','fa-coins','Coûts'],['imports','fa-ship','Importations'],['tenders','fa-file-contract','Appels d’Offres'],['finance','fa-balance-scale','Rentabilité & Finances'],['partners','fa-users','Clients & Fournisseurs']];
+    const tabs=[['inventory','package','Stock & Péremptions'],['sales','chart-line','Ventes & Créances'],['costs','coins','Coûts'],['imports','ship','Importations'],['tenders','file-check','Appels d’Offres'],['finance','scale','Rentabilité & Finances'],['partners','users','Clients & Fournisseurs']];
     container.innerHTML = `
       <div class="space-y-6">
         <!-- Header -->
@@ -51,17 +51,17 @@ const ReportsModule = {
             <button onclick="ReportsModule.openCustomizeReport()" class="sari-btn px-3 py-2 bg-slate-800 text-white text-sm"><i data-lucide="settings-2" class="w-4 h-4"></i> ${i18n.t('customizeReport','Personnaliser le rapport')}</button>
             <button onclick="ReportsModule.openFullReport()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-sm"><i data-lucide="scan-eye" class="w-4 h-4"></i> ${i18n.t('detailedReport','Rapport détaillé')}</button>
             <button onclick="ReportsModule.exportCurrentCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-csv"></i> ${i18n.t('exportCSV','Exporter CSV')}
+              <i data-lucide="file-spreadsheet"></i> ${i18n.t('exportCSV','Exporter CSV')}
             </button>
             <button onclick="ReportsModule.printReport()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold text-sm">
-              <i class="fas fa-print"></i> ${i18n.t('printPDF','Imprimer / PDF')}
+              <i data-lucide="printer"></i> ${i18n.t('printPDF','Imprimer / PDF')}
             </button>
           </div>
         </div>
 
         <!-- Navigation Tabs -->
         <div class="sari-tile p-2 flex flex-wrap gap-2 border-b-2 border-sari-blue">
-          ${tabs.map(([id,icon,label])=>`<button onclick="ReportsModule.setTab('${id}')" class="px-4 py-2 rounded text-xs font-bold transition ${tab === id ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}"><i class="fas ${icon} mr-1"></i> ${i18n.t('reportTab_'+id,label)}</button>`).join('')}
+          ${tabs.map(([id,icon,label])=>`<button onclick="ReportsModule.setTab('${id}')" class="px-4 py-2 rounded text-xs font-bold transition ${tab === id ? 'bg-sari-blue text-white shadow' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="w-3.5 h-3.5 mr-1"></i> ${i18n.t('reportTab_'+id,label)}</button>`).join('')}
         </div>
         <!-- Tab Body -->
         <div id="report-tab-body">
@@ -366,6 +366,5 @@ const ReportsModule = {
 if (typeof window !== 'undefined') {
   window.ReportsModule = ReportsModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ReportsModule;
-}
+
+export {};

@@ -9,3 +9,5 @@ const RichTextEditor = {
   sanitize(html='') { const template=document.createElement('template');template.innerHTML=String(html);template.content.querySelectorAll('script,style,iframe,object,embed').forEach(el=>el.remove());template.content.querySelectorAll('*').forEach(el=>[...el.attributes].forEach(a=>{if(a.name.startsWith('on')||/javascript:/i.test(a.value))el.removeAttribute(a.name);}));return template.innerHTML; }
 };
 window.RichTextEditor=RichTextEditor;
+
+export {};
