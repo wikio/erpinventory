@@ -38,7 +38,9 @@ const FOREIGN_TABLES = Object.freeze({
 
 const SOURCE_ALIASES = Object.freeze({
   user_name: ['user', 'userName'], user_role: ['role', 'userRole'], is_read: ['isRead'],
-  legacy_uid: ['id'], option_value: ['value'], sort_order: ['order', 'sortOrder'], name_json: ['name'], label_json: ['label'], items_json: ['items'],
+  legacy_uid: ['id'], option_value: ['value'], sort_order: ['order', 'sortOrder'], name_json: ['name', 'nameI18n', 'label'], label_json: ['label'], items_json: ['items'],
+  document_code: ['documentCode', 'code'], period_key: ['periodKey'], counter_value: ['counterValue', 'value'],
+  discount_value: ['discountValue', 'value'], effective_date: ['effectiveDate', 'validFrom'], expiration_date: ['expirationDate', 'validTo'],
   lines_json: ['lines'], documents_json: ['documents'], objectives_json: ['objectives'],
   prerequisites_json: ['prerequisites'], custom_translations_json: ['customTranslations'],
   sub_type_options_json: ['subTypeOptions'], participant_user_ids_json: ['participantUserIds'],
@@ -62,6 +64,30 @@ function sourceValue(record, column) {
     if (record[base] !== undefined) return record[base];
   }
   return undefined;
+}
+
+function relationalSourceValue(table, record, column) {
+  let value = sourceValue(record, column);
+  if (table === 'sequence_counters') {
+    if (column === 'document_code') value = record.documentCode || record.code || String(record.id || '').split(':')[0];
+    if (column === 'period_key') value = record.periodKey || String(record.id || '').split(':').slice(1).join(':') || 'all';
+    if (column === 'counter_value') value = Number(record.counterValue ?? record.value ?? 0);
+  }
+  if (table === 'coupons') {
+    if (column === 'name_json' && (value === undefined || typeof value === 'string')) {
+      const label = value || record.label || record.code || 'Coupon'; value = { fr: label, ar: label, en: label };
+    }
+    if (column === 'discount_expression' && value === undefined) value = record.discountExpression || (record.discountType === 'percentage' ? `${record.value || 0}%` : String(record.value || 0));
+    if (column === 'discount_value') value = Number(record.discountValue ?? record.value ?? 0);
+    if (column === 'effective_date') value = record.effectiveDate || record.validFrom || new Date().toISOString().slice(0,10);
+    if (column === 'expiration_date') value = record.expirationDate || record.validTo || '2099-12-31';
+  }
+  if (table === 'roles') {
+    if (column === 'code') value = record.code || record.id;
+    if (column === 'name') value = record.name || record.code || record.id;
+    if (column === 'permissions_json') value = record.permissions || [];
+  }
+  return value;
 }
 
 function databaseValue(value, column) {
@@ -352,7 +378,7 @@ class ExternalDatabaseManager {
     const columns = await this.pgColumns(client, target);
     const searchable = ['legacy_uid', 'reference_code', 'username', 'code'].filter(name => columns.some(column => column.name === name));
     if (!searchable.length) return null;
-    const values = searchable.map(() => String(value));
+    const values = searchable.map(name => target==='users'&&name==='username'?String(value).replace(/^usr-/,''):String(value));
     const query = `SELECT id FROM "${target}" WHERE ${searchable.map((name,index) => `"${name}" = $${index+1}`).join(' OR ')} LIMIT 1`;
     const result = await client.query(query, values);
     return result.rows[0]?.id ?? null;
@@ -364,7 +390,7 @@ class ExternalDatabaseManager {
       let value;
       if (column.name === 'id') value = Number(record.numericId);
       else if (column.name === 'payload_json') value = record;
-      else value = sourceValue(record, column.name);
+      else value = relationalSourceValue(table, record, column.name);
       if (value === undefined || column.name === 'updated_at') continue;
       if (column.name.endsWith('_id')) value = await this.resolvePostgresForeignId(client, column.name, value);
       value = databaseValue(value, column);
@@ -386,7 +412,7 @@ class ExternalDatabaseManager {
     if (!searchable.length) return null;
     const [rows] = await connection.execute(
       `SELECT id FROM \`${target}\` WHERE ${searchable.map((name) => `\`${name}\` = ?`).join(' OR ')} LIMIT 1`,
-      searchable.map(() => String(value))
+      searchable.map(name => target==='users'&&name==='username'?String(value).replace(/^usr-/,''):String(value))
     );
     return rows[0]?.id ?? null;
   }
@@ -398,7 +424,7 @@ class ExternalDatabaseManager {
     for (const column of available) {
       let value;
       if (column.name === 'id') value = Number(record.numericId);
-      else value = sourceValue(record, column.name);
+      else value = relationalSourceValue(table, record, column.name);
       if (value === undefined || column.name === 'updated_at') continue;
       if (column.name.endsWith('_id')) value = await this.resolveMySqlForeignId(connection, column.name, value);
       value = databaseValue(value, column);
@@ -531,14 +557,16 @@ class ExternalDatabaseManager {
     const config=this.effectiveConfig(),target=`${config.host}:${config.port}/${config.database}`;
     this.log('info','migration.preflight',`Prévalidation ${config.type} vers ${target}.`,{type:config.type,target,mappings:Object.keys(STORE_TABLES).length});
     await this.test({ ...config, password: config.password, active: config.active });
-    let missing=[];
+    let missing=[],missingMigrations=[];
     if(config.type==='mysql'){
-      const placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await this.getMySqlPool(false).execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
+      const pool=this.getMySqlPool(false),placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await pool.execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
       const existing=new Set(rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
+      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql'];
+      try{const[migrations]=await pool.execute('SELECT name FROM schema_migrations');const applied=new Set(migrations.map(row=>row.name));missingMigrations=required.filter(name=>!applied.has(name));}catch(_){missingMigrations=required;}
     }else if(config.type==='postgresql'){
       const result=await this.getPgPool(false).query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema()');const existing=new Set(result.rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
     }
-    const ready=config.type!=='mysql'||missing.length===0,result={ready,type:config.type,target,mappedStores:Object.keys(STORE_TABLES).length,missingTables:missing,autoCreateCollections:config.type==='mongodb',autoCreateEntityTables:config.type==='postgresql',message:ready?'Cible prête pour la migration.':`${missing.length} table(s) MySQL manquante(s). Exécutez npm run db:migrate.`};
+    const ready=config.type!=='mysql'||(missing.length===0&&missingMigrations.length===0),result={ready,type:config.type,target,mappedStores:Object.keys(STORE_TABLES).length,missingTables:missing,missingMigrations,autoCreateCollections:config.type==='mongodb',autoCreateEntityTables:config.type==='postgresql',message:ready?'Cible prête pour la migration.':`${missing.length} table(s) et ${missingMigrations.length} migration(s) MySQL manquante(s). Exécutez npm run db:migrate, puis prévalidez à nouveau.`};
     this.log(ready?'success':'warning','migration.preflight.result',result.message,result);
     return result;
   }
@@ -546,6 +574,8 @@ class ExternalDatabaseManager {
   async migrateBatch(storeName, records) {
     if (!this.publicConfig().active) throw Error('External database is not active');
     if (!Array.isArray(records)) throw Error('records must be an array');
+    const ids=records.map(record=>Number(record.numericId)),uniqueIds=new Set(ids);
+    if(ids.some(id=>!Number.isInteger(id)||id<1)||uniqueIds.size!==ids.length){const error=new Error(`Le lot ${storeName} contient des numericId absents ou dupliqués. Rechargez l’application pour réparer les identifiants locaux, puis relancez la migration.`);error.code='DUPLICATE_NUMERIC_ID';throw error;}
     const startedAt = new Date(), table=this.tableFor(storeName),type=this.effectiveConfig().type;
     const result = { runId: `migration-${startedAt.getTime()}-${storeName}`, store: storeName, table, type, attempted: records.length, migrated: 0, verified: 0, failed: [], migratedIds: [], startedAt: startedAt.toISOString() };
     this.log('info','migration.batch.start',`Migration de ${records.length} enregistrement(s) ${storeName} vers ${type}.${table}.`,{runId:result.runId,store:storeName,table,type,attempted:records.length});
@@ -598,4 +628,4 @@ class ExternalDatabaseManager {
   }
 }
 
-module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, databaseValue, connectionError, withTimeout };
+module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, relationalSourceValue, databaseValue, connectionError, withTimeout };

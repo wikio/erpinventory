@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, connectionError, withTimeout } = require('../external-db.js');
+const { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, relationalSourceValue, connectionError, withTimeout } = require('../external-db.js');
 const temporaryRoots: string[] = [];
 
 afterEach(() => {
@@ -29,6 +29,18 @@ describe('normalized external repository', () => {
     expect(sourceValue(row, 'name_json')).toEqual({ fr: 'Nom' });
     expect(sourceValue({ value:'inspection-est', order:3 }, 'option_value')).toBe('inspection-est');
     expect(sourceValue({ value:'inspection-est', order:3 }, 'sort_order')).toBe(3);
+  });
+
+  it('normalizes coupons, sequence counters and roles for relational constraints', () => {
+    const coupon={id:'coupon-welcome',code:'SARI10',label:'Remise partenaire',discountType:'percentage',value:10,validFrom:'2026-01-01',validTo:'2026-12-31'};
+    expect(relationalSourceValue('coupons',coupon,'name_json')).toEqual({fr:'Remise partenaire',ar:'Remise partenaire',en:'Remise partenaire'});
+    expect(relationalSourceValue('coupons',coupon,'discount_expression')).toBe('10%');
+    expect(relationalSourceValue('coupons',coupon,'effective_date')).toBe('2026-01-01');
+    const counter={id:'CLI:preview:01:::',code:'CLI',value:4};
+    expect(relationalSourceValue('sequence_counters',counter,'document_code')).toBe('CLI');
+    expect(relationalSourceValue('sequence_counters',counter,'period_key')).toBe('preview:01:::');
+    expect(relationalSourceValue('sequence_counters',counter,'counter_value')).toBe(4);
+    expect(relationalSourceValue('roles',{id:'admin',name:'Administrateur',permissions:['*']},'code')).toBe('admin');
   });
 
   it('covers every external IndexedDB entity mapping', () => {

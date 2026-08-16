@@ -93,7 +93,7 @@ npm run db:validate -- --type=postgresql
 npm run db:validate -- --type=mongodb
 ```
 
-MySQL must first have the canonical schema applied with `npm run db:migrate`. PostgreSQL creates a safe per-entity JSONB table when a mapped table does not yet exist; MongoDB creates mapped collections on first upsert.
+MySQL must first have the canonical schema applied with `npm run db:migrate`. PostgreSQL creates a safe per-entity JSONB table when a mapped table does not yet exist; MongoDB creates mapped collections on first upsert. Migration `004_migration_reference_integrity.sql` supplies inactive bridge identities for message foreign keys; the browser repairs missing/duplicate `numericId` values before every full migration and normalizes coupons plus sequence counters for relational constraints.
 
 ## 🏥 Core Functional Modules
 
