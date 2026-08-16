@@ -14,7 +14,9 @@ From the project directory, stop the Node server and run:
 npm run auth:reset-admin
 ```
 
-The command reactivates the Administrator, generates a strong temporary password, prints it once, and persists only its salt/hash. It preserves every other user, reset request and authentication setting. To choose a password explicitly, set `SARI_ADMIN_RESET_PASSWORD` only for the recovery process (minimum 10 characters), run the command, then remove the environment variable.
+The command reactivates the Administrator, generates a strong temporary password, verifies it locally, prints it once, and persists only its salt/hash. It preserves every other user, reset request and authentication setting. The running API reloads the changed vault on the next login attempt, although stopping/restarting the server remains recommended. To choose a password explicitly, set `SARI_ADMIN_RESET_PASSWORD` only for the recovery process (minimum 10 characters), run the command, then remove the environment variable.
+
+The Administrator is not a demo identity and therefore no longer appears among the demo-account shortcuts. After a recovery, type `admin` and the newly generated password manually; selecting a cached legacy “Admin” demo shortcut would refill the old `Sari@2026` value.
 
 Deleting `.runtime/auth-vault.json` is an emergency factory reset only: the next server start recreates all built-in identities from `secure/auth-bootstrap.json`, but also discards user-account changes, activation/reset tokens and the reset-request queue.
 

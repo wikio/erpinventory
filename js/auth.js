@@ -139,7 +139,7 @@ class AuthController {
     const userInput = document.getElementById('login-username');
     const passwordInput = document.getElementById('login-password');
     if (userInput) userInput.value = username;
-    if (passwordInput) passwordInput.value = 'Sari@2026';
+    if (passwordInput) passwordInput.value = username === 'admin' ? '' : 'Sari@2026';
     document.getElementById('captcha-answer')?.focus();
   }
 

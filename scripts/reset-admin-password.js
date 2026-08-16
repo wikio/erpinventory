@@ -16,6 +16,7 @@ function resetAdministrator(root, requestedPassword = '') {
   stored.passwordResetAt = new Date().toISOString();
   stored.passwordResetSource = 'local-recovery-script';
   vault.persist();
+  if (!vault.verify(user.username, password)) throw Error('La vérification locale du nouveau mot de passe a échoué.');
   return { user, password, generated: !supplied, file: vault.file };
 }
 
@@ -34,7 +35,8 @@ if (require.main === module) {
       console.log('Le mot de passe fourni via SARI_ADMIN_RESET_PASSWORD a été appliqué.');
     }
     console.log(`Coffre mis à jour : ${path.relative(root, result.file)}`);
-    console.log('Redémarrez ensuite le serveur avec : npm run dev\n');
+    console.log('Vérification locale du nouveau mot de passe : OK');
+    console.log('Le serveur recharge automatiquement le coffre à la prochaine connexion. Un redémarrage reste recommandé.\n');
   } catch (error) {
     console.error(`\nRéinitialisation impossible : ${error.message}\n`);
     process.exitCode = 1;
