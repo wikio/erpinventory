@@ -67,10 +67,34 @@ function sourceValue(record, column) {
 function databaseValue(value, column) {
   if (value === undefined) return undefined;
   if (value === null || value === '') return value === '' ? null : value;
-  if (column.dataType === 'json' || column.name.endsWith('_json')) return JSON.stringify(value);
+  if (['json','jsonb'].includes(column.dataType) || column.name.endsWith('_json')) return JSON.stringify(value);
   if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'object') return JSON.stringify(value);
   return value;
+}
+
+function connectionError(error, config = {}) {
+  const code = String(error?.code || error?.name || 'CONNECTION_ERROR');
+  const messages = {
+    ENOTFOUND: 'Hôte introuvable. Vérifiez le nom DNS ou l’adresse du serveur.',
+    EAI_AGAIN: 'Résolution DNS temporairement indisponible.',
+    ECONNREFUSED: 'Connexion refusée. Vérifiez le port, le pare-feu et que le service est démarré.',
+    ETIMEDOUT: 'Délai de connexion dépassé. Vérifiez le réseau, le pare-feu et la liste blanche.',
+    ESOCKETTIMEDOUT: 'Délai de connexion dépassé.',
+    ER_ACCESS_DENIED_ERROR: 'Identifiant ou mot de passe MySQL incorrect.',
+    ER_BAD_DB_ERROR: 'La base MySQL demandée n’existe pas.',
+    '28P01': 'Identifiant ou mot de passe PostgreSQL incorrect.',
+    '3D000': 'La base PostgreSQL demandée n’existe pas.',
+    MongoServerSelectionError: 'Aucun serveur MongoDB joignable dans le délai imparti.',
+    MongoServerError: 'MongoDB a refusé la connexion ou l’opération.'
+  };
+  const detail = messages[code] || error?.message || 'Échec de connexion inconnu.';
+  const wrapped = new Error(`${detail}${error?.message && detail !== error.message ? ` Détail: ${error.message}` : ''}`);
+  wrapped.code = code;
+  wrapped.driver = config.type;
+  wrapped.target = config.host ? `${config.host}:${config.port}` : '';
+  wrapped.hint = messages[code] || '';
+  return wrapped;
 }
 
 class ExternalDatabaseManager {
@@ -83,7 +107,20 @@ class ExternalDatabaseManager {
     this.pgPools = new Map();
     this.mongoClient = null;
     this.columns = new Map();
+    this.sessionSecrets = new Map();
+    this.diagnostics = [];
+    this.diagnosticSequence = 0;
   }
+
+  log(level, event, message, details = {}) {
+    const entry = { id: ++this.diagnosticSequence, timestamp: new Date().toISOString(), level, event, message, details };
+    this.diagnostics.push(entry);
+    if (this.diagnostics.length > 500) this.diagnostics.splice(0, this.diagnostics.length - 500);
+    return entry;
+  }
+
+  diagnosticLog(since = 0) { return this.diagnostics.filter(entry => entry.id > Number(since || 0)); }
+  clearDiagnostics() { this.diagnostics.length = 0; return { cleared: true }; }
 
   load() {
     try {
@@ -118,15 +155,15 @@ class ExternalDatabaseManager {
       port: Number(input.port || process.env.SARI_DB_PORT || current.port || ports[type]),
       database: String(input.database || process.env.SARI_DB_NAME || current.database || '').trim(),
       username: String(input.username || process.env.SARI_DB_USER || current.username || '').trim(),
-      password: this.secret('SARI_DB_PASSWORD', transientSecret ? input.password : ''),
+      password: this.secret('SARI_DB_PASSWORD', (transientSecret ? input.password : '') || this.sessionSecrets.get(type) || ''),
       ssl: input.ssl === undefined ? Boolean(current.ssl || process.env.SARI_DB_SSL === 'true') : Boolean(input.ssl),
       active: input.active === undefined ? Boolean(current.active) : Boolean(input.active),
       poolSize: Number(process.env.SARI_DB_POOL_SIZE || input.poolSize || current.poolSize || 10),
       updatedAt: new Date().toISOString()
     };
     if (!config.host || !config.database) throw Error('Database host and name are required');
-    if (config.active && !config.password && type !== 'mongodb') {
-      throw Error('Set SARI_DB_PASSWORD in the server environment before activating external persistence. Secrets are never stored in .runtime.');
+    if (config.active && !config.password && (type !== 'mongodb' || config.username)) {
+      throw Error('Un mot de passe est requis pour activer cette connexion. Saisissez-le ou définissez SARI_DB_PASSWORD; il ne sera jamais écrit dans .runtime.');
     }
     return config;
   }
@@ -138,43 +175,57 @@ class ExternalDatabaseManager {
       type: c.type || process.env.SARI_DB_TYPE || 'indexeddb',
       host: c.host || process.env.SARI_DB_HOST || '', port: c.port || process.env.SARI_DB_PORT || '',
       database: c.database || process.env.SARI_DB_NAME || '', username: c.username || process.env.SARI_DB_USER || '',
+      ssl: Boolean(c.ssl || process.env.SARI_DB_SSL === 'true'), poolSize: Number(c.poolSize || process.env.SARI_DB_POOL_SIZE || 10),
       active: Boolean(c.active || process.env.SARI_DB_ACTIVE === 'true'),
-      hasPassword: Boolean(process.env.SARI_DB_PASSWORD), secretsSource: 'environment',
+      hasPassword: Boolean(process.env.SARI_DB_PASSWORD || this.sessionSecrets.get(c.type)),
+      secretsSource: process.env.SARI_DB_PASSWORD ? 'environment' : this.sessionSecrets.get(c.type) ? 'server-memory' : 'none',
       pooled: true, normalized: true,
       readReplicaConfigured: Boolean(process.env.SARI_DB_REPLICA_HOST), updatedAt: c.updatedAt || null
     };
   }
 
-  async test(input) {
+  async test(input = {}) {
     const config = this.effectiveConfig(input, { transientSecret: true });
-    const started = Date.now();
-    if (config.type === 'mysql') {
-      const mysql = require('mysql2/promise');
-      const connection = await mysql.createConnection(this.mysqlOptions(config));
-      try { await connection.execute('SELECT 1'); } finally { await connection.end(); }
-    } else if (config.type === 'postgresql') {
-      const { Client } = require('pg');
-      const connection = new Client(this.pgOptions(config));
-      await connection.connect();
-      try { await connection.query('SELECT $1::int AS healthy', [1]); } finally { await connection.end(); }
-    } else {
-      const { MongoClient } = require('mongodb');
-      const client = new MongoClient(this.mongoUri(config), { serverSelectionTimeoutMS: 7000 });
-      await client.connect();
-      try { await client.db(config.database).command({ ping: 1 }); } finally { await client.close(); }
+    const started = Date.now(), target = `${config.host}:${config.port}/${config.database}`;
+    this.log('info', 'connection.attempt', `Test ${config.type} vers ${target}`, { type: config.type, host: config.host, port: config.port, database: config.database, username: config.username, ssl: config.ssl });
+    try {
+      let serverVersion = '';
+      if (config.type === 'mysql') {
+        this.log('info', 'connection.step', 'Chargement du pilote MySQL et ouverture du socket.', { target });
+        const mysql = require('mysql2/promise'), connection = await mysql.createConnection(this.mysqlOptions(config));
+        try { const [rows] = await connection.execute('SELECT VERSION() AS version, DATABASE() AS databaseName'); serverVersion = rows[0]?.version || ''; }
+        finally { await connection.end(); }
+      } else if (config.type === 'postgresql') {
+        this.log('info', 'connection.step', 'Chargement du pilote PostgreSQL et négociation de session.', { target });
+        const { Client } = require('pg'), connection = new Client(this.pgOptions(config));
+        await connection.connect();
+        try { const result = await connection.query('SELECT version() AS version, current_database() AS "databaseName"'); serverVersion = result.rows[0]?.version || ''; }
+        finally { await connection.end(); }
+      } else {
+        this.log('info', 'connection.step', 'Sélection du serveur MongoDB et commande ping.', { target });
+        const { MongoClient } = require('mongodb'), client = new MongoClient(this.mongoUri(config), { serverSelectionTimeoutMS: 7000, connectTimeoutMS: 7000 });
+        await client.connect();
+        try { await client.db(config.database).command({ ping: 1 }); try { const build = await client.db(config.database).admin().command({ buildInfo: 1 }); serverVersion = build.version || ''; } catch (_) { serverVersion = 'MongoDB (version non autorisée)'; } }
+        finally { await client.close(); }
+      }
+      const result = { success: true, type: config.type, target, database: config.database, latencyMs: Date.now() - started, message: `Connexion ${config.type} réussie`, serverVersion, pooled: true };
+      this.log('success', 'connection.success', result.message, { target, latencyMs: result.latencyMs, serverVersion });
+      return result;
+    } catch (error) {
+      const normalized = connectionError(error, config);
+      this.log('error', 'connection.failure', normalized.message, { type: config.type, target, code: normalized.code, hint: normalized.hint, latencyMs: Date.now() - started });
+      throw normalized;
     }
-    return { success: true, latencyMs: Date.now() - started, message: `Connexion ${config.type} réussie`, pooled: true };
   }
 
   async configure(input) {
     const config = this.effectiveConfig(input, { transientSecret: true });
     await this.test(input);
-    if (config.active && !process.env.SARI_DB_PASSWORD && config.type !== 'mongodb') {
-      throw Error('Connection test succeeded, but activation requires SARI_DB_PASSWORD in the server environment.');
-    }
     const { password, ...safe } = config;
     await this.close();
+    if (password) this.sessionSecrets.set(config.type, password);
     this.save(safe);
+    this.log('success', 'configuration.saved', `Configuration ${config.type} activée pour ${config.host}:${config.port}.`, { type: config.type, active: config.active, secretsSource: password ? 'server-memory' : 'environment' });
     return this.publicConfig();
   }
 
@@ -259,6 +310,57 @@ class ExternalDatabaseManager {
     return rows;
   }
 
+  async ensurePostgresTable(client, table) {
+    const result = await client.query('SELECT column_name AS name, data_type AS "dataType" FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1', [table]);
+    if (!result.rows.length) {
+      await client.query(`CREATE TABLE IF NOT EXISTS "${table}" (id BIGINT PRIMARY KEY, legacy_uid TEXT UNIQUE, reference_code TEXT, payload_json JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+      this.log('info', 'migration.schema.created', `Table PostgreSQL ${table} créée avec l’enveloppe JSONB par entité.`, { table });
+      const refreshed = await client.query('SELECT column_name AS name, data_type AS "dataType" FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1', [table]);
+      return refreshed.rows;
+    }
+    return result.rows;
+  }
+
+  async pgColumns(client, table) {
+    const key = `postgresql:${table}`;
+    if (this.columns.has(key)) return this.columns.get(key);
+    const columns = await this.ensurePostgresTable(client, table);
+    this.columns.set(key, columns);
+    return columns;
+  }
+
+  async resolvePostgresForeignId(client, columnName, value) {
+    if (value === undefined || value === null || value === '') return value;
+    if (Number.isInteger(Number(value)) && String(value).trim() !== '') return Number(value);
+    const target = FOREIGN_TABLES[columnName];
+    if (!target) return value;
+    const columns = await this.pgColumns(client, target);
+    const searchable = ['legacy_uid', 'reference_code', 'username', 'code'].filter(name => columns.some(column => column.name === name));
+    if (!searchable.length) return null;
+    const values = searchable.map(() => String(value));
+    const query = `SELECT id FROM "${target}" WHERE ${searchable.map((name,index) => `"${name}" = $${index+1}`).join(' OR ')} LIMIT 1`;
+    const result = await client.query(query, values);
+    return result.rows[0]?.id ?? null;
+  }
+
+  async postgresRecord(client, table, record, metadata) {
+    const names = [], values = [];
+    for (const column of metadata) {
+      let value;
+      if (column.name === 'id') value = Number(record.numericId);
+      else if (column.name === 'payload_json') value = record;
+      else value = sourceValue(record, column.name);
+      if (value === undefined || column.name === 'updated_at') continue;
+      if (column.name.endsWith('_id')) value = await this.resolvePostgresForeignId(client, column.name, value);
+      value = databaseValue(value, column);
+      names.push(column.name); values.push(value);
+    }
+    if (!Number.isInteger(Number(record.numericId)) || Number(record.numericId) < 1) throw Error('numericId is required for normalized migration');
+    const placeholders = values.map((_, index) => `$${index + 1}`).join(',');
+    const updates = names.filter(name => name !== 'id').map(name => `"${name}"=EXCLUDED."${name}"`).join(',');
+    await client.query(`INSERT INTO "${table}" (${names.map(name => `"${name}"`).join(',')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates || 'id=EXCLUDED.id'}`, values);
+  }
+
   async resolveMySqlForeignId(connection, columnName, value) {
     if (value === undefined || value === null || value === '') return value;
     if (Number.isInteger(Number(value)) && String(value).trim() !== '') return Number(value);
@@ -334,6 +436,7 @@ class ExternalDatabaseManager {
           await this.mysqlRecord(connection, table, record);
           await connection.query('RELEASE SAVEPOINT sari_record');
           result.migrated++;
+          result.migratedIds.push(Number(record.numericId));
         } catch (error) {
           await connection.query('ROLLBACK TO SAVEPOINT sari_record');
           result.failed.push({ id: record.id, numericId: record.numericId, code: error.code || 'MIGRATION_ERROR', reason: error.message, table });
@@ -349,27 +452,17 @@ class ExternalDatabaseManager {
   }
 
   async migratePostgres(storeName, records, result) {
-    const table = this.tableFor(storeName);
-    const client = await this.getPgPool(false).connect();
+    const table = this.tableFor(storeName), client = await this.getPgPool(false).connect();
     try {
       await client.query('BEGIN');
-      const metadata = await client.query(
-        'SELECT column_name AS name, data_type AS "dataType" FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1', [table]
-      );
-      if (!metadata.rows.length) throw Error(`Normalized table "${table}" is missing`);
+      const metadata = await this.pgColumns(client, table);
       for (const record of records) {
         await client.query('SAVEPOINT sari_record');
         try {
-          const names = [], values = [];
-          for (const column of metadata.rows) {
-            const value = column.name === 'id' ? Number(record.numericId) : databaseValue(sourceValue(record, column.name), column);
-            if (value !== undefined && column.name !== 'updated_at') { names.push(column.name); values.push(value); }
-          }
-          const placeholders = values.map((_, index) => `$${index + 1}`).join(',');
-          const updates = names.filter((name) => name !== 'id').map((name) => `"${name}"=EXCLUDED."${name}"`).join(',');
-          await client.query(`INSERT INTO "${table}" (${names.map((name) => `"${name}"`).join(',')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates || 'id=EXCLUDED.id'}`, values);
+          await this.postgresRecord(client, table, record, metadata);
           await client.query('RELEASE SAVEPOINT sari_record');
           result.migrated++;
+          result.migratedIds.push(Number(record.numericId));
         } catch (error) {
           await client.query('ROLLBACK TO SAVEPOINT sari_record');
           result.failed.push({ id: record.id, numericId: record.numericId, code: error.code || 'MIGRATION_ERROR', reason: error.message, table });
@@ -386,28 +479,72 @@ class ExternalDatabaseManager {
     const client = await this.getMongo();
     const config = this.effectiveConfig();
     const collection = client.db(config.database).collection(this.tableFor(storeName));
+    await collection.createIndex({legacyUid:1},{unique:true,sparse:true,name:'uq_legacy_uid'});
+    await collection.createIndex({referenceCode:1},{sparse:true,name:'idx_reference_code'});
     for (const record of records) {
       try {
-        await collection.updateOne({ _id: Number(record.numericId) }, { $set: { ...record, _id: Number(record.numericId), legacyUid: record.id } }, { upsert: true });
+        await collection.updateOne({ _id: Number(record.numericId) }, { $set: { ...record, legacyUid: record.id, updatedAt: record.updatedAt || new Date().toISOString() }, $setOnInsert: { _id: Number(record.numericId) } }, { upsert: true });
         result.migrated++;
+        result.migratedIds.push(Number(record.numericId));
       } catch (error) {
         result.failed.push({ id: record.id, numericId: record.numericId, code: error.code || 'MIGRATION_ERROR', reason: error.message });
       }
     }
   }
 
+  async verifyMigratedIds(type, table, ids) {
+    if (!ids.length) return 0;
+    if (type === 'mysql') {
+      const placeholders=ids.map(()=>'?').join(','),[rows]=await this.getMySqlPool(false).execute(`SELECT COUNT(*) AS count FROM \`${table}\` WHERE id IN (${placeholders})`,ids);
+      return Number(rows[0]?.count||0);
+    }
+    if (type === 'postgresql') {
+      const result=await this.getPgPool(false).query(`SELECT COUNT(*)::int AS count FROM "${table}" WHERE id = ANY($1::bigint[])`,[ids]);
+      return Number(result.rows[0]?.count||0);
+    }
+    const client=await this.getMongo();
+    return client.db(this.effectiveConfig().database).collection(table).countDocuments({_id:{$in:ids}});
+  }
+
+  async migrationPreflight() {
+    const config=this.effectiveConfig(),target=`${config.host}:${config.port}/${config.database}`;
+    this.log('info','migration.preflight',`Prévalidation ${config.type} vers ${target}.`,{type:config.type,target,mappings:Object.keys(STORE_TABLES).length});
+    await this.test({ ...config, password: config.password, active: config.active });
+    let missing=[];
+    if(config.type==='mysql'){
+      const placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await this.getMySqlPool(false).execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
+      const existing=new Set(rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
+    }else if(config.type==='postgresql'){
+      const result=await this.getPgPool(false).query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema()');const existing=new Set(result.rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
+    }
+    const ready=config.type!=='mysql'||missing.length===0,result={ready,type:config.type,target,mappedStores:Object.keys(STORE_TABLES).length,missingTables:missing,autoCreateCollections:config.type==='mongodb',autoCreateEntityTables:config.type==='postgresql',message:ready?'Cible prête pour la migration.':`${missing.length} table(s) MySQL manquante(s). Exécutez npm run db:migrate.`};
+    this.log(ready?'success':'warning','migration.preflight.result',result.message,result);
+    return result;
+  }
+
   async migrateBatch(storeName, records) {
     if (!this.publicConfig().active) throw Error('External database is not active');
     if (!Array.isArray(records)) throw Error('records must be an array');
-    const startedAt = new Date();
-    const result = { runId: `migration-${startedAt.getTime()}`, store: storeName, table: this.tableFor(storeName), attempted: records.length, migrated: 0, failed: [], startedAt: startedAt.toISOString() };
-    const type = this.effectiveConfig().type;
-    if (type === 'mysql') await this.migrateMySql(storeName, records, result);
-    else if (type === 'postgresql') await this.migratePostgres(storeName, records, result);
-    else await this.migrateMongo(storeName, records, result);
+    const startedAt = new Date(), table=this.tableFor(storeName),type=this.effectiveConfig().type;
+    const result = { runId: `migration-${startedAt.getTime()}-${storeName}`, store: storeName, table, type, attempted: records.length, migrated: 0, verified: 0, failed: [], migratedIds: [], startedAt: startedAt.toISOString() };
+    this.log('info','migration.batch.start',`Migration de ${records.length} enregistrement(s) ${storeName} vers ${type}.${table}.`,{runId:result.runId,store:storeName,table,type,attempted:records.length});
+    try {
+      if (type === 'mysql') await this.migrateMySql(storeName, records, result);
+      else if (type === 'postgresql') await this.migratePostgres(storeName, records, result);
+      else await this.migrateMongo(storeName, records, result);
+      for(const failure of result.failed)this.log('error','migration.record.failure',`${storeName}/${failure.id}: ${failure.reason}`,{runId:result.runId,store:storeName,table,...failure});
+      result.verified=await this.verifyMigratedIds(type,table,result.migratedIds);
+      if(result.verified!==result.migrated)result.failed.push({id:'batch-verification',code:'VERIFY_MISMATCH',reason:`${result.migrated} écriture(s), mais ${result.verified} vérifiée(s) dans la cible.`,table});
+    } catch(error) {
+      const normalized=connectionError(error,this.effectiveConfig());
+      this.log('error','migration.batch.failure',normalized.message,{runId:result.runId,store:storeName,table,type,code:normalized.code});
+      throw normalized;
+    }
     result.completedAt = new Date().toISOString();
     result.durationMs = Date.now() - startedAt.getTime();
-    result.success = result.failed.length === 0;
+    result.success = result.failed.length === 0 && result.verified===result.migrated;
+    delete result.migratedIds;
+    this.log(result.success?'success':'warning','migration.batch.complete',`${storeName}: ${result.migrated}/${result.attempted} migré(s), ${result.verified} vérifié(s), ${result.failed.length} échec(s).`,{...result});
     return result;
   }
 
@@ -440,4 +577,4 @@ class ExternalDatabaseManager {
   }
 }
 
-module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, databaseValue };
+module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, databaseValue, connectionError };

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { ExternalDatabaseManager, snakeToCamel, sourceValue } = require('../external-db.js');
+const { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, connectionError } = require('../external-db.js');
 const temporaryRoots: string[] = [];
 
 afterEach(() => {
@@ -29,6 +29,26 @@ describe('normalized external repository', () => {
     expect(sourceValue(row, 'name_json')).toEqual({ fr: 'Nom' });
     expect(sourceValue({ value:'inspection-est', order:3 }, 'option_value')).toBe('inspection-est');
     expect(sourceValue({ value:'inspection-est', order:3 }, 'sort_order')).toBe(3);
+  });
+
+  it('covers every external IndexedDB entity mapping', () => {
+    expect(Object.keys(STORE_TABLES)).toHaveLength(65);
+    expect(new Set(Object.values(STORE_TABLES)).size).toBeGreaterThan(60);
+  });
+
+  it('classifies actionable connection failures', () => {
+    expect(connectionError({code:'ECONNREFUSED',message:'connect failed'},{type:'mysql',host:'db',port:3306}).message).toMatch(/Connexion refusée/);
+    expect(connectionError({code:'28P01',message:'password authentication failed'},{type:'postgresql'}).message).toMatch(/mot de passe PostgreSQL/);
+    expect(connectionError({name:'MongoServerSelectionError',message:'timed out'},{type:'mongodb'}).message).toMatch(/MongoDB/);
+  });
+
+  it('keeps live UI secrets in server memory and exposes diagnostics safely', () => {
+    const root=mkdtempSync(join(tmpdir(),'sari-db-'));temporaryRoots.push(root);const repository=new ExternalDatabaseManager(root);
+    repository.sessionSecrets.set('mysql','memory-only');repository.config={type:'mysql',host:'db',port:3306,database:'sari',username:'erp',active:true};
+    expect(repository.effectiveConfig().password).toBe('memory-only');
+    repository.log('info','connection.attempt','Testing',{host:'db'});
+    expect(repository.diagnosticLog(0)[0]).toMatchObject({event:'connection.attempt',message:'Testing'});
+    expect(repository.publicConfig()).toMatchObject({hasPassword:true,secretsSource:'server-memory'});
   });
 
   it('never persists passwords in runtime metadata', () => {

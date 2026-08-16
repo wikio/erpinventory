@@ -85,6 +85,16 @@ SARI_DB_USER=sari_admin SARI_DB_PASSWORD='...' npm run db:migrate
 
 Replica variables use the `SARI_DB_REPLICA_` prefix (`HOST`, `PORT`, `NAME`, `USER`, `PASSWORD`).
 
+The Administrator database screen now performs real driver-level tests and exposes a live diagnostic console. To validate a connector end-to-end from the command line (connection → fixture migration → target verification → cleanup), configure the standard `SARI_DB_*` variables and run one of:
+
+```bash
+npm run db:validate -- --type=mysql
+npm run db:validate -- --type=postgresql
+npm run db:validate -- --type=mongodb
+```
+
+MySQL must first have the canonical schema applied with `npm run db:migrate`. PostgreSQL creates a safe per-entity JSONB table when a mapped table does not yet exist; MongoDB creates mapped collections on first upsert.
+
 ## 🏥 Core Functional Modules
 
 - **Dashboard Home**: Interactive KPI summary cards, Low-Stock / Near-Expiry alerts, 5 Chart.js analytics charts, Active Tenders & Deadlines, Import Shipments in Transit, and Audit Log timeline.
