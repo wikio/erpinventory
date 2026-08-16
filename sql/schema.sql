@@ -484,4 +484,52 @@ CREATE TABLE IF NOT EXISTS `commerce_requests` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, `updated_at` TIMESTAMP NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- PAYSLIP MANAGEMENT
+-- Section 299: Algerian payslip management and generated GED documents.
+CREATE TABLE IF NOT EXISTS `payslips` (
+  `id` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  `legacy_uid` VARCHAR(255) UNIQUE,
+  `reference_code` VARCHAR(150) UNIQUE,
+  `display_order` INT DEFAULT 0,
+  `employee_id` BIGINT UNSIGNED NOT NULL,
+  `salary_history_id` BIGINT UNSIGNED NULL,
+  `cnas_declaration_id` BIGINT UNSIGNED NULL,
+  `document_template_id` BIGINT UNSIGNED NULL,
+  `period` VARCHAR(7) NOT NULL,
+  `worked_days` DECIMAL(8,2) DEFAULT 0,
+  `worked_hours` DECIMAL(10,2) DEFAULT 0,
+  `base_salary` DECIMAL(18,2) DEFAULT 0,
+  `seniority_allowance` DECIMAL(18,2) DEFAULT 0,
+  `performance_bonus` DECIMAL(18,2) DEFAULT 0,
+  `other_bonuses` DECIMAL(18,2) DEFAULT 0,
+  `transport_allowance` DECIMAL(18,2) DEFAULT 0,
+  `housing_allowance` DECIMAL(18,2) DEFAULT 0,
+  `meal_allowance` DECIMAL(18,2) DEFAULT 0,
+  `overtime_amount` DECIMAL(18,2) DEFAULT 0,
+  `other_allowances` DECIMAL(18,2) DEFAULT 0,
+  `gross_salary` DECIMAL(18,2) DEFAULT 0,
+  `cnas_employee` DECIMAL(18,2) DEFAULT 0,
+  `cnas_employer` DECIMAL(18,2) DEFAULT 0,
+  `irg_amount` DECIMAL(18,2) DEFAULT 0,
+  `advances` DECIMAL(18,2) DEFAULT 0,
+  `loans` DECIMAL(18,2) DEFAULT 0,
+  `other_deductions` DECIMAL(18,2) DEFAULT 0,
+  `net_payable` DECIMAL(18,2) DEFAULT 0,
+  `leave_balance` DECIMAL(8,2) DEFAULT 0,
+  `payment_method` VARCHAR(80),
+  `payment_date` DATE,
+  `status` VARCHAR(32),
+  `generated_document_id` VARCHAR(255),
+  `notes_html` MEDIUMTEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL,
+  UNIQUE KEY `uq_payslip_employee_period` (`employee_id`,`period`),
+  INDEX `idx_payslip_period` (`period`),
+  CONSTRAINT `fk_payslip_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`),
+  CONSTRAINT `fk_payslip_salary_history` FOREIGN KEY (`salary_history_id`) REFERENCES `salary_history` (`id`),
+  CONSTRAINT `fk_payslip_cnas` FOREIGN KEY (`cnas_declaration_id`) REFERENCES `cnas_declarations` (`id`),
+  CONSTRAINT `fk_payslip_template` FOREIGN KEY (`document_template_id`) REFERENCES `document_templates` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- End of DDL Schema

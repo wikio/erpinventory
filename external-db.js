@@ -30,7 +30,7 @@ const STORE_TABLES = Object.freeze({
   casnosDeclarations: 'casnos_declarations', casnosPayments: 'casnos_payments',
   shareholders: 'shareholders', shareholderHistory: 'shareholder_history', companyRegisters: 'company_registers',
   socialAccounts: 'social_accounts', companyMinutes: 'company_minutes', tradeRegisters: 'trade_registers',
-  tradeRegisterHistory: 'trade_register_history', commerceRequests: 'commerce_requests'
+  tradeRegisterHistory: 'trade_register_history', commerceRequests: 'commerce_requests', payslips: 'payslips'
 });
 
 const FOREIGN_TABLES = Object.freeze({
@@ -39,7 +39,7 @@ const FOREIGN_TABLES = Object.freeze({
   tender_id: 'tenders', linked_tender_id: 'tenders', job_posting_id: 'job_postings', employee_id: 'employees',
   assignee_id: 'employees', stage_id: 'task_stages', template_id: 'checklist_templates',
   tax_record_id: 'tax_records', conversation_id: 'conversations', user_id: 'users', sender_user_id: 'users',
-  shareholder_id: 'shareholders', trade_register_id: 'trade_registers'
+  shareholder_id: 'shareholders', trade_register_id: 'trade_registers', salary_history_id: 'salary_history', cnas_declaration_id: 'cnas_declarations', document_template_id: 'document_templates'
 });
 
 const SOURCE_ALIASES = Object.freeze({
@@ -59,7 +59,7 @@ const SOURCE_ALIASES = Object.freeze({
   related_invoice_ids_json: ['relatedInvoiceIds'], register_ids_json: ['registerIds'], participants_json: ['participants'],
   shareholder_ids_json: ['shareholderIds'], resolutions_json: ['resolutions'], snapshot_json: ['snapshot'],
   declaration_uid: ['declarationId'], pv_type: ['pvType'], request_type: ['requestType'],
-  template_html: ['templateHtml'], template_html_i18n_json: ['templateHtmlI18n'],
+  template_html: ['templateHtml'], template_html_i18n_json: ['templateHtmlI18n'], document_template_id: ['templateId'],
   type: ['type','documentType'], file_name: ['fileName','name'], file_size: ['fileSize','size'], expires_at: ['expiresAt','expirationDate']
 });
 
@@ -577,7 +577,7 @@ class ExternalDatabaseManager {
     if(config.type==='mysql'){
       const pool=this.getMySqlPool(false),placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await pool.execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
       const existing=new Set(rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
-      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql','005_reference_order_sequence.sql','006_identity_ged_extensions.sql','007_social_trade_governance.sql'];
+      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql','005_reference_order_sequence.sql','006_identity_ged_extensions.sql','007_social_trade_governance.sql','008_payslip_management.sql'];
       try{const[migrations]=await pool.execute('SELECT name FROM schema_migrations');const applied=new Set(migrations.map(row=>row.name));missingMigrations=required.filter(name=>!applied.has(name));}catch(_){missingMigrations=required;}
     }else if(config.type==='postgresql'){
       const result=await this.getPgPool(false).query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema()');const existing=new Set(result.rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));

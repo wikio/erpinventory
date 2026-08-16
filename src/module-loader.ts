@@ -30,6 +30,7 @@ const loaders: Record<string, () => Promise<LegacyModule>> = {
     return importModule(() => import('../js/modules/settings.js'), 'SettingsModule');
   },
   hr: () => importModule(() => import('../js/modules/hr.js'), 'HRModule'),
+  payslips: async () => { await complianceShared(); return importModule(() => import('../js/modules/payslips.js'), 'PayslipsModule'); },
   tasks: () => importModule(() => import('../js/modules/tasks.js'), 'TasksModule'),
   portal: () => importModule(() => import('../js/modules/portal.js'), 'EmployeePortalModule'),
   purchases: async () => { await sharedDetail(); return importModule(() => import('../js/modules/purchases.js'), 'PurchasesModule'); },

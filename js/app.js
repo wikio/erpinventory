@@ -14,7 +14,7 @@ class SariApp {
       'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
       'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
       'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
-      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'documentDetail', 'bankAccountDetail'
+      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'payslips', 'documentDetail', 'bankAccountDetail'
     ].map(name => [name, null]));
   }
 
@@ -149,7 +149,7 @@ class SariApp {
   permissionForModule(moduleName) {
     if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
     if(moduleName==='bankAccountDetail'||moduleName==='users'||moduleName==='smtp')return 'settings';
-    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings' })[moduleName] || moduleName;
+    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings', payslips:'hr' })[moduleName] || moduleName;
   }
 
   initializeSidebarMenus() {
@@ -157,7 +157,7 @@ class SariApp {
     const groups=[
       {id:'operations',key:'menuOperations',label:i18n.t('menuOperations'),icon:'blocks',items:['inventory','inventoryOps','importExport','tenders']},
       {id:'commerce',key:'menuCommerce',label:i18n.t('menuCommerce'),icon:'shopping-bag',items:['sales','purchases','customers','suppliers']},
-      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','tasks','portal']},
+      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','payslips','tasks','portal']},
       {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes','cnas','casnos']},
       {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','users','commerceDirection','companyMinutes','masterData','translations','auditLogs','settings']}
     ];

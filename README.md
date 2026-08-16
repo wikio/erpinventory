@@ -174,3 +174,7 @@ Portable settings, templates and translations can be mounted with `SARI_CONTENT_
 ## 🆕 Social security and corporate governance (Sections 293–297)
 
 SARI now includes dedicated CNAS and CASNOS declaration/payment workspaces, Trade Directorate social accounts/requests/trade-register management, and a company-wide meeting-minutes and shareholder registry. All records integrate with GED, configurable trilingual reference lists, immutable technical IDs, business ordering, rich HTML editors, and the normalized external connector. See [`docs/social-trade-governance.md`](docs/social-trade-governance.md).
+
+## 🆕 Algerian payslips (Sections 298–299)
+
+The HR area now includes a full payslip manager with salary/CNAS linkage, progressive IRG calculation, configurable drag-and-drop templates, modern consultation, PDF generation, and automatic GED archiving. Nested manager dialogs dynamically stack above their parent overlays, including the PV Type Manager. See [`docs/payslips.md`](docs/payslips.md).
