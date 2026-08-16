@@ -455,5 +455,13 @@
   "sending": "Sending…",
   "emailSentSuccessfully": "Email sent and added to history.",
   "sendHistory": "Send History",
-  "noEmailHistory": "No email has been sent to this account."
+  "noEmailHistory": "No email has been sent to this account.",
+  "arabicEmailFont": "Arabic Email Font",
+  "frenchEmailFont": "French Email Font",
+  "embeddedArabicFontHelp": "Self-hosted font embedded in Arabic emails.",
+  "embeddedFrenchFontHelp": "Self-hosted font embedded in French and Latin emails.",
+  "qrEmbeddingMode": "QR Embedding Mode",
+  "inlineQrAttachment": "Inline CID Image (Recommended)",
+  "base64DataUri": "Direct Base64 Data URI",
+  "qrEmbeddingHelp": "Both modes embed the PNG without an external URL; CID provides the best email-client compatibility."
 }

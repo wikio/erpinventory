@@ -107,9 +107,20 @@ function requestBaseUrl(req) { const protocol=(req.headers['x-forwarded-proto']|
 function applyEmailPlaceholders(value, replacements) { return String(value||'').replace(/\{(qr_password_link|qr_activation_link|name|email|message)\}/g,(_match,key)=>replacements[key]??''); }
 async function qrLinkBlock(link, language='fr') {
   if (!link) return '';
-  const image = await QRCode.toDataURL(link, { width: 190, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#0f172a', light: '#ffffff' } });
+  const image = await QRCode.toDataURL(link, { type:'image/png',width:190,margin:2,errorCorrectionLevel:'M',color:{dark:'#0f172a',light:'#ffffff'} });
+  if(!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(image))throw Error('QR PNG generation failed');
   const label = language==='ar'?'افتح الرابط الآمن':language==='en'?'Open secure link':'Ouvrir le lien sécurisé';
   return `<div style="margin:18px 0;text-align:center"><img src="${image}" width="190" height="190" alt="QR" style="display:block;margin:0 auto 12px"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#009CC5;color:#fff;text-decoration:none;font-weight:bold">${label}</a><p style="font:11px monospace;color:#64748b;overflow-wrap:anywhere">${escapeHtml(link)}</p></div>`;
+}
+async function composeAccountEmail({user,type,language='fr',templateId='',messageHtml='',link=''}) {
+  const defaultIds={password_reset:'email-template-password-reset',activation:'email-template-activation',custom:'email-template-custom'};
+  const template=emailTemplates.find(templateId||defaultIds[type])||emailTemplates.list().find(item=>item.type===type&&item.isDefault)||emailTemplates.list().find(item=>item.type===type);
+  if(!template)throw Error('Email template not found');if(template.type!==type)throw Error('Email template type does not match send type');
+  const localizedTemplate=emailTemplates.localized(template,language),qr=await qrLinkBlock(link,language),message=sanitizeHtml(messageHtml||'');
+  const replacements={name:escapeHtml(user.name||user.username),email:escapeHtml(user.email),message,qr_password_link:type==='password_reset'?qr:'',qr_activation_link:type==='activation'?qr:''};
+  const subjectReplacements={...replacements,name:String(user.name||user.username).replace(/[\r\n]/g,' '),email:String(user.email).replace(/[\r\n]/g,' '),message:'',qr_password_link:'',qr_activation_link:''};
+  const subject=applyEmailPlaceholders(localizedTemplate.localizedSubject,subjectReplacements).replace(/[\r\n]/g,' ').slice(0,240),html=applyEmailPlaceholders(localizedTemplate.localizedHtml,replacements),text=html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  return{template,localizedTemplate,subject,html,text,language};
 }
 
 function setSessionCookie(req, res, token) {
@@ -197,9 +208,9 @@ async function handleApi(req, res, pathname) {
     try{
       const id=pathname.split('/')[4],body=await readJson(req),base=requestBaseUrl(req);result=authVault.approveRequest(id,base);let email=null;
       if(body.sendEmail&&result.request.email){
-        const subject='Réinitialisation du mot de passe SARI';
-        try{email=await smtpService.send({to:result.request.email,subject,text:`Lien: ${result.link}`,html:`<p>Votre lien SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});emailTemplates.record({userId:result.request.userId,userName:result.request.username,userEmail:result.request.email,type:'password_reset',status:'sent',templateId:'email-template-password-reset',templateName:'Réinitialisation du mot de passe',subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}
-        catch(error){emailTemplates.record({userId:result.request.userId,userName:result.request.username,userEmail:result.request.email,type:'password_reset',status:'failed',templateId:'email-template-password-reset',templateName:'Réinitialisation du mot de passe',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}
+        const user=authVault.find(result.request.userId)||{id:result.request.userId,name:result.request.username,username:result.request.username,email:result.request.email},composed=await composeAccountEmail({user,type:'password_reset',language:'fr',link:result.link}),subject=composed.subject;
+        try{email=await smtpService.send({to:result.request.email,subject,text:composed.text,html:composed.html,language:'fr'});emailTemplates.record({userId:result.request.userId,userName:user.name,userEmail:result.request.email,type:'password_reset',status:'sent',templateId:composed.template.id,templateName:composed.localizedTemplate.localizedName,subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}
+        catch(error){emailTemplates.record({userId:result.request.userId,userName:user.name,userEmail:result.request.email,type:'password_reset',status:'failed',templateId:composed.template.id,templateName:composed.localizedTemplate.localizedName,subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}
       }
       return json(res,200,{...result,email});
     }catch(error){return json(res,400,{error:error.message,request:result?.request});}
@@ -213,18 +224,12 @@ async function handleApi(req, res, pathname) {
       try{
         const body=await readJson(req);user=authVault.find(id);if(!user)throw Error('User not found');if(!user.email)throw Error('User email address is required');
         type=String(body.type||'');if(!['password_reset','activation','custom'].includes(type))throw Error('Invalid email send type');
-        template=emailTemplates.find(body.templateId);if(!template)throw Error('Email template not found');if(template.type!==type)throw Error('Email template type does not match send type');
-        const language=['fr','ar','en'].includes(body.language)?body.language:'fr',localizedTemplate=emailTemplates.localized(template,language),base=requestBaseUrl(req);
-        let passwordLink='',activationLink='';
-        if(type==='password_reset'){const issued=authVault.issueToken(user.id,'reset');passwordLink=`${base}/?reset=${encodeURIComponent(issued.raw)}`;}
-        if(type==='activation')activationLink=authVault.issueActivation(user.id,base).link;
-        const [passwordQr,activationQr]=await Promise.all([qrLinkBlock(passwordLink,language),qrLinkBlock(activationLink,language)]),message=sanitizeHtml(body.messageHtml||body.message||'');
-        const replacements={name:escapeHtml(user.name||user.username),email:escapeHtml(user.email),message,qr_password_link:passwordQr,qr_activation_link:activationQr};
-        const subjectReplacements={...replacements,name:String(user.name||user.username).replace(/[\r\n]/g,' '),email:String(user.email).replace(/[\r\n]/g,' '),message:'' ,qr_password_link:'',qr_activation_link:''};
-        subject=applyEmailPlaceholders(localizedTemplate.localizedSubject,subjectReplacements).replace(/[\r\n]/g,' ').slice(0,240);
-        const html=applyEmailPlaceholders(localizedTemplate.localizedHtml,replacements),text=html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-        const result=await smtpService.send({to:user.email,subject,text,html});
-        const history=emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type,status:'sent',templateId:template.id,templateName:localizedTemplate.localizedName,subject,messageId:result.messageId||'',accepted:result.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});
+        const language=['fr','ar','en'].includes(body.language)?body.language:'fr',base=requestBaseUrl(req);let link='';
+        if(type==='password_reset'){const issued=authVault.issueToken(user.id,'reset');link=`${base}/?reset=${encodeURIComponent(issued.raw)}`;}
+        if(type==='activation')link=authVault.issueActivation(user.id,base).link;
+        const composed=await composeAccountEmail({user,type,language,templateId:body.templateId,messageHtml:body.messageHtml||body.message||'',link});template=composed.template;subject=composed.subject;
+        const result=await smtpService.send({to:user.email,subject,text:composed.text,html:composed.html,language});
+        const history=emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type,status:'sent',templateId:template.id,templateName:composed.localizedTemplate.localizedName,subject,messageId:result.messageId||'',accepted:result.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});
         return json(res,200,{success:true,history});
       }catch(error){
         const history=user?emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:type||'custom',status:'failed',templateId:template?.id||'',templateName:template?.name?.fr||'',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name}):null;
@@ -236,7 +241,7 @@ async function handleApi(req, res, pathname) {
       if(req.method==='PUT'&&!action){const user=authVault.update(id,await readJson(req));if(!user.isActive)revokeUserSessions(user.id);return json(res,200,{user});}
       if(req.method==='DELETE'&&!action){const result=authVault.delete(id);revokeUserSessions(result.id);return json(res,200,result);}
       if(req.method==='POST'&&action==='generate-password'){const password=securePassword();return json(res,200,{user:authVault.update(id,{password}),temporaryPassword:password});}
-      if(req.method==='POST'&&action==='activation'){const base=requestBaseUrl(req),result=authVault.issueActivation(id,base),body=await readJson(req);let email=null;const user=authVault.find(id);if(body.sendEmail&&user?.email){const subject='Activation du compte SARI';try{email=await smtpService.send({to:user.email,subject,text:`Lien: ${result.link}`,html:`<p>Activez votre compte SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'sent',templateId:'email-template-activation',templateName:'Activation du compte',subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}catch(error){emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'failed',templateId:'email-template-activation',templateName:'Activation du compte',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}}return json(res,200,{...result,email});}
+      if(req.method==='POST'&&action==='activation'){const base=requestBaseUrl(req),result=authVault.issueActivation(id,base),body=await readJson(req);let email=null;const user=authVault.find(id);if(body.sendEmail&&user?.email){const composed=await composeAccountEmail({user,type:'activation',language:'fr',link:result.link}),subject=composed.subject;try{email=await smtpService.send({to:user.email,subject,text:composed.text,html:composed.html,language:'fr'});emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'sent',templateId:composed.template.id,templateName:composed.localizedTemplate.localizedName,subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}catch(error){emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'failed',templateId:composed.template.id,templateName:composed.localizedTemplate.localizedName,subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}}return json(res,200,{...result,email});}
       return json(res,405,{error:'Method not allowed'});
     }catch(error){return json(res,400,{error:error.message});}
   }

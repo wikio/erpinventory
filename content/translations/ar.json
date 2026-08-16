@@ -456,5 +456,13 @@
   "sending": "جارٍ الإرسال…",
   "emailSentSuccessfully": "تم إرسال البريد وإضافته إلى السجل.",
   "sendHistory": "سجل الإرسال",
-  "noEmailHistory": "لم يُرسل أي بريد إلى هذا الحساب."
+  "noEmailHistory": "لم يُرسل أي بريد إلى هذا الحساب.",
+  "arabicEmailFont": "خط البريد الإلكتروني العربي",
+  "frenchEmailFont": "خط البريد الإلكتروني الفرنسي",
+  "embeddedArabicFontHelp": "خط مستضاف ذاتياً ومضمّن في رسائل البريد العربية.",
+  "embeddedFrenchFontHelp": "خط مستضاف ذاتياً ومضمّن في رسائل البريد الفرنسية واللاتينية.",
+  "qrEmbeddingMode": "طريقة تضمين رمز QR",
+  "inlineQrAttachment": "صورة CID مضمّنة (موصى بها)",
+  "base64DataUri": "رابط بيانات base64 مباشر",
+  "qrEmbeddingHelp": "يضمّن الوضعان صورة PNG دون رابط خارجي؛ ويوفر CID أفضل توافق مع البريد الإلكتروني."
 }

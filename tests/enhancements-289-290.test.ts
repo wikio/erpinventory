@@ -22,10 +22,11 @@ describe('sections 289–290 integration contracts',()=>{
     expect(server).toContain("/api/admin/email-templates");
     expect(server).toContain("action==='send-email'");
     expect(server).toContain("action==='email-history'");
+    expect(source('smtp-service.js')).toContain('attachDataUrls');
   });
 
   it('ships all new feature labels in FR, AR and EN',()=>{
-    const required=['emailTemplateManager','sendEmail','passwordReset','accountActivation','customMessage','sendHistory','htmlSource','insertPlaceholder','smtpStandaloneHelp'];
+    const required=['emailTemplateManager','sendEmail','passwordReset','accountActivation','customMessage','sendHistory','htmlSource','insertPlaceholder','smtpStandaloneHelp','arabicEmailFont','frenchEmailFont','qrEmbeddingMode'];
     for(const lang of ['fr','ar','en']){const pack=JSON.parse(source(`content/translations/${lang}.json`));for(const key of required)expect(pack[key],`${lang}:${key}`).toBeTruthy();}
   });
 });

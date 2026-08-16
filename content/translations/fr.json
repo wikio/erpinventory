@@ -455,5 +455,13 @@
   "sending": "Envoi en cours…",
   "emailSentSuccessfully": "Email envoyé et ajouté à l’historique.",
   "sendHistory": "Historique des envois",
-  "noEmailHistory": "Aucun email envoyé à ce compte."
+  "noEmailHistory": "Aucun email envoyé à ce compte.",
+  "arabicEmailFont": "Police arabe des emails",
+  "frenchEmailFont": "Police française des emails",
+  "embeddedArabicFontHelp": "Police auto-hébergée et incorporée aux emails arabes.",
+  "embeddedFrenchFontHelp": "Police auto-hébergée et incorporée aux emails français et latins.",
+  "qrEmbeddingMode": "Incorporation des QR",
+  "inlineQrAttachment": "Image incorporée CID (recommandé)",
+  "base64DataUri": "URI base64 directe",
+  "qrEmbeddingHelp": "Les deux modes incorporent le PNG sans URL externe ; CID offre la meilleure compatibilité email."
 }
