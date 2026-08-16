@@ -39,6 +39,11 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: 'sari-sensitive-file-guard',
+      configureServer(server) { server.middlewares.use((req,res,next)=>{ if (/^\/(?:\.runtime|auth-vault\.js|smtp-service\.js|server\.js|external-db\.js|file-content\.js|scripts\/|sql\/|secure\/)/i.test(req.url||'')) { res.statusCode=404;res.end('404 File Not Found');return; } next(); }); },
+      configurePreviewServer(server) { server.middlewares.use((req,res,next)=>{ if (/^\/(?:\.runtime|auth-vault\.js|smtp-service\.js|secure\/)/i.test(req.url||'')) { res.statusCode=404;res.end('404 File Not Found');return; } next(); }); }
+    },
     VitePWA({
       strategies: 'generateSW',
       filename: 'sw.js',

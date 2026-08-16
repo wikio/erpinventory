@@ -32,5 +32,16 @@
   "topPurchasedProduct": "المنتج الأكثر شراءً",
   "taxInspectionOffice": "مفتشية الضرائب",
   "paymentProof": "إثبات الدفع",
-  "remainingBalance": "الرصيد المتبقي"
+  "remainingBalance": "الرصيد المتبقي",
+  "technicalIdImmutable": "المعرّف التقني (غير قابل للتغيير)",
+  "technicalId": "المعرّف التقني",
+  "businessOrder": "الترتيب / التسلسل المهني",
+  "orderLabel": "الترتيب",
+  "expected": "المتوقع",
+  "counted": "المعدود",
+  "variance": "الفارق",
+  "searchSelectLot": "ابحث أو اختر رقم الحصة",
+  "selectLotTraceability": "اختر رقم حصة لعرض التتبع وسجل المطابقة",
+  "selectAll": "تحديد الكل",
+  "searchSelectProduct": "ابحث أو اختر منتجاً"
 }

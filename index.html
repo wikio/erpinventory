@@ -55,7 +55,8 @@
           </fieldset>
           <button id="login-submit" type="submit" class="sari-btn w-full py-3 bg-sari-blue hover:bg-sari-blue-dark text-white text-sm shadow-lg"><i data-lucide="log-in" class="w-4 h-4"></i> Se connecter</button>
 
-          <details class="auth-demo rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+          <button type="button" onclick="auth.forgotPassword()" class="w-full text-center text-xs font-bold text-sari-blue hover:underline">Mot de passe oublié ?</button>
+          <details id="auth-demo-accounts" class="auth-demo rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
             <summary class="font-bold text-slate-600 cursor-pointer select-none">Comptes de démonstration par rôle</summary>
             <p class="text-slate-500 mt-2 mb-2">Mot de passe commun : <code>Sari@2026</code></p>
             <div class="grid grid-cols-3 gap-1.5">
@@ -248,6 +249,8 @@
         <button onclick="window.app.navigate('bulkImport'); window.app.closeMobileSidebar();" data-nav-item="bulkImport" class="sari-sidebar-item w-full"><i data-lucide="sheet" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="bulkImport">Import de masse</span></button>
 
         <button onclick="window.app.navigate('api'); window.app.closeMobileSidebar();" data-nav-item="api" class="sari-sidebar-item w-full"><i data-lucide="braces" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="api">API & Intégrations</span></button>
+
+        <button onclick="window.app.navigate('users'); window.app.closeMobileSidebar();" data-nav-item="users" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span class="sari-nav-label">Comptes utilisateurs</span></button>
 
         <button onclick="window.app.navigate('masterData'); window.app.closeMobileSidebar();" data-nav-item="masterData" class="sari-sidebar-item w-full"><i data-lucide="list-tree" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="masterData">Listes configurables</span></button>
 

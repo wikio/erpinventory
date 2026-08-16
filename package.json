@@ -45,6 +45,7 @@
     "lucide": "^1.31.0",
     "mongodb": "^6.18.0",
     "mysql2": "^3.14.3",
+    "nodemailer": "^9.0.5",
     "pg": "^8.16.3",
     "read-excel-file": "^9.3.10"
   },

@@ -77,6 +77,16 @@ Version 16 adds configurable barcode/QR product labels, translated sales/purchas
 - Every reference-bearing entity now has an editable business `order` independent from immutable `numericId`; reference masks use `order` for `{SEQ}` and affected peers are compacted/referenced automatically.
 - The exact resequencing strategy is documented in [`docs/reference-ordering.md`](docs/reference-ordering.md).
 
+## 🆕 GED and secure identity administration (Sections 255–264)
+
+- GED records support role-gated title/type/tag/expiry correction and advanced rich-text notes, with a modern consultation sheet.
+- G50 product autocomplete narrows linked sales invoices by selected products.
+- Employee Portal displays the EMP reference code.
+- Administrators have a dedicated user manager with CRUD, employee links, roles/permission overrides, generated passwords, activation links, QR/copy/email delivery and a manual reset-request queue.
+- Demo accounts can be hidden or disabled; password hashes live in a web-inaccessible runtime vault bootstrapped from `secure/auth-bootstrap.json`.
+- SMTP settings support STARTTLS/SSL, protected in-memory/environment passwords and transactional test/activation/reset delivery. See [`docs/authentication.md`](docs/authentication.md).
+- Order/technical-ID and inventory traceability labels are consistently translated through the central translation layer.
+
 ## 🗄️ Optional External Database Backend
 
 The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.

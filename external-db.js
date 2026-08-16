@@ -48,7 +48,8 @@ const SOURCE_ALIASES = Object.freeze({
   linked_sales_ids_json: ['linkedSalesDocumentIds', 'linkedSalesIds'], client_ids_json: ['clientIds'],
   endpoint_json: ['endpoints'], permissions_json: ['permissions'], overrides_json: ['overrides'],
   metadata_json: ['metadata'], versions_json: ['versions'], elements_json: ['elements'],
-  links_json: ['links'], tags_json: ['tags'], attachments_json: ['attachments']
+  links_json: ['links'], tags_json: ['tags'], attachments_json: ['attachments'],
+  type: ['type','documentType'], file_name: ['fileName','name'], file_size: ['fileSize','size'], expires_at: ['expiresAt','expirationDate']
 });
 
 function snakeToCamel(value) {
@@ -565,7 +566,7 @@ class ExternalDatabaseManager {
     if(config.type==='mysql'){
       const pool=this.getMySqlPool(false),placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await pool.execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
       const existing=new Set(rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
-      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql','005_reference_order_sequence.sql'];
+      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql','005_reference_order_sequence.sql','006_identity_ged_extensions.sql'];
       try{const[migrations]=await pool.execute('SELECT name FROM schema_migrations');const applied=new Set(migrations.map(row=>row.name));missingMigrations=required.filter(name=>!applied.has(name));}catch(_){missingMigrations=required;}
     }else if(config.type==='postgresql'){
       const result=await this.getPgPool(false).query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema()');const existing=new Set(result.rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));

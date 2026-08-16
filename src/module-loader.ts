@@ -38,6 +38,7 @@ const loaders: Record<string, () => Promise<LegacyModule>> = {
   inventoryOps: () => importModule(() => import('../js/modules/inventory-ops.js'), 'InventoryOpsModule'),
   bulkImport: () => importModule(() => import('../js/modules/bulk-import.js'), 'BulkImportModule'),
   api: () => importModule(() => import('../js/modules/api.js'), 'ApiModule'),
+  users: () => importModule(() => import('../js/modules/users.js'), 'UsersModule'),
   documentDetail: () => importModule(sharedDetail, 'DocumentDetailModule'),
   bankAccountDetail: () => importModule(() => import('../js/modules/bank-account-detail.js'), 'BankAccountDetailModule'),
 };

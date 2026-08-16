@@ -31,5 +31,16 @@
   "topPurchasedProduct": "Produit le plus acheté",
   "taxInspectionOffice": "Inspection fiscale",
   "paymentProof": "Preuve de paiement",
-  "remainingBalance": "Solde restant"
+  "remainingBalance": "Solde restant",
+  "technicalIdImmutable": "ID technique (immuable)",
+  "technicalId": "ID technique",
+  "businessOrder": "Ordre / séquence métier",
+  "orderLabel": "Ordre",
+  "expected": "Attendu",
+  "counted": "Compté",
+  "variance": "Écart",
+  "searchSelectLot": "Rechercher ou sélectionner un numéro de lot",
+  "selectLotTraceability": "Sélectionnez un numéro de lot pour afficher sa traçabilité et sa conformité",
+  "selectAll": "Tout sélectionner",
+  "searchSelectProduct": "Rechercher ou sélectionner un produit"
 }
