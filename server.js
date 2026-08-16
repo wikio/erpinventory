@@ -247,7 +247,7 @@ async function handleApi(req, res, pathname) {
   }
   if (pathname === '/api/admin/smtp' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,smtpService.public()); }
   if (pathname === '/api/admin/smtp' && req.method === 'PUT') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,smtpService.save(await readJson(req)));}catch(error){return json(res,400,{error:error.message});} }
-  if (pathname === '/api/admin/smtp/test' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,{success:true,result:await smtpService.test()});}catch(error){return json(res,400,{success:false,error:error.message});} }
+  if (pathname === '/api/admin/smtp/test' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,{success:true,result:await smtpService.test()});}catch(error){return json(res,400,{success:false,error:error.message,code:error.code||'SMTP_TEST_FAILED',hasPassword:smtpService.public().hasPassword});} }
   if (pathname === '/api/auth/captcha' && req.method === 'GET') {
     const left = crypto.randomInt(2, 10);
     const right = crypto.randomInt(1, 10);

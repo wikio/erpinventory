@@ -86,21 +86,32 @@ class SmtpService {
       direction
     };
   }
+  smtpPassword() { return process.env.SARI_SMTP_PASSWORD || this.sessionPassword || ''; }
+  credentialsError() { const error=new Error('SMTP credentials are missing. Enter the SMTP password again or define SARI_SMTP_PASSWORD, then retry.');error.code='SMTP_CREDENTIALS_MISSING';return error; }
   async send({ to, subject, text, html, language = 'fr' }) {
-    if (!this.config.enabled) throw Error('SMTP is disabled');
+    if (!this.config.enabled) { const error=new Error('SMTP is disabled');error.code='SMTP_DISABLED';throw error; }
+    const password=this.smtpPassword();
+    if(this.config.username&&!password)throw this.credentialsError();
     const nodemailer = require('nodemailer'), security = this.config.security || 'starttls';
     const transport = nodemailer.createTransport({
       host: this.config.host, port: Number(this.config.port || 587), secure: security === 'ssl',
       requireTLS: security === 'starttls',
-      auth: this.config.username ? { user: this.config.username, pass: process.env.SARI_SMTP_PASSWORD || this.sessionPassword } : undefined,
+      auth: this.config.username ? { user: this.config.username, pass: password } : undefined,
       tls: { rejectUnauthorized: this.config.rejectUnauthorized !== false },
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000
     });
     const prepared = this.prepareMessage(html, language);
-    const info = await transport.sendMail({
-      from: { name: this.config.senderName || 'SARI Système', address: this.config.senderAddress || this.config.username },
-      to, subject, text, html: prepared.html, attachDataUrls: prepared.attachDataUrls
-    });
+    let info;
+    try {
+      info = await transport.sendMail({
+        from: { name: this.config.senderName || 'SARI Système', address: this.config.senderAddress || this.config.username },
+        to, subject, text, html: prepared.html, attachDataUrls: prepared.attachDataUrls
+      });
+    } catch (error) {
+      if (/missing credentials/i.test(error.message||'')) throw this.credentialsError();
+      if (error.code==='EAUTH' || Number(error.responseCode)===535) { error.code='SMTP_AUTH_FAILED';error.message='SMTP authentication failed. Check the username, password, application password, and authentication policy.'; }
+      throw error;
+    }
     return { messageId: info.messageId, accepted: info.accepted, qrEmbeddingMode: prepared.attachDataUrls ? 'inline_attachment' : 'data_uri', font: prepared.font };
   }
   async test() { return this.send({ to:this.config.senderAddress||this.config.username,subject:'Test SMTP SARI Système',text:'Configuration SMTP validée.',html:'<p>Configuration SMTP validée.</p>',language:'fr' }); }

@@ -463,5 +463,10 @@
   "qrEmbeddingMode": "Incorporation des QR",
   "inlineQrAttachment": "Image incorporée CID (recommandé)",
   "base64DataUri": "URI base64 directe",
-  "qrEmbeddingHelp": "Les deux modes incorporent le PNG sans URL externe ; CID offre la meilleure compatibilité email."
+  "qrEmbeddingHelp": "Les deux modes incorporent le PNG sans URL externe ; CID offre la meilleure compatibilité email.",
+  "smtpPasswordReloadRequired": "Le serveur a redémarré et ne possède plus le mot de passe SMTP en mémoire. Saisissez-le à nouveau ou définissez SARI_SMTP_PASSWORD.",
+  "smtpCredentialsMissing": "Identifiants SMTP incomplets : saisissez de nouveau le mot de passe SMTP ou définissez SARI_SMTP_PASSWORD, puis réessayez.",
+  "smtpAuthenticationFailed": "Authentification SMTP refusée. Vérifiez l’identifiant, le mot de passe ou mot de passe d’application, et la politique d’authentification du fournisseur.",
+  "smtpDisabledError": "Activez le backend SMTP avant de tester l’envoi.",
+  "smtpTestFailed": "Échec du test SMTP."
 }

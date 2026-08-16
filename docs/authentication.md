@@ -22,7 +22,7 @@ Deleting `.runtime/auth-vault.json` is an emergency factory reset only: the next
 
 Password-reset requests remain pending until an Administrator approves them. Activation/reset tokens are random 256-bit values; only SHA-256 token hashes are stored. Raw links are displayed once for copy/QR/email delivery and expire after 24 hours.
 
-SMTP metadata is stored in `.runtime/smtp.json`; its password is never persisted there. Supply it in the UI for the current server process or use `SARI_SMTP_PASSWORD` for durable deployments.
+SMTP metadata is stored in `.runtime/smtp.json`; its password is never persisted there. Supply it in the UI for the current server process or use `SARI_SMTP_PASSWORD` for durable deployments. After every Node restart, an SMTP account with a username needs its password entered again unless the environment variable is defined. The SMTP **Test** action now saves the current form to server memory before sending; `SMTP_CREDENTIALS_MISSING` replaces the opaque Nodemailer “Missing credentials for PLAIN” error.
 
 ## Account email templates and delivery history
 

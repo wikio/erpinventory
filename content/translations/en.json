@@ -463,5 +463,10 @@
   "qrEmbeddingMode": "QR Embedding Mode",
   "inlineQrAttachment": "Inline CID Image (Recommended)",
   "base64DataUri": "Direct Base64 Data URI",
-  "qrEmbeddingHelp": "Both modes embed the PNG without an external URL; CID provides the best email-client compatibility."
+  "qrEmbeddingHelp": "Both modes embed the PNG without an external URL; CID provides the best email-client compatibility.",
+  "smtpPasswordReloadRequired": "The server restarted and no longer has the SMTP password in memory. Enter it again or define SARI_SMTP_PASSWORD.",
+  "smtpCredentialsMissing": "Incomplete SMTP credentials: enter the SMTP password again or define SARI_SMTP_PASSWORD, then retry.",
+  "smtpAuthenticationFailed": "SMTP authentication was rejected. Check the username, password or app password, and the provider authentication policy.",
+  "smtpDisabledError": "Enable SMTP before testing delivery.",
+  "smtpTestFailed": "SMTP test failed."
 }

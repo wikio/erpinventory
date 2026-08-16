@@ -11,6 +11,8 @@ describe('sections 289–290 integration contracts',()=>{
     expect(users).not.toContain('smtpHtml');
     expect(settings).toContain("app.navigate('smtp')");
     expect(loader).toContain("'SMTPModule'");
+    const icons=source('src/icon-set.ts');for(const icon of ['Mail','MailCheck','MailX'])expect(icons).toContain(`  ${icon},`);
+    expect(smtp).not.toContain('data-lucide="mail-cog"');
   });
 
   it('exposes localized template CRUD, secure placeholders, send actions and per-user history',()=>{

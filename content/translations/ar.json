@@ -464,5 +464,10 @@
   "qrEmbeddingMode": "طريقة تضمين رمز QR",
   "inlineQrAttachment": "صورة CID مضمّنة (موصى بها)",
   "base64DataUri": "رابط بيانات base64 مباشر",
-  "qrEmbeddingHelp": "يضمّن الوضعان صورة PNG دون رابط خارجي؛ ويوفر CID أفضل توافق مع البريد الإلكتروني."
+  "qrEmbeddingHelp": "يضمّن الوضعان صورة PNG دون رابط خارجي؛ ويوفر CID أفضل توافق مع البريد الإلكتروني.",
+  "smtpPasswordReloadRequired": "أُعيد تشغيل الخادم ولم تعد كلمة مرور SMTP موجودة في الذاكرة. أدخلها مجدداً أو عيّن SARI_SMTP_PASSWORD.",
+  "smtpCredentialsMissing": "بيانات اعتماد SMTP غير مكتملة: أدخل كلمة مرور SMTP مجدداً أو عيّن SARI_SMTP_PASSWORD ثم أعد المحاولة.",
+  "smtpAuthenticationFailed": "رُفضت مصادقة SMTP. تحقق من اسم المستخدم وكلمة المرور أو كلمة مرور التطبيق وسياسة المصادقة لدى المزود.",
+  "smtpDisabledError": "فعّل SMTP قبل اختبار الإرسال.",
+  "smtpTestFailed": "فشل اختبار SMTP."
 }
