@@ -4,6 +4,20 @@ Runtime identities are stored in `.runtime/auth-vault.json` with scrypt salts/ha
 
 The Administrator account is not considered a demo account. It cannot be deleted, and globally disabling demos only affects role-specific sample identities.
 
+## Administrator password recovery
+
+Passwords cannot be recovered from their scrypt hashes. They are not stored in IndexedDB, MySQL, PostgreSQL or MongoDB; local authentication is authoritative in `.runtime/auth-vault.json`.
+
+From the project directory, stop the Node server and run:
+
+```bash
+npm run auth:reset-admin
+```
+
+The command reactivates the Administrator, generates a strong temporary password, prints it once, and persists only its salt/hash. It preserves every other user, reset request and authentication setting. To choose a password explicitly, set `SARI_ADMIN_RESET_PASSWORD` only for the recovery process (minimum 10 characters), run the command, then remove the environment variable.
+
+Deleting `.runtime/auth-vault.json` is an emergency factory reset only: the next server start recreates all built-in identities from `secure/auth-bootstrap.json`, but also discards user-account changes, activation/reset tokens and the reset-request queue.
+
 Password-reset requests remain pending until an Administrator approves them. Activation/reset tokens are random 256-bit values; only SHA-256 token hashes are stored. Raw links are displayed once for copy/QR/email delivery and expire after 24 hours.
 
 SMTP metadata is stored in `.runtime/smtp.json`; its password is never persisted there. Supply it in the UI for the current server process or use `SARI_SMTP_PASSWORD` for durable deployments.

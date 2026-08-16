@@ -154,7 +154,7 @@ Demo accounts use the password **`Sari@2026`**:
 | `sales` | Sales employee |
 | `viewer` | Read-only observer |
 
-These accounts are for demonstration. Replace the built-in repository in `server.js` with your production user database and rotate all credentials before deployment.
+These accounts are for demonstration. Rotate all credentials before deployment. If the Administrator password was changed and is no longer known, stop the server and run `npm run auth:reset-admin`; the recovery command preserves the other accounts and stores only a new scrypt hash. See [`docs/authentication.md`](docs/authentication.md).
 
 ## 🚀 Build and run
 

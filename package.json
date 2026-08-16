@@ -20,6 +20,7 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "db:migrate": "node scripts/migrate-db.js",
+    "auth:reset-admin": "node scripts/reset-admin-password.js",
     "test:e2e": "npm run build && playwright test",
     "db:validate": "node scripts/validate-external-db.js"
   },
