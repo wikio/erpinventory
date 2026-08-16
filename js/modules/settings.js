@@ -152,7 +152,7 @@ const SettingsModule = {
     }
   },
 
-  async openSmtpSettings(){await app.navigate('users');if(window.UsersModule){UsersModule.state.tab='smtp';await UsersModule.render();}},
+  async openSmtpSettings(){await app.navigate('smtp');},
   currencyRows(){const rows=OptionCatalog.options('currency');return rows.length?rows:Object.values(SARI_CONFIG.CURRENCIES).map((item,order)=>({id:`currency-${item.code}`,value:item.code,code:item.code,name:item.name,symbol:item.symbol,order,isActive:true}));},
   currencyOptions(selected='DZD'){return this.currencyRows().map(row=>`<option value="${row.value||row.code}" ${(row.value||row.code)===selected?'selected':''}>${SariUtils.escapeHtml(row.name?.[i18n.currentLang]||row.name?.fr||row.value||row.code)} (${row.value||row.code}${row.symbol?' • '+row.symbol:''})</option>`).join('');},
   permissionRoleLabel(role){const keys={admin:'administratorFullAccess',import_export:'importExportManager',inventory:'stockManager',readonly:'readOnlyViewer',sales:'salesEmployee',tenders:'tenderManager'};return i18n.t(keys[role.id]||`role_${role.id}`,typeof role.name==='object'?(role.name[i18n.currentLang]||role.name.fr||role.id):(role.name||role.id));},

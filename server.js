@@ -7,6 +7,8 @@ const { ExternalDatabaseManager } = require('./external-db');
 const { FileContentRepository } = require('./file-content');
 const { AuthVault, securePassword } = require('./auth-vault');
 const { SmtpService } = require('./smtp-service');
+const { EmailTemplateService, sanitizeHtml } = require('./email-template-service');
+const QRCode = require('qrcode');
 
 const PORT = process.env.PORT || 3000;
 const STATIC_ROOT = fs.existsSync(path.join(__dirname, 'dist', 'index.html'))
@@ -39,6 +41,7 @@ const externalDB = new ExternalDatabaseManager(__dirname);
 const fileContent = new FileContentRepository(__dirname);
 const authVault = new AuthVault(__dirname);
 const smtpService = new SmtpService(__dirname);
+const emailTemplates = new EmailTemplateService(__dirname);
 
 const TOKEN_FILE = path.join(__dirname,'.runtime','api-tokens.json');
 try { for (const item of JSON.parse(fs.readFileSync(TOKEN_FILE,'utf8'))) integrationTokens.set(item.id,item); } catch (_) { /* first run */ }
@@ -97,6 +100,16 @@ function readJson(req, maxBytes = 10 * 1024 * 1024) {
     });
     req.on('error', reject);
   });
+}
+
+function escapeHtml(value = '') { return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+function requestBaseUrl(req) { const protocol=(req.headers['x-forwarded-proto']||'http').split(',')[0];return `${protocol}://${req.headers.host}`; }
+function applyEmailPlaceholders(value, replacements) { return String(value||'').replace(/\{(qr_password_link|qr_activation_link|name|email|message)\}/g,(_match,key)=>replacements[key]??''); }
+async function qrLinkBlock(link, language='fr') {
+  if (!link) return '';
+  const image = await QRCode.toDataURL(link, { width: 190, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#0f172a', light: '#ffffff' } });
+  const label = language==='ar'?'افتح الرابط الآمن':language==='en'?'Open secure link':'Ouvrir le lien sécurisé';
+  return `<div style="margin:18px 0;text-align:center"><img src="${image}" width="190" height="190" alt="QR" style="display:block;margin:0 auto 12px"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#009CC5;color:#fff;text-decoration:none;font-weight:bold">${label}</a><p style="font:11px monospace;color:#64748b;overflow-wrap:anywhere">${escapeHtml(link)}</p></div>`;
 }
 
 function setSessionCookie(req, res, token) {
@@ -170,15 +183,62 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/auth/password-reset-requests' && req.method === 'POST') { try{const body=await readJson(req);const result=authVault.requestReset(body.identifier||body.username||body.email,{ip:req.socket.remoteAddress||''});return json(res,202,{...result,message:'La demande a été ajoutée à la file Administrateur.'});}catch(error){return json(res,400,{error:error.message});} }
   if (pathname === '/api/auth/token/validate' && req.method === 'POST') { try{const body=await readJson(req);return json(res,200,authVault.validateToken(body.token));}catch(error){return json(res,400,{error:error.message});} }
   if (pathname === '/api/auth/token/consume' && req.method === 'POST') { try{const body=await readJson(req);if(String(body.password||'').length<10)return json(res,400,{error:'Le mot de passe doit contenir au moins 10 caractères.'});return json(res,200,{success:true,user:authVault.consumeToken(body.token,body.password)});}catch(error){return json(res,400,{error:error.message});} }
+  if (pathname === '/api/admin/email-templates' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,{templates:emailTemplates.list()}); }
+  if (pathname === '/api/admin/email-templates' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,201,{template:emailTemplates.create(await readJson(req))});}catch(error){return json(res,400,{error:error.message});} }
+  if (pathname.startsWith('/api/admin/email-templates/')) { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});const id=pathname.split('/')[4];try{if(req.method==='GET'){const template=emailTemplates.find(id);return template?json(res,200,{template}):json(res,404,{error:'Email template not found'});}if(req.method==='PUT')return json(res,200,{template:emailTemplates.update(id,await readJson(req))});if(req.method==='DELETE')return json(res,200,emailTemplates.delete(id));return json(res,405,{error:'Method not allowed'});}catch(error){return json(res,400,{error:error.message});} }
   if (pathname === '/api/admin/users' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,{users:authVault.list(),settings:authVault.settings()}); }
   if (pathname === '/api/admin/users' && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{const body=await readJson(req),result=authVault.create(body);return json(res,201,result);}catch(error){return json(res,400,{error:error.message});} }
   if (pathname === '/api/admin/auth-settings' && req.method === 'PUT') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{const settings=authVault.settings(await readJson(req));if(settings.demoAccountsEnabled===false)for(const user of authVault.data.users.filter(item=>item.isDemo))revokeUserSessions(user.id);return json(res,200,settings);}catch(error){return json(res,400,{error:error.message});} }
   if (pathname === '/api/admin/password-reset-requests' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,{requests:authVault.requests()}); }
   if (pathname.startsWith('/api/admin/password-reset-requests/') && pathname.endsWith('/reject') && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,{request:authVault.rejectRequest(pathname.split('/')[4])});}catch(error){return json(res,400,{error:error.message});} }
-  if (pathname.startsWith('/api/admin/password-reset-requests/') && pathname.endsWith('/approve') && req.method === 'POST') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{const id=pathname.split('/')[4],body=await readJson(req),proto=(req.headers['x-forwarded-proto']||'http').split(',')[0],base=`${proto}://${req.headers.host}`,result=authVault.approveRequest(id,base);let email=null;if(body.sendEmail&&result.request.email)email=await smtpService.send({to:result.request.email,subject:'Réinitialisation du mot de passe SARI',text:`Lien: ${result.link}`,html:`<p>Votre lien SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});return json(res,200,{...result,email});}catch(error){return json(res,400,{error:error.message});} }
+  if (pathname.startsWith('/api/admin/password-reset-requests/') && pathname.endsWith('/approve') && req.method === 'POST') {
+    const administrator=requireAdmin(req);if(!administrator)return json(res,403,{error:'Administrator access required'});
+    let result=null;
+    try{
+      const id=pathname.split('/')[4],body=await readJson(req),base=requestBaseUrl(req);result=authVault.approveRequest(id,base);let email=null;
+      if(body.sendEmail&&result.request.email){
+        const subject='Réinitialisation du mot de passe SARI';
+        try{email=await smtpService.send({to:result.request.email,subject,text:`Lien: ${result.link}`,html:`<p>Votre lien SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});emailTemplates.record({userId:result.request.userId,userName:result.request.username,userEmail:result.request.email,type:'password_reset',status:'sent',templateId:'email-template-password-reset',templateName:'Réinitialisation du mot de passe',subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}
+        catch(error){emailTemplates.record({userId:result.request.userId,userName:result.request.username,userEmail:result.request.email,type:'password_reset',status:'failed',templateId:'email-template-password-reset',templateName:'Réinitialisation du mot de passe',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}
+      }
+      return json(res,200,{...result,email});
+    }catch(error){return json(res,400,{error:error.message,request:result?.request});}
+  }
   if (pathname.startsWith('/api/admin/users/')) {
-    const auth=requireAdmin(req);if(!auth)return json(res,403,{error:'Administrator access required'});const parts=pathname.split('/'),id=parts[4],action=parts[5];
-    try{if(req.method==='GET'&&!action)return json(res,200,{user:authVault.public(authVault.find(id))});if(req.method==='PUT'&&!action){const user=authVault.update(id,await readJson(req));if(!user.isActive)revokeUserSessions(user.id);return json(res,200,{user});}if(req.method==='DELETE'&&!action){const result=authVault.delete(id);revokeUserSessions(result.id);return json(res,200,result);}if(req.method==='POST'&&action==='generate-password'){const password=securePassword();return json(res,200,{user:authVault.update(id,{password}),temporaryPassword:password});}if(req.method==='POST'&&action==='activation'){const proto=(req.headers['x-forwarded-proto']||'http').split(',')[0],base=`${proto}://${req.headers.host}`,result=authVault.issueActivation(id,base),body=await readJson(req);let email=null;const user=authVault.find(id);if(body.sendEmail&&user?.email)email=await smtpService.send({to:user.email,subject:'Activation du compte SARI',text:`Lien: ${result.link}`,html:`<p>Activez votre compte SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});return json(res,200,{...result,email});}}catch(error){return json(res,400,{error:error.message});}
+    const administrator=requireAdmin(req);if(!administrator)return json(res,403,{error:'Administrator access required'});
+    const parts=pathname.split('/'),id=parts[4],action=parts[5];
+    if(req.method==='GET'&&action==='email-history')return json(res,200,{history:emailTemplates.history(id)});
+    if(req.method==='POST'&&action==='send-email'){
+      let user=null,type='',template=null,subject='';
+      try{
+        const body=await readJson(req);user=authVault.find(id);if(!user)throw Error('User not found');if(!user.email)throw Error('User email address is required');
+        type=String(body.type||'');if(!['password_reset','activation','custom'].includes(type))throw Error('Invalid email send type');
+        template=emailTemplates.find(body.templateId);if(!template)throw Error('Email template not found');if(template.type!==type)throw Error('Email template type does not match send type');
+        const language=['fr','ar','en'].includes(body.language)?body.language:'fr',localizedTemplate=emailTemplates.localized(template,language),base=requestBaseUrl(req);
+        let passwordLink='',activationLink='';
+        if(type==='password_reset'){const issued=authVault.issueToken(user.id,'reset');passwordLink=`${base}/?reset=${encodeURIComponent(issued.raw)}`;}
+        if(type==='activation')activationLink=authVault.issueActivation(user.id,base).link;
+        const [passwordQr,activationQr]=await Promise.all([qrLinkBlock(passwordLink,language),qrLinkBlock(activationLink,language)]),message=sanitizeHtml(body.messageHtml||body.message||'');
+        const replacements={name:escapeHtml(user.name||user.username),email:escapeHtml(user.email),message,qr_password_link:passwordQr,qr_activation_link:activationQr};
+        const subjectReplacements={...replacements,name:String(user.name||user.username).replace(/[\r\n]/g,' '),email:String(user.email).replace(/[\r\n]/g,' '),message:'' ,qr_password_link:'',qr_activation_link:''};
+        subject=applyEmailPlaceholders(localizedTemplate.localizedSubject,subjectReplacements).replace(/[\r\n]/g,' ').slice(0,240);
+        const html=applyEmailPlaceholders(localizedTemplate.localizedHtml,replacements),text=html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+        const result=await smtpService.send({to:user.email,subject,text,html});
+        const history=emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type,status:'sent',templateId:template.id,templateName:localizedTemplate.localizedName,subject,messageId:result.messageId||'',accepted:result.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});
+        return json(res,200,{success:true,history});
+      }catch(error){
+        const history=user?emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:type||'custom',status:'failed',templateId:template?.id||'',templateName:template?.name?.fr||'',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name}):null;
+        return json(res,400,{success:false,error:error.message,history});
+      }
+    }
+    try{
+      if(req.method==='GET'&&!action)return json(res,200,{user:authVault.public(authVault.find(id))});
+      if(req.method==='PUT'&&!action){const user=authVault.update(id,await readJson(req));if(!user.isActive)revokeUserSessions(user.id);return json(res,200,{user});}
+      if(req.method==='DELETE'&&!action){const result=authVault.delete(id);revokeUserSessions(result.id);return json(res,200,result);}
+      if(req.method==='POST'&&action==='generate-password'){const password=securePassword();return json(res,200,{user:authVault.update(id,{password}),temporaryPassword:password});}
+      if(req.method==='POST'&&action==='activation'){const base=requestBaseUrl(req),result=authVault.issueActivation(id,base),body=await readJson(req);let email=null;const user=authVault.find(id);if(body.sendEmail&&user?.email){const subject='Activation du compte SARI';try{email=await smtpService.send({to:user.email,subject,text:`Lien: ${result.link}`,html:`<p>Activez votre compte SARI:</p><p><a href="${result.link}">${result.link}</a></p>`});emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'sent',templateId:'email-template-activation',templateName:'Activation du compte',subject,messageId:email.messageId||'',accepted:email.accepted||[],sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});}catch(error){emailTemplates.record({userId:user.id,userName:user.name,userEmail:user.email,type:'activation',status:'failed',templateId:'email-template-activation',templateName:'Activation du compte',subject,error:error.message,sentBy:administrator.session.user.id,sentByName:administrator.session.user.name});throw error;}}return json(res,200,{...result,email});}
+      return json(res,405,{error:'Method not allowed'});
+    }catch(error){return json(res,400,{error:error.message});}
   }
   if (pathname === '/api/admin/smtp' && req.method === 'GET') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});return json(res,200,smtpService.public()); }
   if (pathname === '/api/admin/smtp' && req.method === 'PUT') { if(!requireAdmin(req))return json(res,403,{error:'Administrator access required'});try{return json(res,200,smtpService.save(await readJson(req)));}catch(error){return json(res,400,{error:error.message});} }
@@ -260,7 +320,7 @@ const server = http.createServer(async (req, res) => {
     if(req.method==='OPTIONS'){res.writeHead(204);return res.end();}
   }
   if (pathname.startsWith('/api/')) return handleApi(req, res, pathname);
-  if (/^\/(?:\.runtime|auth-vault\.js|smtp-service\.js|server\.js|external-db\.js|file-content\.js|scripts\/|sql\/|secure\/)/i.test(pathname)) { res.writeHead(404,{'Content-Type':'text/plain'});return res.end('404 File Not Found'); }
+  if (/^\/(?:\.runtime|auth-vault\.js|smtp-service\.js|email-template-service\.js|server\.js|external-db\.js|file-content\.js|scripts\/|sql\/|secure\/)/i.test(pathname)) { res.writeHead(404,{'Content-Type':'text/plain'});return res.end('404 File Not Found'); }
   if (!['GET', 'HEAD'].includes(req.method)) {
     res.writeHead(405, { Allow: 'GET, HEAD' });
     return res.end();

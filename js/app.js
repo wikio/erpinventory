@@ -14,7 +14,7 @@ class SariApp {
       'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
       'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
       'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
-      'inventoryOps', 'bulkImport', 'api', 'users', 'documentDetail', 'bankAccountDetail'
+      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'documentDetail', 'bankAccountDetail'
     ].map(name => [name, null]));
   }
 
@@ -148,7 +148,7 @@ class SariApp {
 
   permissionForModule(moduleName) {
     if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
-    if(moduleName==='bankAccountDetail'||moduleName==='users')return 'settings';
+    if(moduleName==='bankAccountDetail'||moduleName==='users'||moduleName==='smtp')return 'settings';
     return ({ auditLogs:'settings', translations:'settings', settings:'settings' })[moduleName] || moduleName;
   }
 

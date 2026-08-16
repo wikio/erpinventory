@@ -36,6 +36,6 @@ describe('sections 265–288 integration contracts', () => {
     expect(source('js/modules/users.js')).toContain('filteredUsers()');
     expect(source('js/modules/users.js')).toContain('filteredRequests()');
     expect(source('js/db.js')).toContain("listKey:'currency'");
-    expect(source('js/modules/settings.js')).toContain('openSmtpSettings');
+    expect(source('js/modules/settings.js')).toContain("app.navigate('smtp')");
   });
 });
