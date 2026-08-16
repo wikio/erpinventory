@@ -522,6 +522,12 @@ class ExternalDatabaseManager {
   }
 
   async migrationPreflight() {
+    const saved=this.publicConfig();
+    if(!['mysql','postgresql','mongodb'].includes(saved.type)){
+      const error=new Error('Aucune base externe n’est enregistrée. Un test réussi ne sauvegarde pas la cible : sélectionnez « Backend actif : Oui », puis cliquez sur « Tester & enregistrer ».');
+      error.code='DB_NOT_CONFIGURED';error.hint='Enregistrez et activez MySQL, PostgreSQL ou MongoDB avant la prévalidation.';throw error;
+    }
+    if(!saved.active){const error=new Error(`La cible ${saved.type} est enregistrée mais inactive.`);error.code='DB_NOT_ACTIVE';error.hint='Sélectionnez « Backend actif : Oui », puis enregistrez la configuration.';throw error;}
     const config=this.effectiveConfig(),target=`${config.host}:${config.port}/${config.database}`;
     this.log('info','migration.preflight',`Prévalidation ${config.type} vers ${target}.`,{type:config.type,target,mappings:Object.keys(STORE_TABLES).length});
     await this.test({ ...config, password: config.password, active: config.active });

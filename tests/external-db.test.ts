@@ -40,6 +40,12 @@ describe('normalized external repository', () => {
     await expect(withTimeout(new Promise(()=>{}),20,'Test connector')).rejects.toMatchObject({code:'ETIMEDOUT'});
   });
 
+  it('explains that a successful test must still be saved before preflight', async () => {
+    const root=mkdtempSync(join(tmpdir(),'sari-db-'));temporaryRoots.push(root);const repository=new ExternalDatabaseManager(root);
+    repository.config={type:'indexeddb',active:false};
+    await expect(repository.migrationPreflight()).rejects.toMatchObject({code:'DB_NOT_CONFIGURED'});
+  });
+
   it('classifies actionable connection failures', () => {
     expect(connectionError({code:'ECONNREFUSED',message:'connect failed'},{type:'mysql',host:'db',port:3306}).message).toMatch(/Connexion refusée/);
     expect(connectionError({code:'28P01',message:'password authentication failed'},{type:'postgresql'}).message).toMatch(/mot de passe PostgreSQL/);
