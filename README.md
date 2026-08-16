@@ -170,3 +170,7 @@ npm start         # production build, then the API/static server on :3000
 The production build compiles Tailwind, self-hosts/subsets fonts, emits hashed core and lazy domain chunks, and generates the Workbox service worker. The server adds ETags, immutable caching for hashed assets, revalidation for the app shell, and Brotli/gzip compression.
 
 Portable settings, templates and translations can be mounted with `SARI_CONTENT_DIR`; see [`docs/portable-content.md`](docs/portable-content.md). Architecture decisions and target Next.js/NestJS boundaries are documented in [`docs/architecture.md`](docs/architecture.md), and Tauri/Capacitor commands in [`docs/packaging.md`](docs/packaging.md).
+
+## 🆕 Social security and corporate governance (Sections 293–297)
+
+SARI now includes dedicated CNAS and CASNOS declaration/payment workspaces, Trade Directorate social accounts/requests/trade-register management, and a company-wide meeting-minutes and shareholder registry. All records integrate with GED, configurable trilingual reference lists, immutable technical IDs, business ordering, rich HTML editors, and the normalized external connector. See [`docs/social-trade-governance.md`](docs/social-trade-governance.md).

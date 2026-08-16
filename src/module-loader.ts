@@ -9,6 +9,7 @@ const importModule = async (loader: Loader, globalName: string): Promise<LegacyM
 };
 
 const sharedDetail = () => import('../js/modules/document-detail.js');
+const complianceShared = () => import('../js/compliance-helpers.js');
 const loaders: Record<string, () => Promise<LegacyModule>> = {
   dashboard: async () => {
     await window.SariVendors.loadCharts();
@@ -40,6 +41,10 @@ const loaders: Record<string, () => Promise<LegacyModule>> = {
   api: () => importModule(() => import('../js/modules/api.js'), 'ApiModule'),
   users: () => importModule(() => import('../js/modules/users.js'), 'UsersModule'),
   smtp: () => importModule(() => import('../js/modules/smtp.js'), 'SMTPModule'),
+  cnas: async () => { await complianceShared(); return importModule(() => import('../js/modules/cnas.js'), 'CNASModule'); },
+  casnos: async () => { await complianceShared(); return importModule(() => import('../js/modules/casnos.js'), 'CASNOSModule'); },
+  commerceDirection: async () => { await complianceShared(); return importModule(() => import('../js/modules/commerce-direction.js'), 'CommerceDirectionModule'); },
+  companyMinutes: async () => { await complianceShared(); return importModule(() => import('../js/modules/company-minutes.js'), 'CompanyMinutesModule'); },
   documentDetail: () => importModule(sharedDetail, 'DocumentDetailModule'),
   bankAccountDetail: () => importModule(() => import('../js/modules/bank-account-detail.js'), 'BankAccountDetailModule'),
 };

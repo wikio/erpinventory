@@ -14,7 +14,7 @@ class SariApp {
       'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
       'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
       'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
-      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'documentDetail', 'bankAccountDetail'
+      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'documentDetail', 'bankAccountDetail'
     ].map(name => [name, null]));
   }
 
@@ -149,7 +149,7 @@ class SariApp {
   permissionForModule(moduleName) {
     if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
     if(moduleName==='bankAccountDetail'||moduleName==='users'||moduleName==='smtp')return 'settings';
-    return ({ auditLogs:'settings', translations:'settings', settings:'settings' })[moduleName] || moduleName;
+    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings' })[moduleName] || moduleName;
   }
 
   initializeSidebarMenus() {
@@ -158,8 +158,8 @@ class SariApp {
       {id:'operations',key:'menuOperations',label:i18n.t('menuOperations'),icon:'blocks',items:['inventory','inventoryOps','importExport','tenders']},
       {id:'commerce',key:'menuCommerce',label:i18n.t('menuCommerce'),icon:'shopping-bag',items:['sales','purchases','customers','suppliers']},
       {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','tasks','portal']},
-      {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes']},
-      {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','users','masterData','translations','auditLogs','settings']}
+      {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes','cnas','casnos']},
+      {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','users','commerceDirection','companyMinutes','masterData','translations','auditLogs','settings']}
     ];
     const saved=JSON.parse(localStorage.getItem('sari_submenus')||'{}');
     groups.forEach(group=>{const wrapper=document.createElement('div');wrapper.className='sidebar-submenu';wrapper.dataset.menuGroup=group.id;const expanded=saved[group.id]!==false;wrapper.innerHTML=`<button class="sidebar-submenu-toggle sari-sidebar-item w-full" aria-expanded="${expanded}" title="${group.label}"><i data-lucide="${group.icon}" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="${group.key}">${group.label}</span><i data-lucide="chevron-down" class="submenu-chevron w-3 h-3"></i></button><div class="sidebar-submenu-items ${expanded?'':'collapsed'}"></div>`;const items=wrapper.querySelector('.sidebar-submenu-items');group.items.forEach(module=>{const item=root.querySelector(`[data-nav-item="${module}"]`);if(item){item.classList.add('sidebar-child-item');items.appendChild(item);}});wrapper.querySelector('.sidebar-submenu-toggle').onclick=()=>this.toggleSubmenu(group.id);root.appendChild(wrapper);});
