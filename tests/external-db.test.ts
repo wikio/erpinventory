@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, connectionError } = require('../external-db.js');
+const { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, connectionError, withTimeout } = require('../external-db.js');
 const temporaryRoots: string[] = [];
 
 afterEach(() => {
@@ -34,6 +34,10 @@ describe('normalized external repository', () => {
   it('covers every external IndexedDB entity mapping', () => {
     expect(Object.keys(STORE_TABLES)).toHaveLength(65);
     expect(new Set(Object.values(STORE_TABLES)).size).toBeGreaterThan(60);
+  });
+
+  it('enforces a hard deadline even when a driver never settles', async () => {
+    await expect(withTimeout(new Promise(()=>{}),20,'Test connector')).rejects.toMatchObject({code:'ETIMEDOUT'});
   });
 
   it('classifies actionable connection failures', () => {

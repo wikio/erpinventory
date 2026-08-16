@@ -73,6 +73,18 @@ function databaseValue(value, column) {
   return value;
 }
 
+function withTimeout(promise, timeoutMs, label = 'Operation') {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} interrompue après ${Math.round(timeoutMs / 1000)} secondes.`);
+      error.code = 'ETIMEDOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 function connectionError(error, config = {}) {
   const code = String(error?.code || error?.name || 'CONNECTION_ERROR');
   const messages = {
@@ -186,28 +198,31 @@ class ExternalDatabaseManager {
 
   async test(input = {}) {
     const config = this.effectiveConfig(input, { transientSecret: true });
-    const started = Date.now(), target = `${config.host}:${config.port}/${config.database}`;
-    this.log('info', 'connection.attempt', `Test ${config.type} vers ${target}`, { type: config.type, host: config.host, port: config.port, database: config.database, username: config.username, ssl: config.ssl });
+    const started = Date.now(), target = `${config.host}:${config.port}/${config.database}`, timeoutMs = Number(process.env.SARI_DB_TEST_TIMEOUT_MS || 12000);
+    this.log('info', 'connection.attempt', `Test ${config.type} vers ${target}`, { type: config.type, host: config.host, port: config.port, database: config.database, username: config.username, ssl: config.ssl, timeoutMs });
     try {
-      let serverVersion = '';
-      if (config.type === 'mysql') {
-        this.log('info', 'connection.step', 'Chargement du pilote MySQL et ouverture du socket.', { target });
-        const mysql = require('mysql2/promise'), connection = await mysql.createConnection(this.mysqlOptions(config));
-        try { const [rows] = await connection.execute('SELECT VERSION() AS version, DATABASE() AS databaseName'); serverVersion = rows[0]?.version || ''; }
-        finally { await connection.end(); }
-      } else if (config.type === 'postgresql') {
-        this.log('info', 'connection.step', 'Chargement du pilote PostgreSQL et négociation de session.', { target });
-        const { Client } = require('pg'), connection = new Client(this.pgOptions(config));
-        await connection.connect();
-        try { const result = await connection.query('SELECT version() AS version, current_database() AS "databaseName"'); serverVersion = result.rows[0]?.version || ''; }
-        finally { await connection.end(); }
-      } else {
-        this.log('info', 'connection.step', 'Sélection du serveur MongoDB et commande ping.', { target });
-        const { MongoClient } = require('mongodb'), client = new MongoClient(this.mongoUri(config), { serverSelectionTimeoutMS: 7000, connectTimeoutMS: 7000 });
-        await client.connect();
-        try { await client.db(config.database).command({ ping: 1 }); try { const build = await client.db(config.database).admin().command({ buildInfo: 1 }); serverVersion = build.version || ''; } catch (_) { serverVersion = 'MongoDB (version non autorisée)'; } }
-        finally { await client.close(); }
-      }
+      const probe = async () => {
+        let serverVersion = '';
+        if (config.type === 'mysql') {
+          this.log('info', 'connection.step', 'Chargement du pilote MySQL et ouverture du socket.', { target });
+          const mysql = require('mysql2/promise');
+          const connection = await mysql.createConnection(this.mysqlOptions(config));
+          try { const [rows] = await connection.execute('SELECT VERSION() AS version, DATABASE() AS databaseName'); serverVersion = rows[0]?.version || ''; }
+          finally { await connection.end().catch(() => {}); }
+        } else if (config.type === 'postgresql') {
+          this.log('info', 'connection.step', 'Chargement du pilote PostgreSQL et négociation de session.', { target });
+          const { Client } = require('pg'), connection = new Client(this.pgOptions(config));
+          try { await connection.connect(); const result = await connection.query('SELECT version() AS version, current_database() AS "databaseName"'); serverVersion = result.rows[0]?.version || ''; }
+          finally { await connection.end().catch(() => {}); }
+        } else {
+          this.log('info', 'connection.step', 'Sélection du serveur MongoDB et commande ping.', { target });
+          const { MongoClient } = require('mongodb'), client = new MongoClient(this.mongoUri(config), { serverSelectionTimeoutMS: Math.min(timeoutMs - 1000, 10000), connectTimeoutMS: Math.min(timeoutMs - 1000, 10000), socketTimeoutMS: Math.min(timeoutMs - 1000, 10000) });
+          try { await client.connect(); await client.db(config.database).command({ ping: 1 }); try { const build = await client.db(config.database).admin().command({ buildInfo: 1 }); serverVersion = build.version || ''; } catch (_) { serverVersion = 'MongoDB (version non autorisée)'; } }
+          finally { await client.close().catch(() => {}); }
+        }
+        return serverVersion;
+      };
+      const serverVersion = await withTimeout(probe(), timeoutMs, `Test ${config.type}`);
       const result = { success: true, type: config.type, target, database: config.database, latencyMs: Date.now() - started, message: `Connexion ${config.type} réussie`, serverVersion, pooled: true };
       this.log('success', 'connection.success', result.message, { target, latencyMs: result.latencyMs, serverVersion });
       return result;
@@ -577,4 +592,4 @@ class ExternalDatabaseManager {
   }
 }
 
-module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, databaseValue, connectionError };
+module.exports = { ExternalDatabaseManager, STORE_TABLES, snakeToCamel, sourceValue, databaseValue, connectionError, withTimeout };
