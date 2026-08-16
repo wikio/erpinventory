@@ -1,2 +1,4 @@
 /** Cached configurable/translatable option lists. */
 const OptionCatalog={rows:[],async init(){this.rows=await sariDB.getAll('configurableOptions');},options(listKey){return this.rows.filter(x=>x.listKey===listKey&&x.isActive).sort((a,b)=>(a.order||0)-(b.order||0));},label(listKey,value){const row=this.rows.find(x=>x.listKey===listKey&&x.value===value);return row?.name?.[i18n.currentLang]||row?.name?.fr||value;},html(listKey,selected=''){return this.options(listKey).map(row=>`<option value="${row.value}" ${row.value===selected?'selected':''}>${SariUtils.escapeHtml(row.name?.[i18n.currentLang]||row.name?.fr||row.value)}</option>`).join('');}};window.OptionCatalog=OptionCatalog;
+
+export {};

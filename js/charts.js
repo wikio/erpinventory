@@ -304,6 +304,5 @@ const sariCharts = new SariCharts();
 if (typeof window !== 'undefined') {
   window.sariCharts = sariCharts;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SariCharts, sariCharts };
-}
+
+export {};

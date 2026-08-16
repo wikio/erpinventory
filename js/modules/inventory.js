@@ -30,8 +30,8 @@ const InventoryModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('inventory');
-    TableSort.ensure('inventory','referenceCode');
-    const filtered = TableSort.apply('inventory',this.getFilteredProducts(),'referenceCode');
+    TableSort.ensure('inventory','order');
+    const filtered = TableSort.apply('inventory',this.getFilteredProducts(),'order');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -46,20 +46,20 @@ const InventoryModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="InventoryModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addProduct">${i18n.t('addProduct')}</span>
               </button>
             ` : ''}
             <button onclick="InventoryModule.openTraceabilityModal()" class="sari-btn px-3 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm">
-              <i class="fas fa-search-location"></i>
+              <i data-lucide="locate"></i>
               <span>${i18n.t('traceability')}</span>
             </button>
             <button onclick="InventoryModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
             <button onclick="InventoryModule.openImportModal()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-import"></i>
+              <i data-lucide="file-down"></i>
               <span>${i18n.t('importCSV')}</span>
             </button>
           </div>
@@ -79,7 +79,7 @@ const InventoryModule = {
                 placeholder="${i18n.t('searchProducts')}" data-i18n-placeholder="searchProducts"
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"
               />
-              <i class="fas fa-search absolute right-3 top-2.5 text-slate-400 text-xs"></i>
+              <i data-lucide="search" class="absolute right-3 top-2.5 text-slate-400 text-xs"></i>
             </div>
           </div>
 
@@ -129,6 +129,7 @@ const InventoryModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('inventory','order','Ordre','InventoryModule.render()')}
                 ${TableSort.th('inventory','referenceCode',i18n.t('skuReference'),'InventoryModule.render()')}
                 ${TableSort.th('inventory','name',i18n.t('productCompliance'),'InventoryModule.render()')}
                 ${TableSort.th('inventory','category',i18n.t('categoryHeader'),'InventoryModule.render()')}
@@ -142,8 +143,8 @@ const InventoryModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="8" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-inbox text-2xl mb-2 block"></i>
+                  <td colspan="9" class="p-8 text-center text-slate-500">
+                    <i data-lucide="inbox" class="text-2xl mb-2 block"></i>
                     ${i18n.t('noDataFound')}
                   </td>
                 </tr>
@@ -166,6 +167,7 @@ const InventoryModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${p.order||'—'}</td>
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
                       ${p.referenceCode || p.sku}
                       <div class="text-[10px] text-slate-400 font-normal">${p.sku} • ${p.barcode || ''}</div>
@@ -199,18 +201,18 @@ const InventoryModule = {
                       <div class="flex justify-end gap-1">
                         <button onclick="InventoryModule.openDetail('${p.id}')" title="Consulter" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="InventoryModule.openBarcodeModal('${p.id}')" title="Imprimer Barcode/QR" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
-                          <i class="fas fa-barcode"></i>
+                          <i data-lucide="barcode"></i>
                         </button>
                         <button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="InventoryModule.openModal('${p.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="InventoryModule.duplicateProduct('${p.id}')" title="Dupliquer" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
-                            <i class="fas fa-copy"></i>
+                            <i data-lucide="copy"></i>
                           </button>
                           <button onclick="InventoryModule.deleteProduct('${p.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -279,7 +281,7 @@ const InventoryModule = {
     this.render();
   },
 
-  async openDetail(id){const p=await sariDB.getById('products',id),lots=(await sariDB.getAll('productLots')).filter(l=>l.productId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.getCategoryName(p.category)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('products',p.id,'name',p.name)}>${SariUtils.escapeHtml(DynamicI18n.get('products',p.id,'name',p.name))}</h3><p class="font-mono-tech text-sari-blue">${p.referenceCode||p.sku}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded-xl"><small>Stock</small><b class="block text-xl">${p.stock}</b></div><div class="p-3 border rounded-xl"><small>Prix vente</small><b class="block">${i18n.formatCurrency(p.sellingPrice)}</b></div><div class="p-3 border rounded-xl"><small>TVA</small><b class="block">${this.state.vatRates.find(v=>v.id===p.vatRateId)?.percentage||19}%</b></div><div class="p-3 border rounded-xl"><small>Lots</small><b class="block">${lots.length}</b></div></div><div class="grid md:grid-cols-2 gap-4"><dl class="text-sm space-y-2"><div><dt class="text-slate-400">SKU / Code-barres</dt><dd>${p.sku} • ${p.barcode||'—'}</dd></div><div><dt class="text-slate-400">Fabricant / pays</dt><dd>${p.manufacturer||'—'} • ${p.countryOfOrigin||'—'}</dd></div><div><dt class="text-slate-400">Certification</dt><dd>${p.certificationRef||'—'}</dd></div><div><dt class="text-slate-400">Stockage</dt><dd>${p.storageConditions||'—'}</dd></div></dl><div class="rich-content text-sm" ${DynamicI18n.attributes('products',p.id,'extendedDescription',p.extendedDescription||p.notes||'')}>${RichTextEditor.sanitize(DynamicI18n.get('products',p.id,'extendedDescription',p.extendedDescription||p.notes||''))}</div></div><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('inventory','edit')?`<button onclick="app.closeModalRoot();InventoryModule.openModal('${p.id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
+  async openDetail(id){const p=await sariDB.getById('products',id),lots=(await sariDB.getAll('productLots')).filter(l=>l.productId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.getCategoryName(p.category)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('products',p.id,'name',p.name)}>${SariUtils.escapeHtml(DynamicI18n.get('products',p.id,'name',p.name))}</h3><p class="font-mono-tech text-sari-blue">${p.referenceCode||p.sku} • Ordre ${p.order||'—'} • ID technique ${p.numericId||'—'}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded-xl"><small>Stock</small><b class="block text-xl">${p.stock}</b></div><div class="p-3 border rounded-xl"><small>Prix vente</small><b class="block">${i18n.formatCurrency(p.sellingPrice)}</b></div><div class="p-3 border rounded-xl"><small>TVA</small><b class="block">${this.state.vatRates.find(v=>v.id===p.vatRateId)?.percentage||19}%</b></div><div class="p-3 border rounded-xl"><small>Lots</small><b class="block">${lots.length}</b></div></div><div class="grid md:grid-cols-2 gap-4"><dl class="text-sm space-y-2"><div><dt class="text-slate-400">SKU / Code-barres</dt><dd>${p.sku} • ${p.barcode||'—'}</dd></div><div><dt class="text-slate-400">Fabricant / pays</dt><dd>${p.manufacturer||'—'} • ${p.countryOfOrigin||'—'}</dd></div><div><dt class="text-slate-400">Certification</dt><dd>${p.certificationRef||'—'}</dd></div><div><dt class="text-slate-400">Stockage</dt><dd>${p.storageConditions||'—'}</dd></div></dl><div class="rich-content text-sm" ${DynamicI18n.attributes('products',p.id,'extendedDescription',p.extendedDescription||p.notes||'')}>${RichTextEditor.sanitize(DynamicI18n.get('products',p.id,'extendedDescription',p.extendedDescription||p.notes||''))}</div></div><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('inventory','edit')?`<button onclick="app.closeModalRoot();InventoryModule.openModal('${p.id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
 
   /**
    * Open modal to Add or Edit a medical product
@@ -322,11 +324,12 @@ const InventoryModule = {
               ${productId ? 'Modifier le Produit Médical' : 'Nouveau Produit Médical & Consommable'}
             </h3>
             <button onclick="InventoryModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times text-lg"></i>
+              <i data-lucide="x" class="text-lg"></i>
             </button>
           </div>
 
           <form onsubmit="InventoryModule.saveProduct(event)" class="space-y-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><label class="doc-label">${i18n.t('technicalIdImmutable','ID technique (immuable)')}<input value="${prod.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100 dark:bg-slate-900"></label><label class="doc-label">${i18n.t('businessOrder','Ordre / séquence métier')}<input id="form-order" type="number" min="1" value="${prod.order||this.state.products.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">SKU / Référence *</label>
@@ -466,6 +469,7 @@ const InventoryModule = {
       ...original,
       id,
       referenceCode,
+      order: Number(document.getElementById('form-order').value),
       sku: document.getElementById('form-sku').value.trim(),
       barcode: document.getElementById('form-barcode').value.trim(),
       category,
@@ -538,7 +542,7 @@ const InventoryModule = {
           <div class="flex justify-between items-center border-b pb-3 mb-4 no-print">
             <h4 class="font-bold text-slate-900 dark:text-white">Étiquette Code-barres & QR</h4>
             <button onclick="InventoryModule.closeBarcodeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -565,7 +569,7 @@ const InventoryModule = {
               Fermer
             </button>
             <button onclick="window.print()" class="sari-btn px-4 py-2 bg-sari-blue text-white font-bold">
-              <i class="fas fa-print"></i> Imprimer l'Étiquette
+              <i data-lucide="printer"></i> Imprimer l'Étiquette
             </button>
           </div>
         </div>
@@ -600,14 +604,14 @@ const InventoryModule = {
               Traçabilité Médicale par N° Lot / Batch
             </h3>
             <button onclick="InventoryModule.closeTraceModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
           <div class="mb-4">
-            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Rechercher ou sélectionner un N° de Lot :</label>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('searchSelectLot','Rechercher ou sélectionner un numéro de lot')} :</label>
             <select id="trace-lot-selector" onchange="InventoryModule.renderTraceDetails(this.value)" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-sm">
-              <option value="">-- Sélectionnez un Lot --</option>
+              <option value="">-- ${i18n.t('searchSelectLot','Rechercher ou sélectionner un numéro de lot')} --</option>
               ${this.state.products.map(p => `
                 <option value="${p.lotNumber}">${p.lotNumber} (${p.sku} - ${p.name})</option>
               `).join('')}
@@ -615,7 +619,7 @@ const InventoryModule = {
           </div>
 
           <div id="trace-details-container" class="p-4 bg-slate-50 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-sm min-h-[160px] flex items-center justify-center text-slate-500">
-            Sélectionnez un numéro de lot pour afficher sa fiche de traçabilité et conformité.
+            ${i18n.t('selectLotTraceability','Sélectionnez un numéro de lot pour afficher sa traçabilité et sa conformité')}
           </div>
 
           <div class="mt-4 flex justify-end">
@@ -631,7 +635,7 @@ const InventoryModule = {
   async renderTraceDetails(lotNum) {
     const container = document.getElementById('trace-details-container');
     if (!container || !lotNum) {
-      if (container) container.innerHTML = 'Sélectionnez un numéro de lot pour afficher sa fiche de traçabilité.';
+      if (container) container.innerHTML = i18n.t('selectLotTraceability','Sélectionnez un numéro de lot pour afficher sa traçabilité et sa conformité');
       return;
     }
 
@@ -736,6 +740,5 @@ const InventoryModule = {
 if (typeof window !== 'undefined') {
   window.InventoryModule = InventoryModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = InventoryModule;
-}
+
+export {};

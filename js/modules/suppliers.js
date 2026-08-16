@@ -8,6 +8,7 @@ const SuppliersModule = {
   state: {
     suppliers: [],
     filterType: 'all',
+    filterCountry: 'all',
     searchQuery: '',
     editingId: null
   },
@@ -23,7 +24,7 @@ const SuppliersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    const filtered = TableSort.apply('suppliers',this.getFilteredSuppliers(),'name');
+    TableSort.ensure('suppliers','order');const filtered = TableSort.apply('suppliers',this.getFilteredSuppliers(),'order');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -40,16 +41,16 @@ const SuppliersModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="SuppliersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addSupplier">${i18n.t('addSupplier')}</span>
               </button>
             ` : ''}
             <button onclick="SuppliersModule.openComparatorModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-balance-scale"></i>
+              <i data-lucide="scale"></i>
               <span>${i18n.t('sourcingCalc')}</span>
             </button>
             <button onclick="SuppliersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -77,10 +78,9 @@ const SuppliersModule = {
               ${(this.state.supplierTypes||[]).filter(x=>x.isActive).map(x=>`<option value="${x.id}" ${this.state.filterType===x.id?'selected':''}>${x.name?.[i18n.currentLang]||x.name?.fr}</option>`).join('')}
             </select>
           </div>
-          <div class="flex items-end">
-            <div class="w-full text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded border">
-              <strong>Info Incoterms:</strong> FOB (Free On Board) • CIF (Cost Insurance & Freight) • EXW (Ex Works) • DDP (Rendu Droits Acquittés)
-            </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('country','Pays')}</label>
+            <select onchange="SuppliersModule.handleCountryFilter(this.value)" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"><option value="all">${i18n.t('allCountries','Tous les pays')}</option>${this.countryOptions()}</select>
           </div>
         </div>
 
@@ -89,6 +89,7 @@ const SuppliersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('suppliers','order','Ordre','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','name','Fournisseur & Pays','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','type','Type & Devise','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','incoterms','Incoterm Habituel','SuppliersModule.render()')}
@@ -101,8 +102,8 @@ const SuppliersModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="7" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-industry text-2xl mb-2 block"></i>
+                  <td colspan="8" class="p-8 text-center text-slate-500">
+                    <i data-lucide="factory" class="text-2xl mb-2 block"></i>
                     Aucun fournisseur ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -113,10 +114,11 @@ const SuppliersModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${s.order||'—'}</td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <i class="fas fa-map-marker-alt text-sari-blue"></i> ${s.country}
+                        <i data-lucide="map-pin" class="text-sari-blue"></i> ${s.country}
                       </div>
                     </td>
                     <td class="p-3">
@@ -153,10 +155,10 @@ const SuppliersModule = {
                         <button onclick="DocumentManager.open('supplier','${s.id}','${SariUtils.escapeHtml(s.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="SuppliersModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="SuppliersModule.deleteSupplier('${s.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -176,11 +178,12 @@ const SuppliersModule = {
     `;
   },
 
+  supplierCountryCode(supplier){if(supplier.countryCode)return supplier.countryCode;const country=(this.state.countries||[]).find(item=>[item.name?.fr,item.name?.ar,item.name?.en,item.iso2,item.iso3].some(value=>String(value||'').toLowerCase()===String(supplier.country||'').toLowerCase()));return country?.iso3||(/alg[eé]rie/i.test(supplier.country||'')?'DZA':'');},
+  countryOptions(){const used=new Set(this.state.suppliers.map(supplier=>this.supplierCountryCode(supplier)).filter(Boolean));return(this.state.countries||[]).filter(country=>country.isActive&&used.has(country.iso3)).sort((a,b)=>(a.name?.[i18n.currentLang]||a.name?.fr||'').localeCompare(b.name?.[i18n.currentLang]||b.name?.fr||'')).map(country=>`<option value="${country.iso3}" ${this.state.filterCountry===country.iso3?'selected':''}>${SariUtils.escapeHtml(country.name?.[i18n.currentLang]||country.name?.fr||country.iso3)}</option>`).join('');},
   getFilteredSuppliers() {
     return this.state.suppliers.filter(s => {
-      if (this.state.filterType !== 'all' && s.type !== this.state.filterType) {
-        return false;
-      }
+      if (this.state.filterType !== 'all' && s.type !== this.state.filterType) return false;
+      if(this.state.filterCountry!=='all'&&this.supplierCountryCode(s)!==this.state.filterCountry)return false;
       if (!SariUtils.matchesAdvancedSearch(s,this.state.searchQuery,['referenceCode','name','country','certifications','richDetails'])) return false;
       return true;
     });
@@ -195,6 +198,7 @@ const SuppliersModule = {
     this.state.filterType = val;
     this.render();
   },
+  handleCountryFilter(val){this.state.filterCountry=val;this.render();},
 
   async openModal(supplierId = null) {
     this.state.editingId = supplierId;
@@ -220,11 +224,12 @@ const SuppliersModule = {
               ${supplierId ? 'Modifier le Fournisseur' : 'Nouveau Fournisseur Médical'}
             </h3>
             <button onclick="SuppliersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
           <form onsubmit="SuppliersModule.saveSupplier(event)" class="space-y-4 text-sm">
+            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sup.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sup-order" type="number" min="1" value="${sup.order||this.state.suppliers.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom du Fournisseur / Société *</label>
@@ -270,6 +275,7 @@ const SuppliersModule = {
               <input type="text" id="sup-contact" value="${sup.contactInfo || ''}" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('notes','Notes')}</label><textarea id="sup-notes" class="doc-input min-h-24" placeholder="Notes libres sur le fournisseur…">${SariUtils.escapeHtml(sup.notes||'')}</textarea></div>
             <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('sup-logo',sup.logo||'','Logo fournisseur')}${RichTextEditor.html('sup-rich-details',sup.richDetails||'','Informations détaillées / certifications / conditions')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="SuppliersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
@@ -302,6 +308,7 @@ const SuppliersModule = {
       ...original,
       id,
       referenceCode: original.referenceCode || await ReferenceCodeManager.generate('FOU', { subType }),
+      order: Number(document.getElementById('sup-order').value),
       name: document.getElementById('sup-name').value.trim(),
       countryCode: countryRecord.iso3,
       country: countryRecord.name?.fr || countryRecord.iso3,
@@ -310,6 +317,7 @@ const SuppliersModule = {
       incoterms: document.getElementById('sup-incoterm').value,
       certifications: document.getElementById('sup-cert').value.trim(),
       contactInfo: document.getElementById('sup-contact').value.trim(),
+      notes: document.getElementById('sup-notes').value.trim(),
       logo: ImageDropzone.value('sup-logo',original.logo||''),
       richDetails: RichTextEditor.value('sup-rich-details')
     };
@@ -352,7 +360,7 @@ const SuppliersModule = {
               </h3>
             </div>
             <button onclick="SuppliersModule.closeComparatorModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -501,6 +509,5 @@ const SuppliersModule = {
 if (typeof window !== 'undefined') {
   window.SuppliersModule = SuppliersModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SuppliersModule;
-}
+
+export {};

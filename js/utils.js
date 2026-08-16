@@ -178,6 +178,7 @@ const SariUtils = {
 
   /** Render an offscreen element to a canvas (used by the PDF pagination pipeline). */
   async elementToCanvas(node, paperFormat) {
+    await window.SariVendors?.loadPdf();
     const clone = node.cloneNode(true);
     clone.querySelectorAll('.no-print,.hidden').forEach(x => x.remove());
     Object.assign(clone.style, { position:'fixed', left:'-10000px', top:'0', width:paperFormat==='Letter'?'816px':'794px', maxWidth:'none', maxHeight:'none', minHeight:'0', height:'auto', overflow:'visible', background:'#ffffff', padding:'0', margin:'0', border:'0', boxShadow:'none', transform:'none' });
@@ -188,8 +189,17 @@ const SariUtils = {
     return canvas;
   },
 
+  async createPDFBlob(elementId,paperFormat='A4') {
+    const element=document.getElementById(elementId);if(!element)throw Error('Printable element not found');
+    await window.SariVendors?.loadPdf();if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined')throw Error('PDF engine unavailable');
+    const canvas=await this.elementToCanvas(element,paperFormat),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=8,contentW=pageW-margin*2,ratio=contentW/canvas.width,imageH=canvas.height*ratio,image=canvas.toDataURL('image/jpeg',.95),capacity=pageH-margin*2;
+    let consumed=0,page=0;while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');consumed+=capacity;}
+    return pdf.output('blob');
+  },
+
   async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4') {
     const element=document.getElementById(elementId);if(!element)return;
+    try { await window.SariVendors?.loadPdf(); } catch (error) { console.warn('[PDF] Lazy engine load failed', error); }
     if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined'){window.app?.showToast('Moteur PDF indisponible : ouverture de l’impression PDF.','warning');window.print();return;}
     const clone=element.cloneNode(true);
     // Canvas pixels are NOT cloned by cloneNode: convert barcode/QR canvases to <img> so html2canvas renders them.
@@ -309,6 +319,5 @@ const SariUtils = {
 if (typeof window !== 'undefined') {
   window.SariUtils = SariUtils;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SariUtils;
-}
+
+export {};

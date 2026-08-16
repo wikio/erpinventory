@@ -5,7 +5,7 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 16) {
+  constructor(dbName = 'SariSystemeDB', version = 18) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -66,7 +66,8 @@ class SariDB {
           'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories',
           'salesStages', 'productLots', 'stockMovements', 'inventoryCounts',
           'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations',
-          'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences', 'barcodeLabelSettings'
+          'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences', 'barcodeLabelSettings',
+          'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips'
         ];
 
         stores.forEach((storeName) => {
@@ -116,6 +117,23 @@ class SariDB {
             } else if (storeName === 'purchaseDocuments') {
               store.createIndex('supplierId', 'supplierId', { unique: false });
               store.createIndex('documentType', 'documentType', { unique: false });
+            } else if (storeName === 'payslips') {
+              store.createIndex('employeeId', 'employeeId', { unique: false });
+              store.createIndex('period', 'period', { unique: false });
+            } else if (storeName === 'cnasPayments' || storeName === 'casnosPayments') {
+              store.createIndex('declarationId', 'declarationId', { unique: false });
+            } else if (storeName === 'casnosDeclarations') {
+              store.createIndex('shareholderId', 'shareholderId', { unique: false });
+              store.createIndex('period', 'period', { unique: false });
+            } else if (storeName === 'cnasDeclarations') {
+              store.createIndex('period', 'period', { unique: false });
+            } else if (storeName === 'shareholderHistory') {
+              store.createIndex('shareholderId', 'shareholderId', { unique: false });
+            } else if (storeName === 'tradeRegisterHistory') {
+              store.createIndex('tradeRegisterId', 'tradeRegisterId', { unique: false });
+            } else if (storeName === 'companyMinutes') {
+              store.createIndex('meetingDate', 'meetingDate', { unique: false });
+              store.createIndex('scope', 'scope', { unique: false });
             } else if (storeName === 'documentLinks') {
               store.createIndex('sourceId', 'sourceId', { unique: false });
               store.createIndex('targetId', 'targetId', { unique: false });
@@ -150,6 +168,7 @@ class SariDB {
         if(!await this.getById('barcodeLabelSettings','default'))await this.save('barcodeLabelSettings',{id:'default',name:'Étiquette produit standard',showProductName:true,showSku:true,showCategory:true,showLot:true,showExpiry:true,showCertification:true,showWarehouse:true,showPrice:true,showOrigin:true,showBarcode:true,showQr:true,includeHash:true,qrPattern:'http://sari-systeme.com/verification/{code}/{hash}',updatedAt:new Date().toISOString()});else{const bc=await this.getById('barcodeLabelSettings','default');if(!bc.qrPattern){bc.qrPattern='http://sari-systeme.com/verification/{code}/{hash}';await this.rawPut('barcodeLabelSettings',bc);}}
         await this.ensureSariReferencePrefixes();
         await this.ensureTemplateTranslations();
+        await this.ensureEnhancement222Data();
         await this.backfillNumericIdsAndReferences();
         resolve(this.db);
       };
@@ -165,12 +184,67 @@ class SariDB {
 
   async rawGetAll(storeName){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readonly').objectStore(storeName).getAll();request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>reject(request.error);});}
   async rawPut(storeName,data){return new Promise((resolve,reject)=>{const request=this.db.transaction([storeName],'readwrite').objectStore(storeName).put(data);request.onsuccess=()=>resolve(data);request.onerror=()=>reject(request.error);});}
+  referenceOrderStores(){return new Set(['products','suppliers','banks','bankAccounts','customers','shipments','tenders','orders','purchaseDocuments','jobPostings','employees','missions','documentTemplates','taxRecords','stockMovements','inventoryCounts','paymentTransactions','cnasDeclarations','casnosDeclarations','shareholders','companyRegisters','socialAccounts','companyMinutes','tradeRegisters','commerceRequests','payslips']);}
+  usesReferenceOrder(storeName){return this.referenceOrderStores().has(storeName);}
+  async resequenceReferenceStore(storeName,movingRecord=null,requestedOrder=null){if(!this.usesReferenceOrder(storeName))return movingRecord;const rows=await this.rawGetAll(storeName),moving=movingRecord||null,ordered=moving?window.SariCore.ordering.resequenceRecords(rows,moving,requestedOrder):window.SariCore.ordering.stableOrder(rows).map((row,index)=>({...row,order:index+1}));for(const row of ordered){const previous=rows.find(item=>item.id===row.id);await this.applyDerivedReference(storeName,row);if(!moving||row.id!==moving.id){if(!previous||previous.order!==row.order||previous.referenceCode!==row.referenceCode){await this.rawPut(storeName,row);if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged)await window.syncController?.enqueueExternalOnly(storeName,'save',row);}}}return moving?ordered.find(row=>row.id===moving.id):null;}
   async nextNumericId(storeName){return new Promise((resolve,reject)=>{const tx=this.db.transaction(['recordSequences'],'readwrite'),store=tx.objectStore('recordSequences'),get=store.get(storeName);get.onsuccess=()=>{const value=Number(get.result?.value||0)+1;store.put({id:storeName,value,updatedAt:new Date().toISOString()});resolve(value);};get.onerror=()=>reject(get.error);});}
-  async referenceDefinition(storeName,record){let code='',context={recordId:record.numericId};if(storeName==='products'){code='PRO';const category=record.category?await this.getById('productCategories',record.category):null;context.subType=category?.code||'01';}else if(storeName==='suppliers'){code='FOU';context.subType=['international','manufacturer'].includes(record.type)?'04':record.type==='local'?'02':'03';}else if(storeName==='banks'){code='BAN';context.subType='01';}else if(storeName==='bankAccounts'){code='BAN';const bankType=record.accountType?await this.getById('bankTypes',record.accountType):null;context.subType=bankType?.code||({bank:'01',cash:'02',online:'03'}[record.accountType]||'01');}else if(storeName==='customers'){code='CLI';context.subType=['public_hospital','government'].includes(record.type)?'01':['private_clinic','pharmacy'].includes(record.type)?'02':'03';}else if(storeName==='shipments'){code=record.type==='export'?'EXP':'IMP';context.country=record.partnerCountryCode||'DZA';}else if(storeName==='tenders'){code='CON';context.date=record.submissionDeadline;}else if(storeName==='orders')code=({invoice:'FAV',quote:'DVV',purchase_order:'BCV',delivery_note:'LIV'})[record.documentType]||'FAV';else if(storeName==='purchaseDocuments')code=({purchase_invoice:'FAC',purchase_quote:'DVA',goods_receipt:'REC',purchase_order:'BCA'})[record.documentType]||'FAC';else if(storeName==='jobPostings'){code='JOB';context.date=record.publishedAt||record.createdAt;}else if(storeName==='employees'){code='EMP';context.date=record.hireDate;}else if(storeName==='missions'){code='MIS';context.date=record.startDate;}else if(storeName==='documentTemplates'){code='TEM';context.templateType=({invoice:'FAV',quote:'DVV',purchase_order:'BCA',delivery_note:'LIV'})[record.type]||'DOC';}else if(storeName==='taxRecords'){code=record.type==='G50'?'G50':record.type==='IBS'?'FIS':'RAP';context.date=String(record.period||'').length===7?record.period+'-01':undefined;}else if(storeName==='stockMovements')code=record.type==='out'?'STS':'STE';else if(storeName==='inventoryCounts')code='INV';else if(storeName==='paymentTransactions')code=record.direction==='out'?'CHA':'REV';return code?{code,context}:null;}
-  async applyDerivedReference(storeName,record){if(!record.numericId||!globalThis.ReferenceCodeManager)return record;const definition=await this.referenceDefinition(storeName,record);if(!definition)return record;const mask=await this.getById('documentCodes',definition.code);if(mask)record.referenceCode=ReferenceCodeManager.render(mask,record.numericId,{...definition.context,recordId:record.numericId});return record;}
+  async referenceDefinition(storeName,record){let code='',context={recordId:record.numericId};if(storeName==='products'){code='PRO';const category=record.category?await this.getById('productCategories',record.category):null;context.subType=category?.code||'01';}else if(storeName==='suppliers'){code='FOU';context.subType=['international','manufacturer'].includes(record.type)?'04':record.type==='local'?'02':'03';}else if(storeName==='banks'){code='BAN';context.subType='01';}else if(storeName==='bankAccounts'){code='BAN';const bankType=record.accountType?await this.getById('bankTypes',record.accountType):null;context.subType=bankType?.code||({bank:'01',cash:'02',online:'03'}[record.accountType]||'01');}else if(storeName==='customers'){code='CLI';context.subType=['public_hospital','government'].includes(record.type)?'01':['private_clinic','pharmacy'].includes(record.type)?'02':'03';}else if(storeName==='shipments'){code=record.type==='export'?'EXP':'IMP';context.country=record.partnerCountryCode||'DZA';}else if(storeName==='tenders'){code='CON';context.date=record.submissionDeadline;}else if(storeName==='orders')code=({invoice:'FAV',quote:'DVV',purchase_order:'BCV',delivery_note:'LIV'})[record.documentType]||'FAV';else if(storeName==='purchaseDocuments')code=({purchase_invoice:'FAC',purchase_quote:'DVA',goods_receipt:'REC',purchase_order:'BCA'})[record.documentType]||'FAC';else if(storeName==='jobPostings'){code='JOB';context.date=record.publishedAt||record.createdAt;}else if(storeName==='employees'){code='EMP';context.date=record.hireDate;}else if(storeName==='missions'){code='MIS';context.date=record.startDate;}else if(storeName==='documentTemplates'){code='TEM';context.templateType=({invoice:'FAV',quote:'DVV',purchase_order:'BCA',delivery_note:'LIV'})[record.type]||'DOC';}else if(storeName==='taxRecords'){code=record.type==='G50'?'G50':record.type==='IBS'?'FIS':'RAP';context.date=String(record.period||'').length===7?record.period+'-01':undefined;}else if(storeName==='stockMovements')code=record.type==='out'?'STS':'STE';else if(storeName==='inventoryCounts')code='INV';else if(storeName==='paymentTransactions')code=record.direction==='out'?'CHA':'REV';else if(storeName==='cnasDeclarations'){code='CNS';context.date=record.filingDate||record.createdAt;}else if(storeName==='casnosDeclarations'){code='CSN';context.date=record.filingDate||record.createdAt;}else if(storeName==='shareholders')code='ACT';else if(storeName==='companyRegisters')code='RGC';else if(storeName==='socialAccounts'){code='SOC';context.date=`${record.fiscalYear||new Date().getFullYear()}-01-01`;}else if(storeName==='companyMinutes'){code='PVE';context.date=record.meetingDate;}else if(storeName==='tradeRegisters')code='REG';else if(storeName==='commerceRequests'){code='REQ';context.date=record.submissionDate||record.createdAt;}else if(storeName==='payslips'){code='PAY';context.date=record.paymentDate||(`${record.period||''}-01`);}return code?{code,context}:null;}
+  async applyDerivedReference(storeName,record){if(!record.numericId||!globalThis.ReferenceCodeManager)return record;const definition=await this.referenceDefinition(storeName,record);if(!definition)return record;const mask=await this.getById('documentCodes',definition.code),sequence=Number(record.order)||Number(record.numericId);if(mask)record.referenceCode=ReferenceCodeManager.render(mask,sequence,{...definition.context,recordId:record.numericId,order:sequence});return record;}
   async ensureTemplateTranslations(){const presets={'doc-tpl-classic':{fr:'SARI Classique',ar:'ساري كلاسيكي',en:'SARI Classic'},'doc-tpl-clinical':{fr:'SARI Clinique',ar:'ساري طبي',en:'SARI Clinical'},'tpl-ready-modern':{fr:'Médical moderne',ar:'طبي عصري',en:'Modern Medical'},'tpl-ready-compact':{fr:'Institution compact',ar:'مؤسسة مختصرة',en:'Compact Institution'},'tpl-ready-letter':{fr:'International Letter',ar:'دولي Letter',en:'International Letter'},'tpl-ready-html':{fr:'HTML Professionnel',ar:'HTML احترافي',en:'Professional HTML'},'tpl-ready-vat':{fr:'Facture TVA par article',ar:'فاتورة بالضريبة لكل صنف',en:'Per-Item VAT Invoice'}};for(const template of await this.getAll('documentTemplates')){if(!template.nameI18n)template.nameI18n=presets[template.id]||{fr:template.name,ar:template.name,en:template.name};await this.rawPut('documentTemplates',template);}}
-  async ensureSariReferencePrefixes(){const labels={FAV:{fr:'Facture vente',ar:'فاتورة بيع',en:'Sales invoice'},FAC:{fr:'Facture achat',ar:'فاتورة شراء',en:'Purchase invoice'},DVV:{fr:'Devis vente',ar:'عرض سعر بيع',en:'Sales quote'},DVA:{fr:'Devis achat',ar:'عرض سعر شراء',en:'Purchase quote'},BCV:{fr:'Commande vente',ar:'طلبية بيع',en:'Sales order'},BCA:{fr:'Commande achat',ar:'طلبية شراء',en:'Purchase order'},LIV:{fr:'Bon de livraison',ar:'وصل تسليم',en:'Delivery note'},REC:{fr:'Bon de réception',ar:'وصل استلام',en:'Goods receipt'}};if(!await this.getById('documentCodes','JOB'))await this.save('documentCodes',{id:'JOB',code:'JOB',designation:'Offre d’emploi',designationI18n:{fr:'Offre d’emploi',ar:'عرض عمل',en:'Job posting'},description:'Recruitment job posting',mask:'SARI-JOB{YY}-{SEQ}',example:'SARI-JOB26-00001',maskType:'Standard',sequenceMinDigits:5,resetFrequency:'yearly',isActive:true,subTypeOptions:[]});for(const definition of await this.getAll('documentCodes')){if(labels[definition.code])definition.designationI18n={...(definition.designationI18n||{}),...labels[definition.code]};if(!String(definition.mask||'').startsWith('SARI-')){definition.mask=`SARI-${definition.mask}`;definition.example=definition.example?.startsWith('SARI-')?definition.example:`SARI-${definition.example||definition.code}`;}await this.rawPut('documentCodes',definition);}}
-  async backfillNumericIdsAndReferences(){const stores=Array.from(this.db.objectStoreNames).filter(name=>!['recordSequences'].includes(name));for(const storeName of stores){const rows=await this.rawGetAll(storeName);let next=Math.max(0,...rows.map(row=>Number(row.numericId)||0))+1;for(const row of rows){if(!Number.isInteger(row.numericId)||row.numericId<1)row.numericId=next++;await this.applyDerivedReference(storeName,row);await this.rawPut(storeName,row);}await this.rawPut('recordSequences',{id:storeName,value:Math.max(0,next-1),updatedAt:new Date().toISOString()});}}
+  async ensureEnhancement222Data(){
+    const purchaseStages=[
+      {id:'purchaseStage-quote',listKey:'purchaseStage',value:'quote',name:{fr:'Devis',ar:'عرض سعر',en:'Quote'},color:'#64748B',order:1,isActive:true},
+      {id:'purchaseStage-order',listKey:'purchaseStage',value:'order',name:{fr:'Commande',ar:'طلبية',en:'Order'},color:'#EBB51A',order:2,isActive:true},
+      {id:'purchaseStage-receipt',listKey:'purchaseStage',value:'receipt',name:{fr:'Réception',ar:'استلام',en:'Goods receipt'},color:'#C6DA34',order:3,isActive:true},
+      {id:'purchaseStage-invoice',listKey:'purchaseStage',value:'invoice',name:{fr:'Facture',ar:'فاتورة',en:'Invoice'},color:'#009CC5',order:4,isActive:true},
+      {id:'purchaseStage-payment',listKey:'purchaseStage',value:'payment',name:{fr:'Paiement',ar:'دفع',en:'Payment'},color:'#8B5CF6',order:5,isActive:true}
+    ];
+    for(const stage of purchaseStages)if(!await this.getById('configurableOptions',stage.id))await this.save('configurableOptions',stage);
+    const currencies=[
+      {id:'currency-DZD',listKey:'currency',value:'DZD',code:'DZD',symbol:'DA',name:{fr:'Dinar algérien',ar:'دينار جزائري',en:'Algerian Dinar'},order:1,isActive:true},
+      {id:'currency-EUR',listKey:'currency',value:'EUR',code:'EUR',symbol:'€',name:{fr:'Euro',ar:'يورو',en:'Euro'},order:2,isActive:true},
+      {id:'currency-USD',listKey:'currency',value:'USD',code:'USD',symbol:'$',name:{fr:'Dollar américain',ar:'دولار أمريكي',en:'US Dollar'},order:3,isActive:true},
+      {id:'currency-CNY',listKey:'currency',value:'CNY',code:'CNY',symbol:'¥',name:{fr:'Yuan chinois',ar:'يوان صيني',en:'Chinese Yuan'},order:4,isActive:true}
+    ];
+    for(const currency of currencies)if(!await this.getById('configurableOptions',currency.id))await this.save('configurableOptions',currency);
+    const complianceOptions={
+      complianceStatus:[['draft','Brouillon','مسودة','Draft'],['submitted','Déposée','مودعة','Submitted'],['accepted','Acceptée','مقبولة','Accepted'],['paid','Payée','مدفوعة','Paid'],['closed','Clôturée','مغلقة','Closed']],
+      casnosPeriodicity:[['quarterly','Trimestrielle','فصلية','Quarterly'],['annual','Annuelle','سنوية','Annual'],['other','Autre périodicité','دورية أخرى','Other periodicity']],
+      commerceRequestType:[['register_copy','Copie du registre','نسخة من السجل','Register copy'],['modification','Modification statutaire','تعديل قانوني','Statutory amendment'],['social_accounts','Dépôt des comptes sociaux','إيداع الحسابات الاجتماعية','Social accounts filing'],['authorization','Autorisation commerciale','ترخيص تجاري','Trade authorization']],
+      pvType:[['ordinary_general_assembly','Assemblée générale ordinaire','الجمعية العامة العادية','Ordinary General Meeting'],['extraordinary_general_assembly','Assemblée générale extraordinaire','الجمعية العامة غير العادية','Extraordinary General Meeting'],['board_meeting','Conseil d’administration','مجلس الإدارة','Board Meeting'],['shareholder_decision','Décision des associés','قرار الشركاء','Shareholder Decision']],
+      shareholderType:[['natural','Personne physique','شخص طبيعي','Natural person'],['legal','Personne morale','شخص معنوي','Legal entity']],
+      registerType:[['trade','Registre de commerce','السجل التجاري','Trade register'],['shareholders','Registre des actionnaires','سجل المساهمين','Shareholder register'],['corporate','Registre de société','سجل الشركة','Company register'],['minutes','Registre des PV','سجل المحاضر','Minutes register']]
+    };
+    for(const[listKey,rows]of Object.entries(complianceOptions))for(let order=0;order<rows.length;order++){const[value,fr,ar,en]=rows[order],id=`${listKey}-${value}`;if(!await this.getById('configurableOptions',id))await this.save('configurableOptions',{id,listKey,value,name:{fr,ar,en},order:order+1,isActive:true,templateHtml:listKey==='pvType'?`<h1>${fr}</h1><p>Date : {date}</p><h2>Participants</h2><p>{participants}</p><h2>Résolutions</h2><p>{resolutions}</p>`:'',templateHtmlI18n:listKey==='pvType'?{fr:`<h1>${fr}</h1><p>Date : {date}</p><h2>Participants</h2><p>{participants}</p><h2>Résolutions</h2><p>{resolutions}</p>`,ar:`<div dir="rtl"><h1>${ar}</h1><p>التاريخ: {date}</p><h2>المشاركون</h2><p>{participants}</p><h2>القرارات</h2><p>{resolutions}</p></div>`,en:`<h1>${en}</h1><p>Date: {date}</p><h2>Participants</h2><p>{participants}</p><h2>Resolutions</h2><p>{resolutions}</p>`}:{}});}
+    const governanceGedModules=[['cnasDeclaration','CNAS','الضمان الاجتماعي CNAS','CNAS'],['casnosDeclaration','CASNOS','الضمان الاجتماعي CASNOS','CASNOS'],['socialAccount','Comptes sociaux','الحسابات الاجتماعية','Social accounts'],['companyMinute','Procès-verbaux','المحاضر','Company minutes'],['tradeRegister','Registres de commerce','السجلات التجارية','Trade registers'],['commerceRequest','Demandes commerce','طلبات التجارة','Trade requests'],['shareholder','Actionnaires','المساهمون','Shareholders'],['companyRegister','Registres société','سجلات الشركة','Company registers'],['payslip','Fiches de paie','قسائم الرواتب','Payslips']];for(let order=0;order<governanceGedModules.length;order++){const[id,fr,ar,en]=governanceGedModules[order];if(!await this.getById('gedModules',id))await this.save('gedModules',{id,code:id,name:{fr,ar,en},order:20+order,isActive:true});}
+    if(!await this.getById('gedTypes','payslip'))await this.save('gedTypes',{id:'payslip',code:'payslip',name:{fr:'Fiche de paie',ar:'قسيمة راتب',en:'Payslip'},order:20,isActive:true});
+    if(!await this.getById('documentTemplates','doc-tpl-payslip-classic'))await this.save('documentTemplates',{id:'doc-tpl-payslip-classic',name:'Fiche de paie SARI classique',nameI18n:{fr:'Fiche de paie SARI classique',ar:'قسيمة راتب SARI الكلاسيكية',en:'SARI Classic Payslip'},type:'payslip',paperFormat:'A4',accent:'#009CC5',layout:'designer',templateMode:'designer',fontFamily:'Plus Jakarta Sans',isDefault:true,lineItemsColumns:[],versions:[],elements:[{id:'pay-logo',kind:'field',field:'documentLogo',content:'Logo',x:35,y:25,w:150,h:70},{id:'pay-company',kind:'field',field:'companyHeader',content:'Entreprise',x:200,y:25,w:555,h:80},{id:'pay-title',kind:'field',field:'payslipTitle',content:'FICHE DE PAIE',x:35,y:120,w:720,h:45,background:'#e6f7fb',color:'#007d9e'},{id:'pay-employee',kind:'field',field:'employeeIdentity',content:'Salarié',x:35,y:185,w:440,h:130,background:'#f8fafc'},{id:'pay-period',kind:'field',field:'payPeriod',content:'Période',x:495,y:185,w:260,h:60},{id:'pay-work',kind:'field',field:'workTime',content:'Temps travaillé',x:495,y:255,w:260,h:60},{id:'pay-earnings',kind:'field',field:'earningsTable',content:'Gains',x:35,y:340,w:350,h:330},{id:'pay-deductions',kind:'field',field:'deductionsTable',content:'Retenues',x:405,y:340,w:350,h:330},{id:'pay-cnas',kind:'field',field:'cnasBreakdown',content:'CNAS',x:35,y:690,w:350,h:100},{id:'pay-net',kind:'field',field:'netPayable',content:'NET À PAYER',x:405,y:690,w:350,h:100,background:'#dcfce7',color:'#166534'},{id:'pay-leave',kind:'field',field:'leaveBalance',content:'Congés',x:35,y:815,w:250,h:55},{id:'pay-payment',kind:'field',field:'paymentDetails',content:'Paiement',x:305,y:815,w:450,h:55}]});
+    const inspectionOffices=[
+      {id:'taxInspectionOffice-alger-est',listKey:'taxInspectionOffice',value:'alger-est',code:'DIW-16E',name:{fr:'Inspection des impôts Alger Est',ar:'مفتشية الضرائب الجزائر شرق',en:'Algiers East Tax Inspection'},address:'Bab Ezzouar, Alger',wilaya:'16',order:1,isActive:true},
+      {id:'taxInspectionOffice-alger-centre',listKey:'taxInspectionOffice',value:'alger-centre',code:'DIW-16C',name:{fr:'Inspection des impôts Alger Centre',ar:'مفتشية الضرائب الجزائر وسط',en:'Algiers Centre Tax Inspection'},address:'Alger Centre',wilaya:'16',order:2,isActive:true},
+      {id:'taxInspectionOffice-oran',listKey:'taxInspectionOffice',value:'oran',code:'DIW-31',name:{fr:'Inspection des impôts Oran',ar:'مفتشية الضرائب وهران',en:'Oran Tax Inspection'},address:'Oran',wilaya:'31',order:3,isActive:true}
+    ];
+    for(const office of inspectionOffices)if(!await this.getById('configurableOptions',office.id))await this.save('configurableOptions',office);
+    for(const profile of await this.getAll('importProfiles')){if(['products','orders','purchaseDocuments'].includes(profile.recordType)&&!profile.columns?.includes('order')){profile.columns=['order',...(profile.columns||[])];await this.rawPut('importProfiles',profile);}}
+    if(!await this.getById('documentTemplates','doc-tpl-sari-total'))await this.save('documentTemplates',{
+      id:'doc-tpl-sari-total',name:'SARI Total',nameI18n:{fr:'SARI Total',ar:'ساري الإجمالي',en:'SARI Total'},type:'invoice',paperFormat:'A4',accent:'#009CC5',layout:'designer',templateMode:'designer',isDefault:false,
+      lineItemsColumns:['index','designation','qty','price','discountAmount','vat','ht','ttc'],versions:[],
+      elements:[
+        {id:'total-logo',kind:'field',field:'documentLogo',content:'SARI LOGO',x:35,y:30,w:160,h:70},
+        {id:'total-number',kind:'field',field:'documentNumber',content:'Référence',x:510,y:35,w:245,h:45},
+        {id:'total-date',kind:'field',field:'documentDate',content:'Date',x:510,y:85,w:245,h:35},
+        {id:'total-client',kind:'field',field:'customerName',content:'Client',x:35,y:140,w:430,h:60,background:'#f8fafc',borderColor:'#009CC5'},
+        {id:'total-lines',kind:'field',field:'lineItemsConfigurable',content:'Table lignes configurable',x:35,y:230,w:720,h:390},
+        {id:'total-vat',kind:'field',field:'vatBreakdown',content:'Ventilation TVA',x:35,y:650,w:330,h:110},
+        {id:'total-summary',kind:'field',field:'totals',content:'TOTAL TTC',x:500,y:650,w:255,h:110,background:'#e6f7fb'},
+        {id:'total-words',kind:'field',field:'amountInWords',content:'Montant en lettres',x:35,y:785,w:500,h:65},
+        {id:'total-qr',kind:'field',field:'qrCode',content:'QR vérification',x:35,y:885,w:105,h:105},
+        {id:'total-barcode',kind:'field',field:'barcode',content:'Code-barres',x:165,y:910,w:220,h:60}
+      ]
+    });
+  }
+  async ensureSariReferencePrefixes(){const labels={FAV:{fr:'Facture vente',ar:'فاتورة بيع',en:'Sales invoice'},FAC:{fr:'Facture achat',ar:'فاتورة شراء',en:'Purchase invoice'},DVV:{fr:'Devis vente',ar:'عرض سعر بيع',en:'Sales quote'},DVA:{fr:'Devis achat',ar:'عرض سعر شراء',en:'Purchase quote'},BCV:{fr:'Commande vente',ar:'طلبية بيع',en:'Sales order'},BCA:{fr:'Commande achat',ar:'طلبية شراء',en:'Purchase order'},LIV:{fr:'Bon de livraison',ar:'وصل تسليم',en:'Delivery note'},REC:{fr:'Bon de réception',ar:'وصل استلام',en:'Goods receipt'}};if(!await this.getById('documentCodes','JOB'))await this.save('documentCodes',{id:'JOB',code:'JOB',designation:'Offre d’emploi',designationI18n:{fr:'Offre d’emploi',ar:'عرض عمل',en:'Job posting'},description:'Recruitment job posting',mask:'SARI-JOB{YY}-{SEQ}',example:'SARI-JOB26-00001',maskType:'Standard',sequenceMinDigits:5,resetFrequency:'yearly',isActive:true,subTypeOptions:[]});const complianceCodes=[['CNS','Déclaration CNAS','تصريح CNAS','CNAS declaration'],['CSN','Déclaration CASNOS','تصريح CASNOS','CASNOS declaration'],['ACT','Actionnaire','مساهم','Shareholder'],['RGC','Registre société','سجل الشركة','Company register'],['SOC','Compte social','حساب اجتماعي','Social account'],['REQ','Demande commerce','طلب تجاري','Trade request'],['PAY','Fiche de paie','قسيمة الراتب','Payslip']];for(const[code,fr,ar,en]of complianceCodes)if(!await this.getById('documentCodes',code))await this.save('documentCodes',{id:code,code,designation:fr,designationI18n:{fr,ar,en},description:en,mask:`SARI-${code}{YY}-{SEQ}`,example:`SARI-${code}26-00001`,maskType:'Standard',sequenceMinDigits:5,resetFrequency:'yearly',isActive:true,subTypeOptions:[]});for(const definition of await this.getAll('documentCodes')){if(labels[definition.code])definition.designationI18n={...(definition.designationI18n||{}),...labels[definition.code]};if(!String(definition.mask||'').startsWith('SARI-')){definition.mask=`SARI-${definition.mask}`;definition.example=definition.example?.startsWith('SARI-')?definition.example:`SARI-${definition.example||definition.code}`;}await this.rawPut('documentCodes',definition);}}
+  async backfillNumericIdsAndReferences(){const stores=Array.from(this.db.objectStoreNames).filter(name=>!['recordSequences'].includes(name));for(const storeName of stores){const sourceRows=await this.rawGetAll(storeName),rows=this.usesReferenceOrder(storeName)?window.SariCore.ordering.stableOrder(sourceRows):sourceRows,seen=new Set();let next=Math.max(0,...rows.map(row=>Number(row.numericId)||0))+1;for(let index=0;index<rows.length;index++){const row=rows[index];let numericId=Number(row.numericId);if(!Number.isInteger(numericId)||numericId<1||seen.has(numericId)){while(seen.has(next))next++;numericId=next++;row.numericId=numericId;}seen.add(numericId);if(this.usesReferenceOrder(storeName))row.order=index+1;await this.applyDerivedReference(storeName,row);await this.rawPut(storeName,row);}await this.rawPut('recordSequences',{id:storeName,value:Math.max(0,...seen),updatedAt:new Date().toISOString()});}}
 
   async getAll(storeName) {
     await this.init();
@@ -198,13 +272,13 @@ class SariDB {
 
   async save(storeName, data) {
     await this.init();
-    if(storeName!=='recordSequences'){if(!Number.isInteger(data.numericId)||data.numericId<1)data.numericId=await this.nextNumericId(storeName);await this.applyDerivedReference(storeName,data);}
+    if(storeName!=='recordSequences'){const existing=data.id?await this.getById(storeName,data.id):null;if(existing?.numericId)data.numericId=existing.numericId;else if(!Number.isInteger(data.numericId)||data.numericId<1)data.numericId=await this.nextNumericId(storeName);if(this.usesReferenceOrder(storeName))data=await this.resequenceReferenceStore(storeName,data,data.order);else await this.applyDerivedReference(storeName,data);}
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
       const request = store.put(data);
 
-      request.onsuccess = async () => {if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'save',data);resolve(data);};
+      request.onsuccess = async () => {if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&window.SariCore?.db?.isExternalSyncStore(storeName)!==false)await window.syncController?.enqueueExternalOnly(storeName,'save',data);resolve(data);};
       request.onerror = () => reject(request.error);
     });
   }
@@ -217,7 +291,7 @@ class SariDB {
       const store = transaction.objectStore(storeName);
       const request = store.delete(id);
 
-      request.onsuccess = async () => {if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&!['syncQueue','recordSequences'].includes(storeName))await window.syncController?.enqueueExternalOnly(storeName,'delete',{id,numericId:existing.numericId});resolve(true);};
+      request.onsuccess = async () => {if(existing&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged&&!window.syncController?.suppressBridge&&window.SariCore?.db?.isExternalSyncStore(storeName)!==false)await window.syncController?.enqueueExternalOnly(storeName,'delete',{id,numericId:existing.numericId});if(this.usesReferenceOrder(storeName))await this.resequenceReferenceStore(storeName);resolve(true);};
       request.onerror = () => reject(request.error);
     });
   }
@@ -265,7 +339,7 @@ class SariDB {
       'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals',
       'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory',
       'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages',
-      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings'
+      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings', 'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -371,9 +445,9 @@ class SariDB {
     const products = await this.getAll('products');
     for(const product of products) await this.save('productLots',{id:`lot-${product.id}`,productId:product.id,lotNumber:product.lotNumber||`LOT-${product.id}`,warehouseId:product.warehouseId,quantity:Number(product.stock||0),manufacturingDate:product.manufacturingDate||'',expirationDate:product.expirationDate||'',status:'active',createdAt:new Date().toISOString()});
     const profiles = [
-      {id:'import-products',recordType:'products',name:'Import Produits',columns:['sku','name','category','purchasePrice','sellingPrice','stock','warehouseId']},
-      {id:'import-orders',recordType:'orders',name:'Import Commandes',columns:['referenceCode','customerId','currency','status','total']},
-      {id:'import-purchases',recordType:'purchaseDocuments',name:'Import Documents Achat',columns:['referenceCode','supplierId','documentType','currency','status','total']}
+      {id:'import-products',recordType:'products',name:'Import Produits',columns:['order','sku','name','category','purchasePrice','sellingPrice','stock','warehouseId']},
+      {id:'import-orders',recordType:'orders',name:'Import Commandes',columns:['order','referenceCode','customerId','currency','status','total']},
+      {id:'import-purchases',recordType:'purchaseDocuments',name:'Import Documents Achat',columns:['order','referenceCode','supplierId','documentType','currency','status','total']}
     ]; for(const row of profiles) await this.save('importProfiles',row);
     await this.save('apiEndpoints',{id:'api-config',basePath:'/api/v1',isEnabled:true,endpoints:[{name:'products',path:'products',store:'products'},{name:'customers',path:'customers',store:'customers'},{name:'suppliers',path:'suppliers',store:'suppliers'},{name:'sales',path:'sales',store:'orders'},{name:'purchases',path:'purchases',store:'purchaseDocuments'}]});
     const roles=await this.getAll('roles');for(const role of roles){if(role.id==='admin')continue;role.permissions=[...new Set([...(role.permissions||[]),'masterData.view',role.id==='inventory'?'bulkImport.*':'bulkImport.view','api.view',role.id==='inventory'?'inventoryOps.*':'inventoryOps.view'])];await this.save('roles',role);}
@@ -1044,6 +1118,5 @@ const sariDB = new SariDB();
 if (typeof window !== 'undefined') {
   window.sariDB = sariDB;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SariDB, sariDB };
-}
+
+export {};

@@ -1,0 +1,10 @@
+{
+  "users": [
+    {"id":"usr-admin","username":"admin","name":"Administrateur SARI","role":"admin","isDemo":false,"salt":"d233c4e62d32ce0af979ae1e62fb970d","hash":"2d3ed76e2e503f301d7c19b9c187d807c715dd1a08097c5e4c8a79dc29eec09d34bdb8e17c69366c1e89977574cac87ad678d0aa81b2e4dca9606ff8b51c31a3"},
+    {"id":"usr-stock","username":"stock","name":"Gestionnaire des stocks","role":"inventory","isDemo":true,"salt":"6ef7fc109b454a12f152d3a3a06a855d","hash":"c9bb0c622c52d69fb9d264ef8fc33154fed96ec3c001ccb686f57dbbd64ec54693255c5a4568ad0893aefe0209e304f889244c7941f13b11ee6c9b4a3b0c4a34"},
+    {"id":"usr-import","username":"import","name":"Responsable import/export","role":"import_export","isDemo":true,"salt":"59ee6027b77c3a031ddb7fc4f8cc4e10","hash":"8b337f948cb56e0b5e7627e6547e125f6b0433d4256201a89604aa02fbe93128f45095038fcd0f36721f0d3464c545b88d2552105744f91e2d6135369ada387d"},
+    {"id":"usr-tenders","username":"tenders","name":"Responsable appels d'offres","role":"tenders","isDemo":true,"salt":"2d386c36924d4df95e4ea712ae890bf9","hash":"8b08304b4bb9ae5f2eacba1b4c224d7b0690ab0a88a9c9f6e1c14840bd1c7377200ff2ec9fdac1682dfdb34b164e702ad187491c132a1efceb48e7f3e35af581"},
+    {"id":"usr-sales","username":"sales","name":"Employé commercial","role":"sales","isDemo":true,"salt":"4de77efe1e8fe55e3acc3793e5678304","hash":"014ee11824f857bcc8d6cfaeb46746f80538f50f01fb81832edb7c866ff5ad9964deada68fd0c4061dd61826016e96a97232d954d91bfa366c86903534b1d47d"},
+    {"id":"usr-viewer","username":"viewer","name":"Observateur","role":"readonly","isDemo":true,"salt":"187be7846eb9fc309d320f34156b1da5","hash":"5762d70c58e7832a3ed3fae57052fd5bea389667213d7d113a3461aaf1e32c447350abc678bd6b31acc90e5a3d016b6f0fb147ebc9e2e816f5719253276d5227"}
+  ]
+}

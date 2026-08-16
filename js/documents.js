@@ -25,7 +25,7 @@ const DocumentManager = {
       root.id = 'document-manager-root';
       document.body.appendChild(root);
     }
-    const canWrite = window.auth?.can('documents', 'edit') ?? window.auth?.canWrite(this.context.recordType);
+    const canWrite = Boolean(window.auth?.can('ged','edit') || window.auth?.can('documents','edit'));
     root.innerHTML = `
       <div class="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 sari-modal-backdrop" role="dialog" aria-modal="true">
         <div class="sari-tile w-full max-w-4xl bg-white dark:bg-slate-900 shadow-2xl max-h-[92vh] overflow-hidden flex flex-col">
@@ -54,6 +54,7 @@ const DocumentManager = {
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
+  canEdit(){return Boolean(window.auth?.can('ged','edit')||window.auth?.can('documents','edit'));},
   typeLabel(id){const row=(this.gedTypes||[]).find(x=>x.id===id);return row?.name?.[i18n.currentLang]||row?.name?.fr||id||i18n.t('gedOtherType','Autre');},
 
   card(doc, canWrite) {
@@ -80,7 +81,7 @@ const DocumentManager = {
   },
 
   async upload(event) {
-    event.preventDefault();
+    event.preventDefault();if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     const file = document.getElementById('ged-file').files[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) return window.app.showToast('La taille maximale hors-ligne est 10 Mo.', 'error');
@@ -99,13 +100,15 @@ const DocumentManager = {
   async download(id){const doc=await sariDB.getById('documents',id);if(!doc?.data)return app.showToast('Aucun fichier à télécharger.','warning');const url=await this.createObjectUrl(doc),a=document.createElement('a');a.href=url;a.download=doc.name||`document-${id}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);},
 
   async editMetadata(id) {
-    const doc = await window.sariDB.getById('documents', id); if (!doc) return;
-    const values = await DialogManager.form('Titre & métadonnées du document',[{name:'name',label:i18n.t('gedTitleLabel','Titre / nom du fichier'),value:doc.name||'',required:true},{name:'documentType',label:i18n.t('gedTypeLabel','Type GED'),type:'select',value:doc.documentType||'other',options:(this.gedTypes||[]).filter(x=>x.isActive).map(x=>({value:x.id,label:x.name?.[i18n.currentLang]||x.name?.fr}))},{name:'expirationDate',label:'Expiration',type:'date',value:doc.expirationDate||''},{name:'tags',label:'Tags (séparés par virgules)',value:(doc.tags||[]).join(', ')},{name:'notes',label:'Description / notes',type:'textarea',value:doc.notes||''}]); if (!values) return;
-    Object.assign(doc, { name: values.name.trim() || doc.name, documentType: values.documentType.trim(), expirationDate: values.expirationDate, tags:values.tags.split(',').map(x=>x.trim()).filter(Boolean), notes: values.notes.trim(), updatedAt: new Date().toISOString() });
-    await window.sariDB.save('documents', doc); await this._refresh();
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
+    const doc=await sariDB.getById('documents',id);if(!doc)return;
+    let root=document.getElementById('document-metadata-editor');if(!root){root=document.createElement('div');root.id='document-metadata-editor';document.body.appendChild(root);}
+    root.innerHTML=`<div class="fixed inset-0 z-[95] sari-modal-backdrop grid place-items-center p-3"><form onsubmit="DocumentManager.saveMetadata(event,'${id}')" class="sari-tile w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">GED.edit</span><h3 class="text-xl font-extrabold mt-2">Corriger le document</h3></div><button type="button" onclick="document.getElementById('document-metadata-editor').remove()"><i data-lucide="x"></i></button></header><div class="grid md:grid-cols-2 gap-3 mt-5"><label class="doc-label">${i18n.t('gedTitleLabel','Titre / nom du fichier')}<input id="ged-edit-name" value="${SariUtils.escapeHtml(doc.name||'')}" class="doc-input" required></label><label class="doc-label">${i18n.t('gedTypeLabel','Type GED')}<select id="ged-edit-type" class="doc-input">${(this.gedTypes||[]).filter(item=>item.isActive).map(item=>`<option value="${item.id}" ${doc.documentType===item.id?'selected':''}>${SariUtils.escapeHtml(item.name?.[i18n.currentLang]||item.name?.fr||item.id)}</option>`).join('')}</select></label><label class="doc-label">Expiration<input id="ged-edit-expiry" type="date" value="${doc.expirationDate||''}" class="doc-input"></label><label class="doc-label">Tags<input id="ged-edit-tags" value="${SariUtils.escapeHtml((doc.tags||[]).join(', '))}" class="doc-input"></label></div><div class="mt-4">${RichTextEditor.html('ged-edit-notes',doc.notesHtml||doc.notes||'','Note / description détaillée')}</div><footer class="flex justify-end gap-2 mt-5"><button type="button" onclick="document.getElementById('document-metadata-editor').remove()" class="sari-btn px-4 bg-slate-200">Annuler</button><button class="sari-btn px-5 bg-sari-blue text-white">Enregistrer les corrections</button></footer></form></div>`;window.SariIcons?.hydrate();
   },
+  async saveMetadata(event,id){event.preventDefault();if(!this.canEdit())return;const doc=await sariDB.getById('documents',id);Object.assign(doc,{name:document.getElementById('ged-edit-name').value.trim(),documentType:document.getElementById('ged-edit-type').value,expirationDate:document.getElementById('ged-edit-expiry').value,tags:document.getElementById('ged-edit-tags').value.split(',').map(value=>value.trim()).filter(Boolean),notesHtml:RichTextEditor.value('ged-edit-notes'),notes:RichTextEditor.value('ged-edit-notes').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),updatedAt:new Date().toISOString(),updatedBy:auth.currentUser?.id,updatedByName:auth.currentUser?.name});await sariDB.save('documents',doc);document.getElementById('document-metadata-editor')?.remove();app.showToast('Document GED corrigé.','success');await this._refresh();},
 
   async deleteDocument(id) {
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
     const linkCount = (doc.links || []).length;
     const extra = linkCount ? `\n\nIl est actuellement lié à ${linkCount} enregistrement(s).` : '';
@@ -116,6 +119,7 @@ const DocumentManager = {
   },
 
   async unlinkAll(id) {
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
     const count = (doc.links || []).length;
     if (!count) return window.app.showToast('Ce document n’est lié à aucun enregistrement.', 'info');
@@ -127,11 +131,13 @@ const DocumentManager = {
   },
 
   replace(id) {
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     const input = document.createElement('input'); input.type = 'file';
     input.onchange = async () => { const file = input.files[0]; if (!file) return; const doc = await window.sariDB.getById('documents', id); Object.assign(doc, { name: file.name, mimeType: file.type, size: file.size, data: await this.readFile(file), version: (doc.version || 1) + 1, updatedAt: new Date().toISOString() }); await window.sariDB.save('documents', doc); window.app.showToast(`Document remplacé • version ${doc.version}`, 'success'); await this._refresh(); }; input.click();
   },
 
   async unlink(id) {
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     if (!await DialogManager.confirm('Délier ce document de cet enregistrement ?')) return;
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
     doc.links = (doc.links || []).filter(link => !(link.recordType === this.context.recordType && link.recordId === this.context.recordId));
@@ -140,6 +146,7 @@ const DocumentManager = {
   },
 
   async linkExisting() {
+    if(!this.canEdit())return app.showToast('Permission GED.edit requise.','error');
     const id = document.getElementById('ged-existing')?.value; if (!id) return;
     const doc = await window.sariDB.getById('documents', id); if (!doc) return;
     doc.links = [...(doc.links || []), { recordType: this.context.recordType, recordId: this.context.recordId }]; doc.updatedAt = new Date().toISOString(); await window.sariDB.save('documents', doc); await this._refresh();
@@ -149,8 +156,10 @@ const DocumentManager = {
   close() { document.getElementById('document-manager-root')?.remove(); },
   /** Refresh the host view: the inline document manager if open, otherwise the central GED page. */
   async _refresh() {
-    if (this.context?.recordType) await this._refresh();
+    if (this.context?.recordType) await this.open(this.context.recordType,this.context.recordId,this.context.recordLabel);
     else if (window.GEDModule) await GEDModule.render();
   }
 };
 window.DocumentManager = DocumentManager;
+
+export {};

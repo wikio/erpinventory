@@ -19,12 +19,15 @@ const ReferenceCodeManager = {
     const key=`${code}:${this.periodFor(def,new Date(context.date||Date.now()))}:${context.subType||''}:${context.country||''}:${context.templateType||''}`;
     const counter=await sariDB.getById('sequenceCounters',key); return this.render(def,(counter?.value||0)+1,context);
   },
-  async forRecord(code, numericId, context = {}) { const def=await this.getDefinition(code);return def?this.render(def,Number(numericId),{...context,recordId:Number(numericId)}):`${code}-${numericId}`; },
+  async forRecord(code, order, context = {}) { const def=await this.getDefinition(code);return def?this.render(def,Number(order),{...context,order:Number(order)}):`${code}-${order}`; },
   async generate(code, context = {}) {
     const def=await this.getDefinition(code); if(!def)return `${code}-${Date.now()}`;
+    if(context.order)return this.render(def,Number(context.order),context);
     if(context.recordId)return this.render(def,Number(context.recordId),context);
     // Draft-only preview. The persistence layer always rebuilds the final reference from numericId.
     const key=`${code}:preview:${context.subType||''}:${context.country||''}:${context.templateType||''}`,counter=await sariDB.getById('sequenceCounters',key)||{id:key,code,value:0};counter.value++;await sariDB.save('sequenceCounters',counter);return this.render(def,counter.value,context);
   }
 };
 window.ReferenceCodeManager=ReferenceCodeManager;
+
+export {};

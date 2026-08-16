@@ -10,7 +10,7 @@
 ## 🌟 Key Apple-Style Visual & System Highlights
 
 1. **Apple-Style Full-Width Layout (100% Large) + Lucide Icons**:
-   - Sleek frosted glass (`backdrop-blur-xl`) sidebar navigation menu integrated with **Lucide Icons** (`https://unpkg.com/lucide@latest`).
+   - Sleek frosted glass (`backdrop-blur-xl`) sidebar navigation with **locally bundled Lucide icons** (no runtime CDN).
    - Unconstrained full-width (`100%`) viewport content area so tables, KPI cards, and Chart.js analytics stretch across large screens.
 2. **4 Native Themes (Apple Style)**:
    - *Sari Classic (Default)*: Official palette (`#009CC5`, `#C6DA34`, `#EBB51A`, `#FFFFFF`).
@@ -52,11 +52,65 @@ Additional administration tools include responsive/collapsible navigation, separ
 
 Version 16 adds configurable barcode/QR product labels, translated sales/purchase/partner/HR workflows, instant coupon feedback and linked manual discounts, dedicated print-only windows, larger PDF bottom margins, and a complete recruitment workflow with JOB references, advanced job HTML, sortable objectives/prerequisites and candidate CRUD. Numeric IDs, SARI references, DB-backed translations/coupons, SQL dumps and optional encrypted external database connectors remain included. It retains complete module-level FR/AR/EN coverage, translated rich-editor/barcode UI, GED previews/downloads, all-store data tools, quick profiles, inline translation, configurable metadata, 250 countries, reports, templates, fixed PDFs, workflows and the public API.
 
+## 🆕 Commerce workflow and document UX (Sections 222–239)
+
+- Sales document filters use configured document codes and translated labels; payment methods use the active-language configurable list.
+- Sales and purchase documents expose a complete actor/timestamp lifecycle, sales statistics, and draggable commercial/purchase workflows.
+- Purchase consultation sheets include per-line HT, VAT and TTC totals with direct supplier/transaction navigation.
+- Client/supplier country filters and notes are supported; client cart actions carry the selected client into Sales.
+- The designer includes the editable **SARI Total** template and materializes legacy blank compositions into movable rendered blocks.
+- Rich text supports foreground/highlight colors, icons hydrate after every dynamic render, login transitions no longer reload/flash, and lazy pages use the animated SARI grid loader.
+
+## 🆕 Filtered analytics and Algerian fiscal management (Sections 240–248)
+
+- Sales and purchase statistics now support date ranges plus client/supplier/status filters, with spend/revenue trends and top partner/product KPIs.
+- G50 records include invoice/client/supplier associations, NIF/NAI, filing date, configurable tax inspection office and rich HTML notes.
+- G50, IBS and Bilan share remaining-balance payment allocation, detailed histories and GED-linked proof uploads.
+- The Bilan editor/consultation provides organized Algerian Actif and Passif fiscal lines with balance validation.
+- Tax inspection offices are managed through the configurable-list repository and exposed through searchable autocompletes.
+- Audit entries accept directly linked GED supporting evidence.
+
+## 🆕 Inventory operations and reference ordering (Sections 250–254)
+
+- Inventory count consultation now shows warehouse, operator, status, expected/counted quantities and discrepancies, with managed create/edit/delete operations.
+- Stock movements provide filtered/sortable lists, detailed consultation and full stock-aware CRUD; lots support product/lot/warehouse/status and manufacturing/expiry date filters.
+- Every reference-bearing entity now has an editable business `order` independent from immutable `numericId`; reference masks use `order` for `{SEQ}` and affected peers are compacted/referenced automatically.
+- The exact resequencing strategy is documented in [`docs/reference-ordering.md`](docs/reference-ordering.md).
+
+## 🆕 GED and secure identity administration (Sections 255–264)
+
+- GED records support role-gated title/type/tag/expiry correction and advanced rich-text notes, with a modern consultation sheet.
+- G50 product autocomplete narrows linked sales invoices by selected products.
+- Employee Portal displays the EMP reference code.
+- Administrators have a dedicated user manager with CRUD, employee links, roles/permission overrides, generated passwords, activation links, QR/copy/email delivery and a manual reset-request queue.
+- Demo accounts can be hidden or disabled; password hashes live in a web-inaccessible runtime vault bootstrapped from `secure/auth-bootstrap.json`.
+- SMTP settings support STARTTLS/SSL, protected in-memory/environment passwords and transactional test/activation/reset delivery. See [`docs/authentication.md`](docs/authentication.md).
+- Order/technical-ID and inventory traceability labels are consistently translated through the central translation layer.
+
 ## 🗄️ Optional External Database Backend
 
-The browser never connects to a database protocol directly. Configure MySQL, PostgreSQL, or MongoDB from **Settings → Database**; credentials are sent to the Node server, encrypted with AES-256-GCM under `.runtime/`, and never returned to or stored by IndexedDB. Without a configured backend, the ERP remains fully offline-first. With one active, IndexedDB remains the local cache/sync queue.
+The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.
 
-Install server drivers with `npm install`. For production, set a stable `SARI_CONFIG_KEY` environment secret before saving a connection. The migration tool performs idempotent upserts keyed by store + numeric record ID and reports progress/failures per store.
+External persistence now uses long-lived connection pools, prepared statements and one normalized table per entity. Migration batches are transactional, idempotent upserts keyed by `numericId`, preserve offline IDs in `legacy_uid`, and report failures per record. Sales and purchase lines are written to normalized child tables in the same transaction. Reporting queries use an optional read-replica pool.
+
+Database passwords are **never written to `.runtime/`**. Set `SARI_DB_PASSWORD` in the server environment; optional connection metadata entered under **Settings → Database** contains no secret. Initialize/upgrade MySQL with:
+
+```bash
+SARI_DB_HOST=localhost SARI_DB_NAME=sari_erp_prod \
+SARI_DB_USER=sari_admin SARI_DB_PASSWORD='...' npm run db:migrate
+```
+
+Replica variables use the `SARI_DB_REPLICA_` prefix (`HOST`, `PORT`, `NAME`, `USER`, `PASSWORD`).
+
+The Administrator database screen now performs real driver-level tests and exposes a live diagnostic console. To validate a connector end-to-end from the command line (connection → fixture migration → target verification → cleanup), configure the standard `SARI_DB_*` variables and run one of:
+
+```bash
+npm run db:validate -- --type=mysql
+npm run db:validate -- --type=postgresql
+npm run db:validate -- --type=mongodb
+```
+
+MySQL must first have the canonical schema applied with `npm run db:migrate`. PostgreSQL creates a safe per-entity JSONB table when a mapped table does not yet exist; MongoDB creates mapped collections on first upsert. Migration `004_migration_reference_integrity.sql` supplies inactive bridge identities for message foreign keys; the browser repairs missing/duplicate `numericId` values before every full migration and normalizes coupons plus sequence counters for relational constraints.
 
 ## 🏥 Core Functional Modules
 
@@ -100,16 +154,27 @@ Demo accounts use the password **`Sari@2026`**:
 | `sales` | Sales employee |
 | `viewer` | Read-only observer |
 
-These accounts are for demonstration. Replace the built-in repository in `server.js` with your production user database and rotate all credentials before deployment.
+These accounts are for demonstration. Rotate all credentials before deployment. If the Administrator password was changed and is no longer known, stop the server and run `npm run auth:reset-admin`; the recovery command preserves the other accounts and stores only a new scrypt hash. See [`docs/authentication.md`](docs/authentication.md).
 
-## 🚀 Quick Start (Node.js Server included)
-
-In the project directory, start the lightweight zero-dependency server:
+## 🚀 Build and run
 
 ```bash
-npm start
-# or directly:
-node server.js
+npm install
+npm run dev       # Vite on :3000 + API server on :3001
+npm test
+npm run typecheck
+npm run test:e2e  # Playwright desktop + mobile responsive checks
+npm start         # production build, then the API/static server on :3000
 ```
 
-The application will start listening on `http://0.0.0.0:3000` and can be accessed from any browser or live preview environment.
+The production build compiles Tailwind, self-hosts/subsets fonts, emits hashed core and lazy domain chunks, and generates the Workbox service worker. The server adds ETags, immutable caching for hashed assets, revalidation for the app shell, and Brotli/gzip compression.
+
+Portable settings, templates and translations can be mounted with `SARI_CONTENT_DIR`; see [`docs/portable-content.md`](docs/portable-content.md). Architecture decisions and target Next.js/NestJS boundaries are documented in [`docs/architecture.md`](docs/architecture.md), and Tauri/Capacitor commands in [`docs/packaging.md`](docs/packaging.md).
+
+## 🆕 Social security and corporate governance (Sections 293–297)
+
+SARI now includes dedicated CNAS and CASNOS declaration/payment workspaces, Trade Directorate social accounts/requests/trade-register management, and a company-wide meeting-minutes and shareholder registry. All records integrate with GED, configurable trilingual reference lists, immutable technical IDs, business ordering, rich HTML editors, and the normalized external connector. See [`docs/social-trade-governance.md`](docs/social-trade-governance.md).
+
+## 🆕 Algerian payslips (Sections 298–299)
+
+The HR area now includes a full payslip manager with salary/CNAS linkage, progressive IRG calculation, configurable drag-and-drop templates, modern consultation, PDF generation, and automatic GED archiving. Nested manager dialogs dynamically stack above their parent overlays, including the PV Type Manager. See [`docs/payslips.md`](docs/payslips.md).

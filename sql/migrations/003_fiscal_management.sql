@@ -1,0 +1,23 @@
+-- Sections 240–248: Algerian fiscal declarations, associations and GED payment evidence.
+ALTER TABLE `configurable_options` ADD COLUMN IF NOT EXISTS `code` VARCHAR(64) NULL;
+ALTER TABLE `configurable_options` ADD COLUMN IF NOT EXISTS `address` VARCHAR(255) NULL;
+ALTER TABLE `configurable_options` ADD COLUMN IF NOT EXISTS `wilaya` VARCHAR(10) NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `nif` VARCHAR(100) NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `nai` VARCHAR(100) NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `tax_inspection_office_id` VARCHAR(255) NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `filing_date` DATE NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `notes_html` MEDIUMTEXT NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `associated_sales_invoice_ids_json` JSON NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `associated_purchase_invoice_ids_json` JSON NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `associated_client_ids_json` JSON NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `associated_supplier_ids_json` JSON NULL;
+ALTER TABLE `tax_records` ADD COLUMN IF NOT EXISTS `bilan_lines_json` JSON NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `record_type` VARCHAR(20) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `record_reference` VARCHAR(150) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `payment_reference` VARCHAR(180) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `proof_document_id` VARCHAR(255) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `created_by` VARCHAR(255) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `created_by_name` VARCHAR(180) NULL;
+ALTER TABLE `g50_payments` ADD COLUMN IF NOT EXISTS `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+CREATE INDEX `idx_tax_record_inspection` ON `tax_records` (`tax_inspection_office_id`);
+CREATE INDEX `idx_tax_payment_record` ON `g50_payments` (`tax_record_id`, `payment_date`);

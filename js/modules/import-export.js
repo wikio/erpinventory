@@ -27,8 +27,8 @@ const ImportExportModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    TableSort.ensure('shipments','referenceCode');
-    const filtered = TableSort.apply('shipments',this.getFilteredShipments(),'referenceCode');
+    TableSort.ensure('shipments','order');
+    const filtered = TableSort.apply('shipments',this.getFilteredShipments(),'order');
 
     // Summary KPIs
     let activeCount = 0;
@@ -56,16 +56,16 @@ const ImportExportModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="ImportExportModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addShipment">${i18n.t('addShipment')}</span>
               </button>
             ` : ''}
             <button onclick="ImportExportModule.openLandedCostModal()" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 text-sm font-bold">
-              <i class="fas fa-calculator"></i>
+              <i data-lucide="calculator"></i>
               <span>${i18n.t('landedCostCalc')}</span>
             </button>
             <button onclick="ImportExportModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -134,6 +134,7 @@ const ImportExportModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('shipments','order','Ordre','ImportExportModule.render()')}
                 ${TableSort.th('shipments','referenceCode','N° Expédition / Réf','ImportExportModule.render()')}
                 ${TableSort.th('shipments','supplierName','Fournisseur & Incoterm','ImportExportModule.render()')}
                 ${TableSort.th('shipments','status','Statut Logistique','ImportExportModule.render()')}
@@ -149,7 +150,7 @@ const ImportExportModule = {
               ${filtered.length === 0 ? `
                 <tr>
                   <td colspan="9" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-ship text-2xl mb-2 block"></i>
+                    <i data-lucide="ship" class="text-2xl mb-2 block"></i>
                     Aucune expédition ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -165,6 +166,7 @@ const ImportExportModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${s.order||'—'}</td>
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
                       ${s.referenceCode || s.id}
                       <div class="text-[10px] text-slate-400 font-normal uppercase">${s.id} • ${s.type || 'import'}</div>
@@ -200,10 +202,10 @@ const ImportExportModule = {
                         <button onclick="ImportExportModule.openDetail('${s.id}')" title="Consulter" class="p-1.5 text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="ImportExportModule.openModal('${s.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="ImportExportModule.deleteShipment('${s.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -248,7 +250,7 @@ const ImportExportModule = {
   /**
    * Open modal to create or edit an import/export shipment
    */
-  async openDetail(id){const s=await sariDB.getById('shipments',id),root=document.getElementById('sari-modal-root'),country=this.state.countries.find(c=>c.iso3===s.partnerCountryCode),tender=(this.state.tenders||[]).find(t=>t.id===s.linkedTenderId);root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${s.type}</span><h3 class="text-xl font-extrabold">${s.referenceCode||s.id}</h3></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded"><small>Partenaire</small><b class="block">${SariUtils.escapeHtml(s.partnerName||s.supplierName)}</b></div><div class="p-3 border rounded"><small>Pays</small><b class="block">${country?.name?.[i18n.currentLang]||s.partnerCountryCode}</b></div><div class="p-3 border rounded"><small>Statut</small><b class="block">${s.status}</b></div><div class="p-3 border rounded"><small>Coût rendu</small><b class="block">${i18n.formatCurrency(s.totalLandedCostDZD)}</b></div></div><p class="text-sm">Consultation : <b>${tender?.referenceCode||'—'}</b></p><p class="text-sm mt-3">${SariUtils.escapeHtml(s.notes||'')}</p><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('shipment','${id}','${s.referenceCode||id}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('importExport','edit')?`<button onclick="app.closeModalRoot();ImportExportModule.openModal('${id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;},
+  async openDetail(id){const s=await sariDB.getById('shipments',id),root=document.getElementById('sari-modal-root'),country=this.state.countries.find(c=>c.iso3===s.partnerCountryCode),tender=(this.state.tenders||[]).find(t=>t.id===s.linkedTenderId);root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${s.type}</span><h3 class="text-xl font-extrabold">${s.referenceCode||s.id}</h3><p class="font-mono-tech text-xs">Ordre ${s.order||'—'} • ID technique ${s.numericId||'—'}</p></div><button onclick="app.closeModalRoot()">×</button></header><div class="grid md:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded"><small>Partenaire</small><b class="block">${SariUtils.escapeHtml(s.partnerName||s.supplierName)}</b></div><div class="p-3 border rounded"><small>Pays</small><b class="block">${country?.name?.[i18n.currentLang]||s.partnerCountryCode}</b></div><div class="p-3 border rounded"><small>Statut</small><b class="block">${s.status}</b></div><div class="p-3 border rounded"><small>Coût rendu</small><b class="block">${i18n.formatCurrency(s.totalLandedCostDZD)}</b></div></div><p class="text-sm">Consultation : <b>${tender?.referenceCode||'—'}</b></p><p class="text-sm mt-3">${SariUtils.escapeHtml(s.notes||'')}</p><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('shipment','${id}','${s.referenceCode||id}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('importExport','edit')?`<button onclick="app.closeModalRoot();ImportExportModule.openModal('${id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;},
 
   async openModal(shipmentId = null) {
     this.state.editingId = shipmentId;
@@ -285,11 +287,11 @@ const ImportExportModule = {
               ${shipmentId ? 'Modifier l\'Expédition Import / Export' : 'Nouvelle Expédition Maritime / Aérienne'}
             </h3>
             <button onclick="ImportExportModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
-          <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm">
+          <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sh.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sh-order" type="number" min="1" value="${sh.order||this.state.shipments.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Expédition / Dossier *</label>
@@ -420,6 +422,7 @@ const ImportExportModule = {
       ...original,
       id: recordId,
       referenceCode: original.referenceCode || await ReferenceCodeManager.generate(transactionType==='export'?'EXP':'IMP', { country: countryRecord.iso3 }),
+      order: Number(document.getElementById('sh-order').value),
       partnerCountryCode: countryRecord.iso3,
       partnerType: supplier?'supplier':'customer', partnerId:partner.id, partnerName:partner.name,
       supplierId: supplier?.id || '', supplierName: supplier?.name || '', customerId:customer?.id||'', customerName:customer?.name||'',
@@ -476,7 +479,7 @@ const ImportExportModule = {
               </h3>
             </div>
             <button onclick="ImportExportModule.closeLandedCostModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -597,7 +600,7 @@ const ImportExportModule = {
               </h3>
             </div>
             <button onclick="ImportExportModule.closeDocsModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
@@ -640,6 +643,5 @@ const ImportExportModule = {
 if (typeof window !== 'undefined') {
   window.ImportExportModule = ImportExportModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ImportExportModule;
-}
+
+export {};

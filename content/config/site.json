@@ -1,0 +1,13 @@
+{
+  "companyName": "SARI SYSTÈMES",
+  "companySubtitle": "Distribution Matériel Médical & Consommables Algérie",
+  "defaultLanguage": "fr",
+  "defaultTheme": "classic",
+  "currency": "DZD",
+  "taxRate": 0.19,
+  "features": {
+    "offlineMode": true,
+    "externalDatabase": true,
+    "inlineTranslation": true
+  }
+}

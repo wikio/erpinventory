@@ -9,6 +9,7 @@ const CustomersModule = {
     customers: [],
     filterType: 'all',
     filterWilaya: 'all',
+    filterCountry: 'all',
     searchQuery: '',
     editingId: null
   },
@@ -24,8 +25,8 @@ const CustomersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
-    TableSort.ensure('customers','name');
-    const filtered = TableSort.apply('customers',this.getFilteredCustomers(),'name');
+    TableSort.ensure('customers','order');
+    const filtered = TableSort.apply('customers',this.getFilteredCustomers(),'order');
 
     // Summary KPIs
     let hospitalCount = 0;
@@ -53,12 +54,12 @@ const CustomersModule = {
           <div class="flex flex-wrap items-center gap-2">
             ${canWrite ? `
               <button onclick="CustomersModule.openModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-                <i class="fas fa-plus"></i>
+                <i data-lucide="plus"></i>
                 <span data-i18n="addCustomer">${i18n.t('addCustomer')}</span>
               </button>
             ` : ''}
             <button onclick="CustomersModule.exportCSV()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
-              <i class="fas fa-file-export"></i>
+              <i data-lucide="file-up"></i>
               <span>${i18n.t('exportCSV')}</span>
             </button>
           </div>
@@ -96,7 +97,7 @@ const CustomersModule = {
         </div>
 
         <!-- Filter & Search Bar -->
-        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="sari-tile p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Recherche (Nom, NIF, RC)</label>
             <input 
@@ -118,6 +119,10 @@ const CustomersModule = {
             </select>
           </div>
           <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('country','Pays')}</label>
+            <select onchange="CustomersModule.handleCountryFilter(this.value)" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-sari-blue"><option value="all">${i18n.t('allCountries','Tous les pays')}</option>${this.countryOptions()}</select>
+          </div>
+          ${this.state.filterCountry==='all'||this.state.filterCountry==='DZA'?`<div>
             <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Wilaya (Algérie)</label>
             <select 
               onchange="CustomersModule.handleWilayaFilter(this.value)"
@@ -128,7 +133,7 @@ const CustomersModule = {
                 <option value="${w.code}" ${this.state.filterWilaya === w.code ? 'selected' : ''}>${w[i18n.currentLang] || w.fr}</option>
               `).join('')}
             </select>
-          </div>
+          </div>`:''}
         </div>
 
         <!-- Customers Table -->
@@ -136,6 +141,7 @@ const CustomersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('customers','order','Ordre','CustomersModule.render()')}
                 ${TableSort.th('customers','name','Client / Établissement','CustomersModule.render()')}
                 ${TableSort.th('customers','type','Type & Catégorie','CustomersModule.render()')}
                 ${TableSort.th('customers','wilaya','Wilaya & Localisation','CustomersModule.render()')}
@@ -148,8 +154,8 @@ const CustomersModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="7" class="p-8 text-center text-slate-500">
-                    <i class="fas fa-hospital-user text-2xl mb-2 block"></i>
+                  <td colspan="8" class="p-8 text-center text-slate-500">
+                    <i data-lucide="user-round" class="text-2xl mb-2 block"></i>
                     Aucun client ne correspond à vos filtres.
                   </td>
                 </tr>
@@ -164,6 +170,7 @@ const CustomersModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${c.order||'—'}</td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${c.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${c.referenceCode||c.id}</div>
                       <div class="text-xs text-slate-500 mt-0.5">${c.contactInfo || '-'}</div>
@@ -174,7 +181,7 @@ const CustomersModule = {
                       </span>
                     </td>
                     <td class="p-3 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      ${c.wilaya ? i18n.getWilayaName(c.wilaya) : '16 - Alger'}
+                      ${this.customerCountryCode(c)==='DZA'?(c.wilaya ? i18n.getWilayaName(c.wilaya) : 'Algérie'):SariUtils.escapeHtml(c.country||this.customerCountryCode(c)||'—')}
                     </td>
                     <td class="p-3 font-mono-tech text-xs text-slate-600 dark:text-slate-300">
                       <div>${c.taxId || 'NIF: Non renseigné'}</div>
@@ -187,18 +194,18 @@ const CustomersModule = {
                     </td>
                     <td class="p-3 text-right">
                       <div class="flex justify-end gap-1">
-                        <button onclick="window.app.navigate('sales')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
-                          <i class="fas fa-shopping-cart"></i>
+                        <button onclick="CustomersModule.startSale('${c.id}')" title="Créer Commande / BL" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-lime-dark">
+                          <i data-lucide="shopping-cart"></i>
                         </button>
                         <button onclick="CustomersModule.openDetail('${c.id}')" title="Consulter la fiche" class="p-1.5 rounded text-sari-blue"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="CustomersModule.open360('${c.id}')" title="Transactions & statistiques" class="p-1.5 rounded text-sari-lime-dark"><i data-lucide="chart-no-axes-combined" class="w-4 h-4"></i></button>
                         <button onclick="DocumentManager.open('customer','${c.id}','${SariUtils.escapeHtml(c.name)}')" title="Documents GED" class="p-1.5 rounded text-sari-blue"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
                         ${canWrite ? `
                           <button onclick="CustomersModule.openModal('${c.id}')" title="Modifier" class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sari-blue">
-                            <i class="fas fa-edit"></i>
+                            <i data-lucide="pencil"></i>
                           </button>
                           <button onclick="CustomersModule.deleteCustomer('${c.id}')" title="Supprimer" class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                            <i class="fas fa-trash"></i>
+                            <i data-lucide="trash-2"></i>
                           </button>
                         ` : ''}
                       </div>
@@ -216,12 +223,14 @@ const CustomersModule = {
     `;
   },
 
+  customerCountryCode(customer){if(customer.countryCode)return customer.countryCode;if(customer.wilaya||/alg[eé]rie/i.test(customer.country||''))return'DZA';return'';},
+  countryOptions(){const used=new Set(this.state.customers.map(customer=>this.customerCountryCode(customer)).filter(Boolean));return (this.state.countries||[]).filter(country=>country.isActive&&(used.has(country.iso3)||country.iso3==='DZA')).sort((a,b)=>(a.name?.[i18n.currentLang]||a.name?.fr||'').localeCompare(b.name?.[i18n.currentLang]||b.name?.fr||'')).map(country=>`<option value="${country.iso3}" ${this.state.filterCountry===country.iso3?'selected':''}>${SariUtils.escapeHtml(country.name?.[i18n.currentLang]||country.name?.fr||country.iso3)}</option>`).join('');},
   getFilteredCustomers() {
     return this.state.customers.filter(c => {
-      if (this.state.filterType !== 'all' && c.type !== this.state.filterType) {
-        return false;
-      }
-      if (this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
+      if (this.state.filterType !== 'all' && c.type !== this.state.filterType) return false;
+      const countryCode=this.customerCountryCode(c);
+      if(this.state.filterCountry!=='all'&&countryCode!==this.state.filterCountry)return false;
+      if ((this.state.filterCountry==='all'||this.state.filterCountry==='DZA')&&this.state.filterWilaya !== 'all' && c.wilaya !== this.state.filterWilaya) {
         return false;
       }
       if (!SariUtils.matchesAdvancedSearch(c,this.state.searchQuery,['referenceCode','name','taxId','contactInfo','richDetails'])) return false;
@@ -239,6 +248,7 @@ const CustomersModule = {
     this.render();
   },
 
+  handleCountryFilter(val){this.state.filterCountry=val;if(val!=='all'&&val!=='DZA')this.state.filterWilaya='all';this.render();},
   handleWilayaFilter(val) {
     this.state.filterWilaya = val;
     this.render();
@@ -268,11 +278,12 @@ const CustomersModule = {
               ${customerId ? 'Modifier le Client / Hôpital' : 'Nouveau Client ou Institution Algérie'}
             </h3>
             <button onclick="CustomersModule.closeModal()" class="text-slate-400 hover:text-slate-600">
-              <i class="fas fa-times"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
 
           <form onsubmit="CustomersModule.saveCustomer(event)" class="space-y-4 text-sm">
+            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${cust.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="cust-order" type="number" min="1" value="${cust.order||this.state.customers.length+1}" class="doc-input"></label></div>
             <div>
               <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom Client / Établissement *</label>
               <input type="text" id="cust-name" required value="${cust.name}" placeholder="Ex: CHU Mustapha Pacha, Pharmacie El-Shifa" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
@@ -315,6 +326,7 @@ const CustomersModule = {
               <input type="text" id="cust-contact" value="${cust.contactInfo || ''}" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
             </div>
 
+            <div><label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">${i18n.t('notes','Notes')}</label><textarea id="cust-notes" class="doc-input min-h-24" placeholder="Notes libres sur le client…">${SariUtils.escapeHtml(cust.notes||'')}</textarea></div>
             <div class="grid md:grid-cols-[180px_1fr] gap-4">${ImageDropzone.html('cust-logo',cust.logo||'','Logo client')}${RichTextEditor.html('cust-rich-details',cust.richDetails||'','Informations détaillées / conditions spéciales')}</div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onclick="CustomersModule.closeModal()" class="sari-btn px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
@@ -346,14 +358,16 @@ const CustomersModule = {
       ...original,
       id,
       referenceCode: original.referenceCode || await ReferenceCodeManager.generate('CLI', { subType }),
+      order: Number(document.getElementById('cust-order').value),
       name: document.getElementById('cust-name').value.trim(),
       type: customerType,
       countryCode:countryRecord.iso3,country:countryRecord.name?.fr||countryRecord.iso3,
-      wilaya: document.getElementById('cust-wilaya').value,
+      wilaya: countryRecord.iso3==='DZA' ? document.getElementById('cust-wilaya').value : '',
       taxId: document.getElementById('cust-tax').value.trim(),
       creditLimit: Number(document.getElementById('cust-credit').value),
       paymentTerms: document.getElementById('cust-payment').value.trim(),
       contactInfo: document.getElementById('cust-contact').value.trim(),
+      notes: document.getElementById('cust-notes').value.trim(),
       logo: ImageDropzone.value('cust-logo',original.logo||''),
       richDetails: RichTextEditor.value('cust-rich-details')
     };
@@ -364,6 +378,7 @@ const CustomersModule = {
     await this.render();
   },
 
+  async startSale(id){sessionStorage.setItem('sari_sales_customer_id',id);if(window.SalesModule?.state)window.SalesModule.state.selectedCustomerId=id;await window.app.navigate('sales');if(window.SalesModule?.state){window.SalesModule.state.selectedCustomerId=id;await window.SalesModule.render();document.querySelector('[data-sales-customer-field]')?.scrollIntoView({behavior:'smooth',block:'center'});}},
   async openDetail(id){return Partner360.open('customer',id);},async open360(id){return Partner360.open('customer',id);},
 
   async deleteCustomer(id) {
@@ -382,6 +397,5 @@ const CustomersModule = {
 if (typeof window !== 'undefined') {
   window.CustomersModule = CustomersModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = CustomersModule;
-}
+
+export {};

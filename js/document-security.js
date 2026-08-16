@@ -15,3 +15,5 @@ const DocumentSecurity = {
   async verify(referenceCode, hash) { return (await this.hash(referenceCode)) === String(hash||'').toUpperCase(); }
 };
 window.DocumentSecurity=DocumentSecurity;
+
+export {};

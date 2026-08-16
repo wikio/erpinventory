@@ -8,108 +8,131 @@
 class SariApp {
   constructor() {
     this.activeModule = 'dashboard';
-    this.modules = {
-      dashboard: window.DashboardModule,
-      inventory: window.InventoryModule,
-      suppliers: window.SuppliersModule,
-      importExport: window.ImportExportModule,
-      tenders: window.TendersModule,
-      sales: window.SalesModule,
-      customers: window.CustomersModule,
-      reports: window.ReportsModule,
-      translations: window.TranslationsModule,
-      auditLogs: window.AuditModule,
-      settings: window.SettingsModule,
-      hr: window.HRModule,
-      tasks: window.TasksModule,
-      portal: window.EmployeePortalModule,
-      purchases: window.PurchasesModule,
-      ged: window.GEDModule,
-      taxes: window.TaxesModule,
-      masterData: window.MasterDataModule,
-      inventoryOps: window.InventoryOpsModule,
-      bulkImport: window.BulkImportModule,
-      api: window.ApiModule,
-      documentDetail: window.DocumentDetailModule,
-      bankAccountDetail: window.BankAccountDetailModule
-    };
+    // Values are populated on first navigation by the Vite dynamic-import
+    // registry. Keeping the route keys here preserves hash routing and RBAC.
+    this.modules = Object.fromEntries([
+      'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
+      'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
+      'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
+      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'payslips', 'documentDetail', 'bankAccountDetail'
+    ].map(name => [name, null]));
   }
 
   async init() {
-    console.log('[SARI Système] Initializing core modules in Apple-Style Full-Width layout...');
-
-    // 1. Authenticate first. Do not let IndexedDB initialization block the login screen.
+    console.log('[SARI Système] Initializing secure application shell...');
     if (window.auth) {
       const authenticated = await window.auth.init();
       if (!authenticated) {
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-        return;
+        window.SariIcons?.hydrate();
+        return false;
       }
     }
+    return this.initializeWorkspace();
+  }
 
-    // 2. Open and migrate the offline database only after authentication.
-    try {
-      if (window.dbAdapter) {
-        await window.dbAdapter.init();
-      } else if (window.sariDB) {
-        await window.sariDB.init();
-      }
-    } catch (error) {
-      console.error('[SARI Système] IndexedDB startup failed:', error);
-      window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
-      return;
+  loadingMarkup(message = i18n?.t?.('loadingModule', 'Chargement du module') || 'Chargement du module') {
+    return `<div class="sari-grid-loader-wrap" role="status" aria-live="polite"><div class="sari-grid-loader" aria-hidden="true">${Array.from({length:9},(_,index)=>`<span style="--grid-index:${index}"></span>`).join('')}</div><p>${SariUtils.escapeHtml(message)}…</p></div>`;
+  }
+
+  showBootLoader() {
+    let loader = document.getElementById('sari-boot-loader');
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'sari-boot-loader';
+      loader.className = 'sari-boot-loader sari-grid-pattern';
+      document.body.appendChild(loader);
     }
+    loader.innerHTML = this.loadingMarkup(i18n?.t?.('loadingModule', 'Ouverture de votre espace SARI') || 'Ouverture de votre espace SARI');
+    loader.classList.remove('hidden');
+  }
 
-    // 3. Initialize language after IndexedDB is available.
-    if (window.i18n) await window.i18n.init();
-    await window.UICopy?.persistCatalog();
-    await window.DynamicI18n?.init();
-    await window.OptionCatalog?.init();
-    window.TranslationOverlay?.init();
-    const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
-    if (brandingSettings && window.SettingsModule?.applyBranding) window.SettingsModule.applyBranding(brandingSettings);
+  hideBootLoader() { document.getElementById('sari-boot-loader')?.classList.add('hidden'); }
 
-    // Load database-backed role permissions and optional employee overrides.
-    if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+  async continueAfterAuthentication() {
     window.auth?.hideLogin();
+    this.showBootLoader();
+    return this.initializeWorkspace();
+  }
 
-    // 4. Init Sync Controller
-    if (window.syncController) {
-      await window.syncController.init();
+  async initializeWorkspace() {
+    if (this.workspaceReady) return true;
+    if (this.workspacePromise) return this.workspacePromise;
+    this.showBootLoader();
+    this.workspacePromise = (async () => {
+      try {
+        if (window.dbAdapter) await window.dbAdapter.init();
+        else if (window.sariDB) await window.sariDB.init();
+      } catch (error) {
+        console.error('[SARI Système] IndexedDB startup failed:', error);
+        this.hideBootLoader();
+        window.auth?.showLogin('La base locale ne peut pas être ouverte. Fermez les autres onglets SARI, puis actualisez la page.');
+        return false;
+      }
+
+      if (window.i18n) await window.i18n.init();
+      await window.UICopy?.persistCatalog();
+      await window.DynamicI18n?.init();
+      await window.OptionCatalog?.init();
+      window.TranslationOverlay?.init();
+      const brandingSettings = await window.sariDB?.getById('settings', 'app-settings');
+      let portableSettings = {};
+      try {
+        const response = await fetch('/api/content/config/site.json', { credentials: 'same-origin' });
+        if (response.ok) portableSettings = (await response.json()).content || {};
+      } catch (_) { /* offline: IndexedDB settings remain authoritative */ }
+      this.applyBranding({ ...(brandingSettings || {}), ...portableSettings });
+
+      if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+      window.auth?.hideLogin();
+      if (window.syncController) await window.syncController.init();
+
+      this.setNativeTheme(localStorage.getItem('sari_native_theme') || 'classic', false);
+      this.registerServiceWorker();
+      this.setupEventListeners();
+      window.AppValidator?.init();
+      this.initializeSidebarMenus();
+      this.updateNavigationPermissions();
+      this.applySidebarPreference();
+
+      const hash = window.location.hash.replace('#', '');
+      await this.navigate(Object.prototype.hasOwnProperty.call(this.modules, hash) ? hash : 'dashboard');
+      await this.updateNotificationsBadge();
+      window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
+      this.workspaceReady = true;
+      this.hideBootLoader();
+      window.SariIcons?.hydrate();
+      console.log('[SARI Système] Application ready in offline-first PWA mode!');
+      return true;
+    })().catch(error=>{console.error('[SARI Système] Workspace initialization failed:',error);this.hideBootLoader();window.auth?.showLogin(`Initialisation de l’application impossible : ${error?.message||'erreur inconnue'}.`);return false;}).finally(() => { this.workspacePromise = null; });
+    return this.workspacePromise;
+  }
+
+  applyBranding(settings = {}) {
+    const img = document.getElementById('sari-site-logo');
+    const fallback = document.getElementById('sari-default-logo');
+    if (img) {
+      img.src = settings.siteLogo || '';
+      img.classList.toggle('hidden', !settings.siteLogo);
     }
-
-    // 5. Apply saved Native Theme (Classic / Clinical / Sunset / Midnight)
-    const savedTheme = localStorage.getItem('sari_native_theme') || 'classic';
-    this.setNativeTheme(savedTheme, false);
-
-    // 6. Register Service Worker for PWA
-    this.registerServiceWorker();
-
-    // 7. Setup navigation behavior and restore the desktop sidebar preference.
-    this.setupEventListeners();
-    window.AppValidator?.init();
-    this.initializeSidebarMenus();
-    this.updateNavigationPermissions();
-    this.applySidebarPreference();
-
-    // 8. Load initial route from URL hash or default to 'dashboard'
-    const hash = window.location.hash.replace('#', '');
-    const validRoute = Object.keys(this.modules).includes(hash) ? hash : 'dashboard';
-    await this.navigate(validRoute);
-
-    // 9. Update notifications and run the lightweight document layout regression guard.
-    await this.updateNotificationsBadge();
-    window.DocumentRegression?.run().catch(error => console.warn('[Print regression]', error));
-
-    // 10. Render Lucide icons
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
+    if (fallback) fallback.classList.toggle('hidden', Boolean(settings.siteLogo));
+    const values = {
+      'sidebar-company-name': settings.companyName,
+      'footer-company-name': settings.companyName,
+      'sidebar-company-nif': settings.nif,
+      'sidebar-company-address': settings.address,
+      'footer-company-address': settings.address
+    };
+    for (const [id, value] of Object.entries(values)) {
+      const element = document.getElementById(id);
+      if (element && value) element.textContent = value;
     }
-
-    console.log('[SARI Système] Application ready in offline-first PWA mode!');
   }
 
   registerServiceWorker() {
+    if (import.meta.env?.DEV) {
+      navigator.serviceWorker?.getRegistrations?.().then(registrations=>registrations.forEach(registration=>registration.unregister()));
+      return;
+    }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
@@ -125,8 +148,8 @@ class SariApp {
 
   permissionForModule(moduleName) {
     if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
-    if(moduleName==='bankAccountDetail')return 'settings';
-    return ({ auditLogs:'settings', translations:'settings', settings:'settings' })[moduleName] || moduleName;
+    if(moduleName==='bankAccountDetail'||moduleName==='users'||moduleName==='smtp')return 'settings';
+    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings', payslips:'hr' })[moduleName] || moduleName;
   }
 
   initializeSidebarMenus() {
@@ -134,9 +157,9 @@ class SariApp {
     const groups=[
       {id:'operations',key:'menuOperations',label:i18n.t('menuOperations'),icon:'blocks',items:['inventory','inventoryOps','importExport','tenders']},
       {id:'commerce',key:'menuCommerce',label:i18n.t('menuCommerce'),icon:'shopping-bag',items:['sales','purchases','customers','suppliers']},
-      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','tasks','portal']},
-      {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes']},
-      {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','masterData','translations','auditLogs','settings']}
+      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','payslips','tasks','portal']},
+      {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes','cnas','casnos']},
+      {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','users','commerceDirection','companyMinutes','masterData','translations','auditLogs','settings']}
     ];
     const saved=JSON.parse(localStorage.getItem('sari_submenus')||'{}');
     groups.forEach(group=>{const wrapper=document.createElement('div');wrapper.className='sidebar-submenu';wrapper.dataset.menuGroup=group.id;const expanded=saved[group.id]!==false;wrapper.innerHTML=`<button class="sidebar-submenu-toggle sari-sidebar-item w-full" aria-expanded="${expanded}" title="${group.label}"><i data-lucide="${group.icon}" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="${group.key}">${group.label}</span><i data-lucide="chevron-down" class="submenu-chevron w-3 h-3"></i></button><div class="sidebar-submenu-items ${expanded?'':'collapsed'}"></div>`;const items=wrapper.querySelector('.sidebar-submenu-items');group.items.forEach(module=>{const item=root.querySelector(`[data-nav-item="${module}"]`);if(item){item.classList.add('sidebar-child-item');items.appendChild(item);}});wrapper.querySelector('.sidebar-submenu-toggle').onclick=()=>this.toggleSubmenu(group.id);root.appendChild(wrapper);});
@@ -193,7 +216,7 @@ class SariApp {
     // Hash navigation
     window.addEventListener('hashchange', () => {
       const hash = window.location.hash.replace('#', '');
-      if (this.modules[hash] && hash !== this.activeModule) {
+      if (Object.prototype.hasOwnProperty.call(this.modules, hash) && hash !== this.activeModule) {
         this.navigate(hash, false);
       }
     });
@@ -220,9 +243,7 @@ class SariApp {
   }
 
   async navigate(moduleName, updateHash = true) {
-    if (!this.modules[moduleName]) {
-      moduleName = 'dashboard';
-    }
+    if (!(moduleName in this.modules)) moduleName = 'dashboard';
 
     const permissionModule = this.permissionForModule(moduleName);
     if (window.auth && !window.auth.can(permissionModule, 'view')) {
@@ -252,21 +273,42 @@ class SariApp {
       window.auth.updateUIForPermissions(moduleName);
     }
 
-    // Render active module
-    const mod = this.modules[moduleName];
-    if (mod && typeof mod.render === 'function') {
-      await mod.render('sari-main-view');
+    // Load and render the functional domain only when it is first visited.
+    let mod = this.modules[moduleName];
+    if (!mod && window.SariModuleLoader) {
+      const view = document.getElementById('sari-main-view');
+      if (view) view.innerHTML = `<div class="sari-tile p-10 text-center sari-grid-pattern">${this.loadingMarkup()}</div>`;
+      try {
+        mod = await window.SariModuleLoader.load(moduleName);
+        this.modules[moduleName] = mod;
+      } catch (error) {
+        console.error(`[SARI Système] Failed to load module ${moduleName}:`, error);
+        if (view) view.innerHTML = `<div class="sari-tile p-10 text-center"><h2 class="font-extrabold text-red-600">Module indisponible</h2><p class="mt-2 text-sm text-slate-500">${String(error.message || error)}</p><button onclick="window.app.navigate('dashboard')" class="sari-btn px-4 py-2 mt-4 bg-sari-blue text-white">Retour</button></div>`;
+        return;
+      }
     }
+    if (mod && typeof mod.render === 'function') await mod.render('sari-main-view');
+    await new Promise(resolve => requestAnimationFrame(resolve));
 
     this.enhanceSearchInputs();
+    this.enhanceResponsiveTables();
     window.UICopy?.apply(document.getElementById('sari-main-view'), window.i18n?.currentLang || 'fr');
     // Refresh Lucide icons
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    window.SariIcons?.hydrate();
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  enhanceResponsiveTables() {
+    document.querySelectorAll('table.sari-table').forEach(table => {
+      const labels = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach(row => {
+        [...row.children].forEach((cell, index) => {
+          if (!cell.dataset.label) cell.dataset.label = labels[index] || '';
+        });
+      });
+    });
   }
 
   enhanceSearchInputs() {
@@ -404,7 +446,7 @@ class SariApp {
             ` : notifs.map(n => {
               let icon = 'info';
               if (n.type === 'near_expiry') icon = 'alert-triangle';
-              if (n.type === 'tender_deadline') icon = 'file-contract';
+              if (n.type === 'tender_deadline') icon = 'file-check';
               if (n.type === 'shipment') icon = 'ship';
 
               return `
@@ -628,6 +670,5 @@ if (typeof window !== 'undefined') {
   window.app = app;
   window.addEventListener('DOMContentLoaded', () => app.init());
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SariApp, app };
-}
+
+export {};

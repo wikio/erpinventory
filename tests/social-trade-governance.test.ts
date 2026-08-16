@@ -1,0 +1,12 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const source=(file:string)=>readFileSync(join(process.cwd(),file),'utf8');
+
+describe('sections 293–297 social security and governance',()=>{
+  it('registers all new IndexedDB stores, routes and external mappings',()=>{const db=source('js/db.js'),app=source('js/app.js'),loader=source('src/module-loader.ts'),external=source('external-db.js');for(const store of ['cnasDeclarations','cnasPayments','casnosDeclarations','casnosPayments','shareholders','shareholderHistory','companyRegisters','socialAccounts','companyMinutes','tradeRegisters','tradeRegisterHistory','commerceRequests']){expect(db).toContain(`'${store}'`);expect(external).toContain(`${store}:`);}for(const route of ['cnas','casnos','commerceDirection','companyMinutes']){expect(app).toContain(`'${route}'`);expect(loader).toContain(`${route}:`);}expect(db).toContain("version = 18");});
+
+  it('implements declaration payments, GED, advanced consultation and editors',()=>{const cnas=source('js/modules/cnas.js'),casnos=source('js/modules/casnos.js'),commerce=source('js/modules/commerce-direction.js'),minutes=source('js/modules/company-minutes.js');for(const module of [cnas,casnos]){expect(module).toContain('addPayment');expect(module).toContain('DocumentManager.open');expect(module).toContain('compliance-consultation');expect(module).toContain('RichTextEditor.advancedHtml');}expect(casnos).toContain('statisticsHtml');expect(commerce).toContain('tradeRegisterHistory');expect(commerce).toContain('manageRequestTypes');expect(minutes).toContain('wordPasteHelp');expect(minutes).toContain("manageOptions('pvType'");expect(minutes).toContain('shareholderHistory');});
+
+  it('ships the normalized MySQL migration and trilingual labels',()=>{const migration=source('sql/migrations/007_social_trade_governance.sql');for(const table of ['cnas_declarations','cnas_payments','casnos_declarations','casnos_payments','shareholders','shareholder_history','company_registers','social_accounts','company_minutes','trade_registers','trade_register_history','commerce_requests'])expect(migration).toContain('`'+table+'`');const required=['cnasTitle','casnosTitle','commerceDirectionTitle','companyMinutesTitle','shareholderRegistry','advancedMinutesEditor','wordPasteHelp'];for(const lang of ['fr','ar','en']){const pack=JSON.parse(source(`content/translations/${lang}.json`));for(const key of required)expect(pack[key],`${lang}:${key}`).toBeTruthy();}});
+});

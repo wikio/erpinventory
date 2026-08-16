@@ -159,6 +159,5 @@ const i18n = new I18nController();
 if (typeof window !== 'undefined') {
   window.i18n = i18n;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { I18nController, i18n };
-}
+
+export { I18nController, i18n };

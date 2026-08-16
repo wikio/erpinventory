@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "doc-tpl-sari-total",
+  "name": "SARI Total",
+  "nameI18n": { "fr": "SARI Total", "ar": "ساري الإجمالي", "en": "SARI Total" },
+  "type": "invoice",
+  "templateMode": "designer",
+  "paperFormat": "A4",
+  "accent": "#009CC5",
+  "lineItemsColumns": ["index", "designation", "qty", "price", "discountAmount", "vat", "ht", "ttc"],
+  "elements": [
+    { "id": "total-logo", "kind": "field", "field": "documentLogo", "x": 35, "y": 30, "w": 160, "h": 70 },
+    { "id": "total-number", "kind": "field", "field": "documentNumber", "x": 510, "y": 35, "w": 245, "h": 45 },
+    { "id": "total-client", "kind": "field", "field": "customerName", "x": 35, "y": 140, "w": 430, "h": 60 },
+    { "id": "total-lines", "kind": "field", "field": "lineItemsConfigurable", "x": 35, "y": 230, "w": 720, "h": 390 },
+    { "id": "total-vat", "kind": "field", "field": "vatBreakdown", "x": 35, "y": 650, "w": 330, "h": 110 },
+    { "id": "total-summary", "kind": "field", "field": "totals", "x": 500, "y": 650, "w": 255, "h": 110 },
+    { "id": "total-words", "kind": "field", "field": "amountInWords", "x": 35, "y": 785, "w": 500, "h": 65 },
+    { "id": "total-qr", "kind": "field", "field": "qrCode", "x": 35, "y": 885, "w": 105, "h": 105 }
+  ]
+}

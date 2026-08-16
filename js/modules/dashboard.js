@@ -75,11 +75,11 @@ const DashboardModule = {
           </div>
           <div class="flex flex-wrap gap-2">
             <button onclick="window.app.navigate('sales')" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
-              <i class="fas fa-plus"></i>
+              <i data-lucide="plus"></i>
               <span data-i18n="newOrder">${i18n.t('newOrder')}</span>
             </button>
             <button onclick="window.app.navigate('inventory')" class="sari-btn px-4 py-2 bg-sari-lime hover:bg-sari-lime/90 text-slate-900 shadow-sm text-sm">
-              <i class="fas fa-box"></i>
+              <i data-lucide="package"></i>
               <span data-i18n="inventory">${i18n.t('inventory')}</span>
             </button>
           </div>
@@ -92,7 +92,7 @@ const DashboardModule = {
           <div class="sari-tile p-4 bg-sari-amber/10 border-sari-amber flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded bg-sari-amber flex items-center justify-center text-slate-900 font-bold text-lg">
-                <i class="fas fa-exclamation-triangle"></i>
+                <i data-lucide="triangle-alert"></i>
               </div>
               <div>
                 <h4 class="text-sm font-bold text-slate-900 dark:text-white">${nearExpiryCount} ${i18n.t('expiringProducts')}</h4>
@@ -108,7 +108,7 @@ const DashboardModule = {
           <div class="sari-tile p-4 bg-red-500/10 border-red-500 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded bg-red-500 flex items-center justify-center text-white font-bold text-lg">
-                <i class="fas fa-layer-group"></i>
+                <i data-lucide="layers-3"></i>
               </div>
               <div>
                 <h4 class="text-sm font-bold text-slate-900 dark:text-white">${lowStockCount} ${i18n.t('lowStockAlerts')}</h4>
@@ -134,7 +134,7 @@ const DashboardModule = {
                 <p class="text-xs text-sari-blue font-semibold mt-1">Équipements & Consommables</p>
               </div>
               <div class="w-10 h-10 rounded bg-sari-blue/10 text-sari-blue flex items-center justify-center text-xl">
-                <i class="fas fa-cubes"></i>
+                <i data-lucide="boxes"></i>
               </div>
             </div>
           </div>
@@ -149,7 +149,7 @@ const DashboardModule = {
                 <p class="text-xs text-sari-lime font-semibold mt-1">Valuation DZD sur 4 Dépôts</p>
               </div>
               <div class="w-10 h-10 rounded bg-sari-lime/20 text-sari-lime-dark flex items-center justify-center text-xl">
-                <i class="fas fa-coins"></i>
+                <i data-lucide="coins"></i>
               </div>
             </div>
           </div>
@@ -164,7 +164,7 @@ const DashboardModule = {
                 <p class="text-xs text-sari-amber font-semibold mt-1">Incoterms CIF / FOB Port d'Alger</p>
               </div>
               <div class="w-10 h-10 rounded bg-sari-amber/15 text-sari-amber flex items-center justify-center text-xl">
-                <i class="fas fa-ship"></i>
+                <i data-lucide="ship"></i>
               </div>
             </div>
           </div>
@@ -179,7 +179,7 @@ const DashboardModule = {
                 <p class="text-xs text-sari-blue font-semibold mt-1">CHU Alger & DSP Wilayas</p>
               </div>
               <div class="w-10 h-10 rounded bg-sari-blue/10 text-sari-blue flex items-center justify-center text-xl">
-                <i class="fas fa-file-contract"></i>
+                <i data-lucide="file-check"></i>
               </div>
             </div>
           </div>
@@ -336,6 +336,5 @@ const DashboardModule = {
 if (typeof window !== 'undefined') {
   window.DashboardModule = DashboardModule;
 }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = DashboardModule;
-}
+
+export {};

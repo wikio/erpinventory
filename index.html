@@ -10,42 +10,9 @@
   <meta name="theme-color" content="#009CC5" />
   <link rel="icon" type="image/svg+xml" href="/assets/icon-192.svg" />
 
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Keep the application bootable when the Tailwind CDN is temporarily unavailable.
-    window.tailwind = window.tailwind || {};
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            'sari-blue': '#009CC5',
-            'sari-blue-dark': '#007D9E',
-            'sari-lime': '#C6DA34',
-            'sari-lime-dark': '#9BB024',
-            'sari-amber': '#EBB51A',
-            'sari-amber-dark': '#C69512',
-            'sari-dark-bg': '#030712',
-            'sari-dark-card': '#0F172A'
-          }
-        }
-      }
-    };
-  </script>
-
-  <!-- Lucide Icons CDN (Apple-Style UI) -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Chart.js + SheetJS (Excel import; CSV/grid remain fully offline) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <!-- FontAwesome Icons CDN (for compatibility fallback) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-
-  <!-- Custom Stylesheet (4 Native Themes + Full-Width Apple Layout) -->
-  <link rel="stylesheet" href="/css/styles.css" />
+  <!-- Compiled Tailwind, self-hosted fonts/icons and application bundles are
+       emitted by Vite from this single ES-module entry. No runtime CDN. -->
+  <script type="module" src="/src/main.ts"></script>
 </head>
 
 <body class="theme-classic theme-light antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
@@ -88,11 +55,12 @@
           </fieldset>
           <button id="login-submit" type="submit" class="sari-btn w-full py-3 bg-sari-blue hover:bg-sari-blue-dark text-white text-sm shadow-lg"><i data-lucide="log-in" class="w-4 h-4"></i> Se connecter</button>
 
-          <details class="auth-demo rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+          <button type="button" onclick="auth.forgotPassword()" class="w-full text-center text-xs font-bold text-sari-blue hover:underline">Mot de passe oublié ?</button>
+          <details id="auth-demo-accounts" class="auth-demo rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
             <summary class="font-bold text-slate-600 cursor-pointer select-none">Comptes de démonstration par rôle</summary>
             <p class="text-slate-500 mt-2 mb-2">Mot de passe commun : <code>Sari@2026</code></p>
             <div class="grid grid-cols-3 gap-1.5">
-              <button type="button" onclick="auth.useDemoAccount('admin')">Admin</button><button type="button" onclick="auth.useDemoAccount('stock')">Stocks</button><button type="button" onclick="auth.useDemoAccount('import')">Import</button>
+              <button type="button" onclick="auth.useDemoAccount('stock')">Stocks</button><button type="button" onclick="auth.useDemoAccount('import')">Import</button>
               <button type="button" onclick="auth.useDemoAccount('tenders')">Offres</button><button type="button" onclick="auth.useDemoAccount('sales')">Ventes</button><button type="button" onclick="auth.useDemoAccount('viewer')">Lecture</button>
             </div>
           </details>
@@ -201,14 +169,21 @@
       <!-- Inline translation mode toggle -->
       <button id="inline-translation-toggle" onclick="TranslationOverlay.toggleMode()" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sari-blue" aria-pressed="false" title="Activer la traduction en ligne"><i data-lucide="languages" class="w-4 h-4"></i></button>
 
-      <!-- Authenticated user and server-issued role -->
-      <div onclick="auth.openProfileEditor()" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 cursor-pointer" title="Modifier mon profil">
-        <div class="w-7 h-7 rounded-full bg-sari-blue/15 flex items-center justify-center overflow-hidden"><img id="sari-active-user-avatar" class="hidden w-full h-full object-cover" alt="Photo utilisateur"><i id="sari-active-user-avatar-fallback" data-lucide="user-round-check" class="w-3.5 h-3.5 text-sari-blue"></i></div>
-        <div class="hidden xl:block leading-tight max-w-40">
-          <div id="sari-active-user-name" class="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate"></div>
-          <div id="sari-active-role-badge" class="text-[9px] font-extrabold truncate"></div>
+      <!-- Authenticated-user profile menu and server-issued role -->
+      <div id="sari-profile-menu-wrap" class="relative flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
+        <button id="sari-profile-menu-trigger" onclick="auth.toggleProfileMenu(event)" class="flex items-center gap-2 px-1 min-w-0" aria-haspopup="menu" aria-expanded="false" title="Mon profil">
+          <div class="w-7 h-7 rounded-full bg-sari-blue/15 flex items-center justify-center overflow-hidden"><img id="sari-active-user-avatar" class="hidden w-full h-full object-cover" alt="Photo utilisateur"><i id="sari-active-user-avatar-fallback" data-lucide="user-round-check" class="w-3.5 h-3.5 text-sari-blue"></i></div>
+          <div class="hidden xl:block leading-tight max-w-40 text-left rtl:text-right">
+            <div id="sari-active-user-name" class="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate"></div>
+            <div id="sari-active-role-badge" class="text-[9px] font-extrabold truncate"></div>
+          </div>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="auth.logout()" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-slate-500 hover:text-red-600" title="Se déconnecter" aria-label="Se déconnecter"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+        <div id="sari-profile-menu" class="profile-dropdown hidden" role="menu" aria-labelledby="sari-profile-menu-trigger">
+          <button onclick="auth.closeProfileMenu();auth.openProfileView()" role="menuitem"><i data-lucide="contact-round"></i><span data-i18n="viewMyProfile">Consulter mon profil</span></button>
+          <button onclick="auth.closeProfileMenu();auth.openPasswordUpdate()" role="menuitem"><i data-lucide="lock-keyhole"></i><span data-i18n="updatePassword">Mettre à jour le mot de passe</span></button>
         </div>
-        <button onclick="event.stopPropagation();auth.logout()" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-slate-500 hover:text-red-600" title="Se déconnecter" aria-label="Se déconnecter"><i data-lucide="log-out" class="w-4 h-4"></i></button>
       </div>
     </div>
   </header>
@@ -267,11 +242,14 @@
         </div>
 
         <button onclick="window.app.navigate('hr'); window.app.closeMobileSidebar();" data-nav-item="hr" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="hr">Ressources Humaines</span></button>
+        <button onclick="window.app.navigate('payslips'); window.app.closeMobileSidebar();" data-nav-item="payslips" class="sari-sidebar-item w-full"><i data-lucide="receipt-text" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="payslips">Fiches de paie</span></button>
         <button onclick="window.app.navigate('tasks'); window.app.closeMobileSidebar();" data-nav-item="tasks" class="sari-sidebar-item w-full"><i data-lucide="square-kanban" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="tasks">Tâches & Kanban</span></button>
         <button onclick="window.app.navigate('portal'); window.app.closeMobileSidebar();" data-nav-item="portal" class="sari-sidebar-item w-full"><i data-lucide="messages-square" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="employeePortal">Espace Collaborateur</span></button>
 
         <button onclick="window.app.navigate('ged'); window.app.closeMobileSidebar();" data-nav-item="ged" class="sari-sidebar-item w-full"><i data-lucide="folder-search" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="ged">GED Centrale</span></button>
         <button onclick="window.app.navigate('taxes'); window.app.closeMobileSidebar();" data-nav-item="taxes" class="sari-sidebar-item w-full"><i data-lucide="landmark" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="taxes">Fiscalité Algérienne</span></button>
+        <button onclick="window.app.navigate('cnas'); window.app.closeMobileSidebar();" data-nav-item="cnas" class="sari-sidebar-item w-full"><i data-lucide="shield-check" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="cnas">CNAS</span></button>
+        <button onclick="window.app.navigate('casnos'); window.app.closeMobileSidebar();" data-nav-item="casnos" class="sari-sidebar-item w-full"><i data-lucide="badge-check" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="casnos">CASNOS</span></button>
 
         <button onclick="window.app.navigate('reports'); window.app.closeMobileSidebar();" data-nav-item="reports" class="sari-sidebar-item w-full">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
@@ -281,6 +259,10 @@
         <button onclick="window.app.navigate('bulkImport'); window.app.closeMobileSidebar();" data-nav-item="bulkImport" class="sari-sidebar-item w-full"><i data-lucide="sheet" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="bulkImport">Import de masse</span></button>
 
         <button onclick="window.app.navigate('api'); window.app.closeMobileSidebar();" data-nav-item="api" class="sari-sidebar-item w-full"><i data-lucide="braces" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="api">API & Intégrations</span></button>
+
+        <button onclick="window.app.navigate('users'); window.app.closeMobileSidebar();" data-nav-item="users" class="sari-sidebar-item w-full"><i data-lucide="users-round" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="userAccounts">Comptes utilisateurs</span></button>
+        <button onclick="window.app.navigate('commerceDirection'); window.app.closeMobileSidebar();" data-nav-item="commerceDirection" class="sari-sidebar-item w-full"><i data-lucide="building-2" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="commerceDirection">Direction de Commerce</span></button>
+        <button onclick="window.app.navigate('companyMinutes'); window.app.closeMobileSidebar();" data-nav-item="companyMinutes" class="sari-sidebar-item w-full"><i data-lucide="notebook-pen" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="companyMinutes">Procès-Verbaux & Actionnaires</span></button>
 
         <button onclick="window.app.navigate('masterData'); window.app.closeMobileSidebar();" data-nav-item="masterData" class="sari-sidebar-item w-full"><i data-lucide="list-tree" class="w-4 h-4"></i><span class="sari-nav-label" data-i18n="masterData">Listes configurables</span></button>
 
@@ -354,63 +336,6 @@
   <!-- Global Modal Root Container -->
   <div id="sari-modal-root"></div>
 
-  <!-- JavaScript App Scripts -->
-  <script src="/js/config.js"></script>
-  <script src="/js/countries-data.js"></script>
-  <script src="/js/db.js"></script>
-  <script src="/js/reference-codes.js"></script>
-  <script src="/js/document-security.js"></script>
-  <script src="/js/document-translation.js"></script>
-  <script src="/js/db-adapter.js"></script>
-  <script src="/js/ui-copy.js"></script>
-  <script src="/js/module-translations.js"></script>
-  <script src="/js/i18n.js"></script>
-  <script src="/js/translation-overlay.js"></script>
-  <script src="/js/translation-coverage.js"></script>
-  <script src="/js/option-catalog.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/sync.js"></script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/table-sort.js"></script>
-  <script src="/js/dialogs.js"></script>
-  <script src="/js/validation.js"></script>
-  <script src="/js/managed-autocomplete.js"></script>
-  <script src="/js/image-dropzone.js"></script>
-  <script src="/js/rich-editor.js"></script>
-  <script src="/js/template-engine.js"></script>
-  <script src="/js/template-designer.js"></script>
-  <script src="/js/document-regression.js"></script>
-  <script src="/js/catalog-picker.js"></script>
-  <script src="/js/partner-360.js"></script>
-  <script src="/js/document-link-picker.js"></script>
-  <script src="/js/reference-translations.js"></script>
-  <script src="/js/documents.js"></script>
-  <script src="/js/charts.js"></script>
-
-  <script src="/js/modules/dashboard.js"></script>
-  <script src="/js/modules/inventory.js"></script>
-  <script src="/js/modules/suppliers.js"></script>
-  <script src="/js/modules/import-export.js"></script>
-  <script src="/js/modules/tenders.js"></script>
-  <script src="/js/modules/sales.js"></script>
-  <script src="/js/modules/customers.js"></script>
-  <script src="/js/modules/reports.js"></script>
-  <script src="/js/modules/translations.js"></script>
-  <script src="/js/modules/audit.js"></script>
-  <script src="/js/modules/settings.js"></script>
-  <script src="/js/modules/hr.js"></script>
-  <script src="/js/modules/tasks.js"></script>
-  <script src="/js/modules/portal.js"></script>
-  <script src="/js/modules/purchases.js"></script>
-  <script src="/js/modules/ged.js"></script>
-  <script src="/js/modules/taxes.js"></script>
-  <script src="/js/modules/master-data.js"></script>
-  <script src="/js/modules/inventory-ops.js"></script>
-  <script src="/js/modules/bulk-import.js"></script>
-  <script src="/js/modules/api.js"></script>
-  <script src="/js/modules/document-detail.js"></script>
-  <script src="/js/modules/bank-account-detail.js"></script>
-  
-  <script src="/js/app.js"></script>
+  <!-- Application code is loaded by the hashed Vite entry in <head>. -->
 </body>
 </html>
