@@ -70,6 +70,13 @@ Version 16 adds configurable barcode/QR product labels, translated sales/purchas
 - Tax inspection offices are managed through the configurable-list repository and exposed through searchable autocompletes.
 - Audit entries accept directly linked GED supporting evidence.
 
+## 🆕 Inventory operations and reference ordering (Sections 250–254)
+
+- Inventory count consultation now shows warehouse, operator, status, expected/counted quantities and discrepancies, with managed create/edit/delete operations.
+- Stock movements provide filtered/sortable lists, detailed consultation and full stock-aware CRUD; lots support product/lot/warehouse/status and manufacturing/expiry date filters.
+- Every reference-bearing entity now has an editable business `order` independent from immutable `numericId`; reference masks use `order` for `{SEQ}` and affected peers are compacted/referenced automatically.
+- The exact resequencing strategy is documented in [`docs/reference-ordering.md`](docs/reference-ordering.md).
+
 ## 🗄️ Optional External Database Backend
 
 The browser never connects to a database protocol directly. MySQL is the primary production target; PostgreSQL and MongoDB remain repository adapters. IndexedDB always remains the immediate-write offline cache and synchronization queue.

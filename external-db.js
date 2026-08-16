@@ -38,7 +38,7 @@ const FOREIGN_TABLES = Object.freeze({
 
 const SOURCE_ALIASES = Object.freeze({
   user_name: ['user', 'userName'], user_role: ['role', 'userRole'], is_read: ['isRead'],
-  legacy_uid: ['id'], option_value: ['value'], sort_order: ['order', 'sortOrder'], name_json: ['name', 'nameI18n', 'label'], label_json: ['label'], items_json: ['items'],
+  legacy_uid: ['id'], display_order: ['order'], option_value: ['value'], sort_order: ['order', 'sortOrder'], name_json: ['name', 'nameI18n', 'label'], label_json: ['label'], items_json: ['items'],
   document_code: ['documentCode', 'code'], period_key: ['periodKey'], counter_value: ['counterValue', 'value'],
   discount_value: ['discountValue', 'value'], effective_date: ['effectiveDate', 'validFrom'], expiration_date: ['expirationDate', 'validTo'],
   lines_json: ['lines'], documents_json: ['documents'], objectives_json: ['objectives'],
@@ -397,6 +397,8 @@ class ExternalDatabaseManager {
       names.push(column.name); values.push(value);
     }
     if (!Number.isInteger(Number(record.numericId)) || Number(record.numericId) < 1) throw Error('numericId is required for normalized migration');
+    const referenceIndex=names.indexOf('reference_code');
+    if(referenceIndex>=0&&values[referenceIndex])await client.query(`UPDATE "${table}" SET reference_code='__SARI_RESEQ__'||id::text||'_'||EXTRACT(EPOCH FROM NOW())::bigint::text WHERE reference_code=$1 AND id<>$2`,[values[referenceIndex],Number(record.numericId)]);
     const placeholders = values.map((_, index) => `$${index + 1}`).join(',');
     const updates = names.filter(name => name !== 'id').map(name => `"${name}"=EXCLUDED."${name}"`).join(',');
     await client.query(`INSERT INTO "${table}" (${names.map(name => `"${name}"`).join(',')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates || 'id=EXCLUDED.id'}`, values);
@@ -435,6 +437,8 @@ class ExternalDatabaseManager {
     if (!Number.isInteger(values[names.indexOf('id')]) || values[names.indexOf('id')] < 1) throw Error('numericId is required for normalized migration');
     const quoted = names.map((name) => `\`${name}\``).join(',');
     const updates = names.filter((name) => name !== 'id').map((name) => `\`${name}\`=VALUES(\`${name}\`)`).join(',');
+    const referenceIndex=names.indexOf('reference_code');
+    if(referenceIndex>=0&&values[referenceIndex])await connection.execute(`UPDATE \`${table}\` SET reference_code=CONCAT('__SARI_RESEQ__',id,'_',UNIX_TIMESTAMP()) WHERE reference_code=? AND id<>?`,[values[referenceIndex],Number(record.numericId)]);
     const sql = `INSERT INTO \`${table}\` (${quoted}) VALUES (${names.map(() => '?').join(',')}) ON DUPLICATE KEY UPDATE ${updates || '`id`=VALUES(`id`)'} `;
     await connection.execute(sql, values);
     if (table === 'orders' && Array.isArray(record.items)) await this.syncOrderItems(connection, record);
@@ -561,7 +565,7 @@ class ExternalDatabaseManager {
     if(config.type==='mysql'){
       const pool=this.getMySqlPool(false),placeholders=Object.values(STORE_TABLES).map(()=>'?').join(','),[rows]=await pool.execute(`SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${placeholders})`,Object.values(STORE_TABLES));
       const existing=new Set(rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));
-      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql'];
+      const required=['002_normalized_domains.sql','003_fiscal_management.sql','004_migration_reference_integrity.sql','005_reference_order_sequence.sql'];
       try{const[migrations]=await pool.execute('SELECT name FROM schema_migrations');const applied=new Set(migrations.map(row=>row.name));missingMigrations=required.filter(name=>!applied.has(name));}catch(_){missingMigrations=required;}
     }else if(config.type==='postgresql'){
       const result=await this.getPgPool(false).query('SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema()');const existing=new Set(result.rows.map(row=>row.name));missing=[...new Set(Object.values(STORE_TABLES))].filter(table=>!existing.has(table));

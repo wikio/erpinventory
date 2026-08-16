@@ -30,8 +30,8 @@ const InventoryModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('inventory');
-    TableSort.ensure('inventory','referenceCode');
-    const filtered = TableSort.apply('inventory',this.getFilteredProducts(),'referenceCode');
+    TableSort.ensure('inventory','order');
+    const filtered = TableSort.apply('inventory',this.getFilteredProducts(),'order');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -129,6 +129,7 @@ const InventoryModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('inventory','order','Ordre','InventoryModule.render()')}
                 ${TableSort.th('inventory','referenceCode',i18n.t('skuReference'),'InventoryModule.render()')}
                 ${TableSort.th('inventory','name',i18n.t('productCompliance'),'InventoryModule.render()')}
                 ${TableSort.th('inventory','category',i18n.t('categoryHeader'),'InventoryModule.render()')}
@@ -142,7 +143,7 @@ const InventoryModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="8" class="p-8 text-center text-slate-500">
+                  <td colspan="9" class="p-8 text-center text-slate-500">
                     <i data-lucide="inbox" class="text-2xl mb-2 block"></i>
                     ${i18n.t('noDataFound')}
                   </td>
@@ -166,6 +167,7 @@ const InventoryModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${p.order||'—'}</td>
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
                       ${p.referenceCode || p.sku}
                       <div class="text-[10px] text-slate-400 font-normal">${p.sku} • ${p.barcode || ''}</div>
@@ -279,7 +281,7 @@ const InventoryModule = {
     this.render();
   },
 
-  async openDetail(id){const p=await sariDB.getById('products',id),lots=(await sariDB.getAll('productLots')).filter(l=>l.productId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.getCategoryName(p.category)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('products',p.id,'name',p.name)}>${SariUtils.escapeHtml(DynamicI18n.get('products',p.id,'name',p.name))}</h3><p class="font-mono-tech text-sari-blue">${p.referenceCode||p.sku}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded-xl"><small>Stock</small><b class="block text-xl">${p.stock}</b></div><div class="p-3 border rounded-xl"><small>Prix vente</small><b class="block">${i18n.formatCurrency(p.sellingPrice)}</b></div><div class="p-3 border rounded-xl"><small>TVA</small><b class="block">${this.state.vatRates.find(v=>v.id===p.vatRateId)?.percentage||19}%</b></div><div class="p-3 border rounded-xl"><small>Lots</small><b class="block">${lots.length}</b></div></div><div class="grid md:grid-cols-2 gap-4"><dl class="text-sm space-y-2"><div><dt class="text-slate-400">SKU / Code-barres</dt><dd>${p.sku} • ${p.barcode||'—'}</dd></div><div><dt class="text-slate-400">Fabricant / pays</dt><dd>${p.manufacturer||'—'} • ${p.countryOfOrigin||'—'}</dd></div><div><dt class="text-slate-400">Certification</dt><dd>${p.certificationRef||'—'}</dd></div><div><dt class="text-slate-400">Stockage</dt><dd>${p.storageConditions||'—'}</dd></div></dl><div class="rich-content text-sm" ${DynamicI18n.attributes('products',p.id,'extendedDescription',p.extendedDescription||p.notes||'')}>${RichTextEditor.sanitize(DynamicI18n.get('products',p.id,'extendedDescription',p.extendedDescription||p.notes||''))}</div></div><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('inventory','edit')?`<button onclick="app.closeModalRoot();InventoryModule.openModal('${p.id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
+  async openDetail(id){const p=await sariDB.getById('products',id),lots=(await sariDB.getAll('productLots')).filter(l=>l.productId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.getCategoryName(p.category)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('products',p.id,'name',p.name)}>${SariUtils.escapeHtml(DynamicI18n.get('products',p.id,'name',p.name))}</h3><p class="font-mono-tech text-sari-blue">${p.referenceCode||p.sku} • Ordre ${p.order||'—'} • ID technique ${p.numericId||'—'}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4"><div class="p-3 border rounded-xl"><small>Stock</small><b class="block text-xl">${p.stock}</b></div><div class="p-3 border rounded-xl"><small>Prix vente</small><b class="block">${i18n.formatCurrency(p.sellingPrice)}</b></div><div class="p-3 border rounded-xl"><small>TVA</small><b class="block">${this.state.vatRates.find(v=>v.id===p.vatRateId)?.percentage||19}%</b></div><div class="p-3 border rounded-xl"><small>Lots</small><b class="block">${lots.length}</b></div></div><div class="grid md:grid-cols-2 gap-4"><dl class="text-sm space-y-2"><div><dt class="text-slate-400">SKU / Code-barres</dt><dd>${p.sku} • ${p.barcode||'—'}</dd></div><div><dt class="text-slate-400">Fabricant / pays</dt><dd>${p.manufacturer||'—'} • ${p.countryOfOrigin||'—'}</dd></div><div><dt class="text-slate-400">Certification</dt><dd>${p.certificationRef||'—'}</dd></div><div><dt class="text-slate-400">Stockage</dt><dd>${p.storageConditions||'—'}</dd></div></dl><div class="rich-content text-sm" ${DynamicI18n.attributes('products',p.id,'extendedDescription',p.extendedDescription||p.notes||'')}>${RichTextEditor.sanitize(DynamicI18n.get('products',p.id,'extendedDescription',p.extendedDescription||p.notes||''))}</div></div><footer class="flex justify-end gap-2 mt-5"><button onclick="DocumentManager.open('product','${p.id}','${SariUtils.escapeHtml(p.name)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button>${auth.can('inventory','edit')?`<button onclick="app.closeModalRoot();InventoryModule.openModal('${p.id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
 
   /**
    * Open modal to Add or Edit a medical product
@@ -327,6 +329,7 @@ const InventoryModule = {
           </div>
 
           <form onsubmit="InventoryModule.saveProduct(event)" class="space-y-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><label class="doc-label">ID technique (immuable)<input value="${prod.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100 dark:bg-slate-900"></label><label class="doc-label">Ordre / séquence métier<input id="form-order" type="number" min="1" value="${prod.order||this.state.products.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">SKU / Référence *</label>
@@ -466,6 +469,7 @@ const InventoryModule = {
       ...original,
       id,
       referenceCode,
+      order: Number(document.getElementById('form-order').value),
       sku: document.getElementById('form-sku').value.trim(),
       barcode: document.getElementById('form-barcode').value.trim(),
       category,

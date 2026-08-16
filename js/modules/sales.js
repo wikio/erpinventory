@@ -20,6 +20,7 @@ const SalesModule = {
     barcodeInput: '',
     currency: 'DZD',
     documentType: 'invoice',
+    documentOrder: 0,
     documentNote: '',
     shippingFee: 0,
     qrContent: 'https://sarisysteme.dz/verify',
@@ -71,7 +72,7 @@ const SalesModule = {
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
     const historyFiltered=this.state.orders.filter(o=>(this.state.historyStatus==='all'||o.status===this.state.historyStatus)&&(this.state.historyType==='all'||this.normalizeDocumentType(o)===this.state.historyType)&&(this.state.historyCustomer==='all'||o.customerId===this.state.historyCustomer)&&(!this.state.historyFrom||new Date(o.createdAt)>=new Date(this.state.historyFrom))&&(!this.state.historyTo||new Date(o.createdAt)<=new Date(this.state.historyTo+'T23:59:59')));
-    TableSort.ensure('salesHistory','referenceCode');const historySorted=TableSort.apply('salesHistory',historyFiltered,'referenceCode');
+    TableSort.ensure('salesHistory','order');const historySorted=TableSort.apply('salesHistory',historyFiltered,'order');
     const historyPages=Math.max(1,Math.ceil(historySorted.length/this.state.historyPageSize));this.state.historyPage=Math.min(this.state.historyPage,historyPages);const historyOrders=historySorted.slice((this.state.historyPage-1)*this.state.historyPageSize,this.state.historyPage*this.state.historyPageSize);
 
     // Calculate totals for cart
@@ -236,6 +237,7 @@ const SalesModule = {
 
               <!-- Commercial document configuration -->
               <div class="grid grid-cols-2 gap-2 mb-3 text-xs p-3 rounded-lg border bg-sari-blue/5">
+                <div><label class="block font-bold mb-1">ID technique</label><input readonly value="${this.state.editingOrderId?(this.state.orders.find(order=>order.id===this.state.editingOrderId)?.numericId||'—'):'Attribué à l’enregistrement'}" class="w-full px-2 py-1.5 border rounded bg-slate-100"></div><div><label class="block font-bold mb-1">Ordre / séquence</label><input type="number" min="1" value="${this.state.documentOrder||this.state.orders.length+1}" onchange="SalesModule.setDocumentField('documentOrder',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
                 <div><label class="block font-bold mb-1">${i18n.t('documentTypeFilter','Type de document')}</label><select onchange="SalesModule.setDocumentField('documentType',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.documentTypeOptions().map(option=>`<option value="${option.value}" ${this.state.documentType===option.value?'selected':''}>${SariUtils.escapeHtml(option.label)} (${option.code})</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Devise</label><select onchange="SalesModule.setDocumentField('currency',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${['DZD','EUR','USD'].map(c=>`<option ${c===this.state.currency?'selected':''}>${c}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Frais livraison</label><input type="number" value="${this.state.shippingFee}" onchange="SalesModule.setDocumentField('shippingFee',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
@@ -337,6 +339,7 @@ const SalesModule = {
             <table class="w-full text-left border-collapse sari-table text-sm">
               <thead>
                 <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500">
+                  ${TableSort.th('salesHistory','order','Ordre','SalesModule.render()')}
                   ${TableSort.th('salesHistory','referenceCode','N° Commande / BL','SalesModule.render()')}
                   ${TableSort.th('salesHistory','customerName','Client & Wilaya','SalesModule.render()')}
                   ${TableSort.th('salesHistory','warehouseId','Dépôt','SalesModule.render()')}
@@ -350,7 +353,7 @@ const SalesModule = {
               <tbody>
                 ${historyOrders.length === 0 ? `
                   <tr>
-                    <td colspan="8" class="p-8 text-center text-slate-500">
+                    <td colspan="9" class="p-8 text-center text-slate-500">
                       Aucune commande ou facture enregistrée.
                     </td>
                   </tr>
@@ -366,6 +369,7 @@ const SalesModule = {
 
                   return `
                     <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td class="p-3 font-mono-tech font-bold text-sari-blue">${o.order||'—'}</td>
                       <td class="p-3 font-mono-tech font-bold text-sari-blue">
                         ${o.referenceCode || o.id}
                         <div class="text-[9px] text-slate-400">${SariUtils.escapeHtml(this.documentTypeLabel(this.normalizeDocumentType(o)))} • ${o.id}</div>
@@ -529,6 +533,7 @@ const SalesModule = {
   clearCart() {
     this.state.cart = [];
     this.state.editingOrderId = '';
+    this.state.documentOrder = 0;
     this.state.linkedPurchaseDocumentIds = [];
     this.state.linkedTenderId = '';
     this.render();
@@ -561,6 +566,7 @@ const SalesModule = {
       ...(existingOrder || {}),
       id: existingOrder?.id || `ORD-${Date.now()}`,
       referenceCode,
+      order: Number(this.state.documentOrder)||Number(existingOrder?.order)||this.state.orders.length+1,
       customerId: customer.id,
       customerName: customer.name,
       warehouseId: this.state.selectedWarehouseId,
@@ -619,7 +625,7 @@ const SalesModule = {
     }, 400);
   },
 
-  async editOrder(id){const o=await sariDB.getById('orders',id);if(!o||o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');this.state.editingOrderId=id;this.state.cart=SariUtils.deepClone(o.items||[]);this.state.selectedCustomerId=o.customerId;this.state.currency=o.currency||'DZD';this.state.documentType=o.documentType||'invoice';this.state.documentNote=o.documentNote||'';this.state.shippingFee=o.shippingFee||0;this.state.discountPercent=o.discountPercent||0;this.state.discountExpression=o.discountExpression||(o.discountPercent?o.discountPercent+'%':'0');this.state.linkedTenderId=o.linkedTenderId||'';this.state.linkedPurchaseDocumentIds=o.linkedPurchaseDocumentIds||[];this.state.bankAccountId=o.bankAccountId||'';this.state.referralId=o.referralId||'';this.state.couponCode=o.couponCode||'';await this.render();window.scrollTo({top:0,behavior:'smooth'});},
+  async editOrder(id){const o=await sariDB.getById('orders',id);if(!o||o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');this.state.editingOrderId=id;this.state.cart=SariUtils.deepClone(o.items||[]);this.state.selectedCustomerId=o.customerId;this.state.currency=o.currency||'DZD';this.state.documentType=o.documentType||'invoice';this.state.documentOrder=Number(o.order)||0;this.state.documentNote=o.documentNote||'';this.state.shippingFee=o.shippingFee||0;this.state.discountPercent=o.discountPercent||0;this.state.discountExpression=o.discountExpression||(o.discountPercent?o.discountPercent+'%':'0');this.state.linkedTenderId=o.linkedTenderId||'';this.state.linkedPurchaseDocumentIds=o.linkedPurchaseDocumentIds||[];this.state.bankAccountId=o.bankAccountId||'';this.state.referralId=o.referralId||'';this.state.couponCode=o.couponCode||'';await this.render();window.scrollTo({top:0,behavior:'smooth'});},
   async changeOrderStatus(id,status){const o=await sariDB.getById('orders',id);if(!o)return;if(o.status==='closed'&&!auth.can('sales','finalize'))return app.showToast('Document clôturé.','warning');const fromStatus=o.status;if(fromStatus===status)return;o.status=status;o.updatedAt=new Date().toISOString();await sariDB.save('orders',o);await DocumentLifecycle.record('order',o,'STATUS_CHANGED',{fromStatus,toStatus:status,description:`${o.referenceCode||id}: ${fromStatus} → ${status}`});for(const link of (await sariDB.getAll('documentLinks')).filter(l=>l.sourceId===id||l.targetId===id)){link.statusFlag=`sales:${status}`;await sariDB.save('documentLinks',link);}this.render();},
   async convertOrder(id){const o=await sariDB.getById('orders',id);const v=await DialogManager.form('Convertir le document',[{name:'target',label:'Document cible',type:'select',options:[{value:'sales_invoice',label:'Facture vente'},{value:'purchase_invoice',label:'Facture achat'}]}]);if(!v)return;await DocumentLifecycle.record('order',o,'DOCUMENT_CONVERTED',{description:`${o.referenceCode||o.id} → ${v.target}`});if(v.target==='purchase_invoice')return PurchasesModule.createFromSales(o);await this.createFromDocument(o);},
   async createFromDocument(source){this.state.editingOrderId='';this.state.cart=SariUtils.deepClone(source.items||[]);this.state.selectedCustomerId=source.customerId||this.state.customers[0]?.id;this.state.currency=source.currency||'DZD';this.state.documentType='invoice';this.state.documentNote=`Conversion de ${source.referenceCode||source.id}`;this.state.shippingFee=source.shippingFee||0;this.state.discountPercent=source.discountPercent||0;this.state.discountExpression=source.discountExpression||(source.discountPercent?source.discountPercent+'%':'0');this.state.linkedTenderId=source.linkedTenderId||'';await app.navigate('sales');await this.render();window.scrollTo({top:0});},
@@ -760,7 +766,7 @@ const SalesModule = {
                   ${docTitle}
                 </span>
                 <p class="text-base font-mono-tech font-bold text-sari-blue">${docCode}</p>
-                <p class="text-xs text-slate-600">Date d'émission: <strong>${i18n.formatDate(o.createdAt)}</strong></p>
+                <p class="text-xs text-slate-600">Date d'émission: <strong>${i18n.formatDate(o.createdAt)}</strong></p><p class="text-[10px] font-mono-tech text-slate-500">Ordre: ${o.order||'—'} • ID technique: ${o.numericId||'—'}</p>
                 <p class="text-xs text-slate-600">Dépôt: <strong>Alger Central</strong></p>
               </div>
             </div>

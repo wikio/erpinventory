@@ -24,7 +24,7 @@ const SuppliersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('importExport');
-    const filtered = TableSort.apply('suppliers',this.getFilteredSuppliers(),'name');
+    TableSort.ensure('suppliers','order');const filtered = TableSort.apply('suppliers',this.getFilteredSuppliers(),'order');
 
     container.innerHTML = `
       <div class="space-y-6">
@@ -89,6 +89,7 @@ const SuppliersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('suppliers','order','Ordre','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','name','Fournisseur & Pays','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','type','Type & Devise','SuppliersModule.render()')}
                 ${TableSort.th('suppliers','incoterms','Incoterm Habituel','SuppliersModule.render()')}
@@ -101,7 +102,7 @@ const SuppliersModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="7" class="p-8 text-center text-slate-500">
+                  <td colspan="8" class="p-8 text-center text-slate-500">
                     <i data-lucide="factory" class="text-2xl mb-2 block"></i>
                     Aucun fournisseur ne correspond à vos filtres.
                   </td>
@@ -113,6 +114,7 @@ const SuppliersModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${s.order||'—'}</td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${s.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${s.referenceCode||s.id}</div>
                       <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
@@ -227,6 +229,7 @@ const SuppliersModule = {
           </div>
 
           <form onsubmit="SuppliersModule.saveSupplier(event)" class="space-y-4 text-sm">
+            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sup.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sup-order" type="number" min="1" value="${sup.order||this.state.suppliers.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom du Fournisseur / Société *</label>
@@ -305,6 +308,7 @@ const SuppliersModule = {
       ...original,
       id,
       referenceCode: original.referenceCode || await ReferenceCodeManager.generate('FOU', { subType }),
+      order: Number(document.getElementById('sup-order').value),
       name: document.getElementById('sup-name').value.trim(),
       countryCode: countryRecord.iso3,
       country: countryRecord.name?.fr || countryRecord.iso3,

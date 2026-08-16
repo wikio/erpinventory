@@ -25,8 +25,8 @@ const CustomersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('sales');
-    TableSort.ensure('customers','name');
-    const filtered = TableSort.apply('customers',this.getFilteredCustomers(),'name');
+    TableSort.ensure('customers','order');
+    const filtered = TableSort.apply('customers',this.getFilteredCustomers(),'order');
 
     // Summary KPIs
     let hospitalCount = 0;
@@ -141,6 +141,7 @@ const CustomersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('customers','order','Ordre','CustomersModule.render()')}
                 ${TableSort.th('customers','name','Client / Établissement','CustomersModule.render()')}
                 ${TableSort.th('customers','type','Type & Catégorie','CustomersModule.render()')}
                 ${TableSort.th('customers','wilaya','Wilaya & Localisation','CustomersModule.render()')}
@@ -153,7 +154,7 @@ const CustomersModule = {
             <tbody>
               ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="7" class="p-8 text-center text-slate-500">
+                  <td colspan="8" class="p-8 text-center text-slate-500">
                     <i data-lucide="user-round" class="text-2xl mb-2 block"></i>
                     Aucun client ne correspond à vos filtres.
                   </td>
@@ -169,6 +170,7 @@ const CustomersModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${c.order||'—'}</td>
                     <td class="p-3">
                       <div class="font-bold text-slate-900 dark:text-white">${c.name}</div><div class="font-mono-tech text-[10px] text-sari-blue">${c.referenceCode||c.id}</div>
                       <div class="text-xs text-slate-500 mt-0.5">${c.contactInfo || '-'}</div>
@@ -281,6 +283,7 @@ const CustomersModule = {
           </div>
 
           <form onsubmit="CustomersModule.saveCustomer(event)" class="space-y-4 text-sm">
+            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${cust.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="cust-order" type="number" min="1" value="${cust.order||this.state.customers.length+1}" class="doc-input"></label></div>
             <div>
               <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom Client / Établissement *</label>
               <input type="text" id="cust-name" required value="${cust.name}" placeholder="Ex: CHU Mustapha Pacha, Pharmacie El-Shifa" class="w-full px-3 py-2 border rounded bg-white dark:bg-slate-800" />
@@ -355,6 +358,7 @@ const CustomersModule = {
       ...original,
       id,
       referenceCode: original.referenceCode || await ReferenceCodeManager.generate('CLI', { subType }),
+      order: Number(document.getElementById('cust-order').value),
       name: document.getElementById('cust-name').value.trim(),
       type: customerType,
       countryCode:countryRecord.iso3,country:countryRecord.name?.fr||countryRecord.iso3,

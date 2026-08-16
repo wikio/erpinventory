@@ -32,8 +32,8 @@ const TendersModule = {
 
   renderView(container) {
     const canWrite = window.auth && window.auth.canWrite('tenders');
-    TableSort.ensure('tenders','referenceCode');
-    const filtered = TableSort.apply('tenders',this.getFilteredTenders(),'referenceCode');
+    TableSort.ensure('tenders','order');
+    const filtered = TableSort.apply('tenders',this.getFilteredTenders(),'order');
 
     // Stats
     let wonCount = 0;
@@ -147,6 +147,7 @@ const TendersModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                ${TableSort.th('tenders','order','Ordre','TendersModule.render()')}
                 ${TableSort.th('tenders','referenceCode','Réf / Code AO','TendersModule.render()')}
                 ${TableSort.th('tenders','title','Objet du Marché & Institution','TendersModule.render()')}
                 ${TableSort.th('tenders','category','Catégorie','TendersModule.render()')}
@@ -181,6 +182,7 @@ const TendersModule = {
 
                 return `
                   <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td class="p-3 font-mono-tech font-bold text-sari-blue">${t.order||'—'}</td>
                     <td class="p-3 font-mono-tech font-bold text-sari-blue">
                       ${t.referenceCode || t.id}
                       <div class="text-[9px] text-slate-400">${t.id}</div>
@@ -305,7 +307,7 @@ const TendersModule = {
             </button>
           </div>
 
-          <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm">
+          <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${ten.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="ten-order" type="number" min="1" value="${ten.order||this.state.tenders.length+1}" class="doc-input"></label></div>
             <div class="p-3 rounded-xl bg-sari-blue/5 border border-sari-blue/20"><label class="doc-label">Référence ERP automatique</label><input value="${previewReference}" readonly class="doc-input font-mono-tech font-bold text-sari-blue"><p class="text-[10px] text-slate-500 mt-1">La séquence définitive est réservée lors de l’enregistrement.</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -397,8 +399,10 @@ const TendersModule = {
 
     const referenceCode = orig.referenceCode || await ReferenceCodeManager.generate('CON', { date: document.getElementById('ten-deadline').value });
     const payload = {
+      ...orig,
       id,
       referenceCode,
+      order: Number(document.getElementById('ten-order').value),
       issuingOrganization: document.getElementById('ten-org').value.trim(),
       title: document.getElementById('ten-title').value.trim(),
       category: document.getElementById('ten-category').value,
@@ -445,7 +449,7 @@ const TendersModule = {
     await this.render();
   },
 
-  async openDetail(id){const t=await sariDB.getById('tenders',id),items=(await sariDB.getAll('checklistItems')).filter(x=>x.tenderId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.t(t.status)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('tenders',t.id,'title',t.title)}>${SariUtils.escapeHtml(DynamicI18n.get('tenders',t.id,'title',t.title))}</h3><p class="font-mono-tech text-sari-blue">${t.referenceCode||t.id}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid md:grid-cols-3 gap-3 my-4"><div class="p-3 border rounded"><small>Institution</small><b class="block">${SariUtils.escapeHtml(t.issuingOrganization)}</b></div><div class="p-3 border rounded"><small>Échéance</small><b class="block">${i18n.formatDate(t.submissionDeadline)}</b></div><div class="p-3 border rounded"><small>Checklist</small><b class="block">${items.filter(x=>x.status==='done').length}/${items.length}</b></div></div><div class="rich-content">${RichTextEditor.sanitize(t.extendedDescription||t.notes||'')}</div><footer class="flex justify-end gap-2 mt-5"><button onclick="app.closeModalRoot();TendersModule.openDocsModal('${id}')" class="sari-btn px-4 bg-slate-800 text-white">Checklist</button><button onclick="app.closeModalRoot();TendersModule.openDocumentChain('${id}')" class="sari-btn px-4 bg-sari-amber">Traçabilité</button>${auth.can('tenders','edit')?`<button onclick="app.closeModalRoot();TendersModule.openModal('${id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
+  async openDetail(id){const t=await sariDB.getById('tenders',id),items=(await sariDB.getAll('checklistItems')).filter(x=>x.tenderId===id),root=document.getElementById('sari-modal-root');root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-5xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-3"><div><span class="sari-badge">${i18n.t(t.status)}</span><h3 class="text-xl font-extrabold mt-2" ${DynamicI18n.attributes('tenders',t.id,'title',t.title)}>${SariUtils.escapeHtml(DynamicI18n.get('tenders',t.id,'title',t.title))}</h3><p class="font-mono-tech text-sari-blue">${t.referenceCode||t.id} • Ordre ${t.order||'—'} • ID technique ${t.numericId||'—'}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="grid md:grid-cols-3 gap-3 my-4"><div class="p-3 border rounded"><small>Institution</small><b class="block">${SariUtils.escapeHtml(t.issuingOrganization)}</b></div><div class="p-3 border rounded"><small>Échéance</small><b class="block">${i18n.formatDate(t.submissionDeadline)}</b></div><div class="p-3 border rounded"><small>Checklist</small><b class="block">${items.filter(x=>x.status==='done').length}/${items.length}</b></div></div><div class="rich-content">${RichTextEditor.sanitize(t.extendedDescription||t.notes||'')}</div><footer class="flex justify-end gap-2 mt-5"><button onclick="app.closeModalRoot();TendersModule.openDocsModal('${id}')" class="sari-btn px-4 bg-slate-800 text-white">Checklist</button><button onclick="app.closeModalRoot();TendersModule.openDocumentChain('${id}')" class="sari-btn px-4 bg-sari-amber">Traçabilité</button>${auth.can('tenders','edit')?`<button onclick="app.closeModalRoot();TendersModule.openModal('${id}')" class="sari-btn px-4 bg-sari-blue text-white">Modifier</button>`:''}</footer></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
   async openDocumentChain(tenderId){const tender=await sariDB.getById('tenders',tenderId),orders=(await sariDB.getAll('orders')).filter(o=>o.linkedTenderId===tenderId),purchases=(await sariDB.getAll('purchaseDocuments')).filter(d=>d.linkedTenderId===tenderId),root=document.getElementById('sari-modal-root');const stages=[{title:'Consultation',icon:'file-check-2',items:[tender]},{title:'Approvisionnement',icon:'shopping-cart',items:purchases},{title:'Vente & livraison',icon:'truck',items:orders},{title:'Clôture',icon:'badge-check',items:[...purchases,...orders].filter(x=>['paid','closed'].includes(x.status))}];root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop flex items-center justify-center p-3"><div class="sari-tile w-full max-w-6xl max-h-[94vh] overflow-y-auto p-6"><header class="flex justify-between border-b pb-4"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">Traçabilité documentaire</span><h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(tender.title)}</h3><p class="font-mono-tech text-xs text-sari-blue">${tender.referenceCode||tender.id}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="trace-flow mt-6">${stages.map((stage,index)=>`<section class="trace-step" style="animation-delay:${index*.08}s"><div class="trace-node"><i data-lucide="${stage.icon}"></i><span>${index+1}</span></div><div class="trace-content"><h4>${stage.title}</h4>${stage.items.length?stage.items.map(item=>`<button onclick="${item.documentType?.startsWith('purchase')||item.documentType==='goods_receipt'?`app.closeModalRoot();PurchasesModule.openDetail('${item.id}')`:item.customerId?`app.closeModalRoot();SalesModule.openPrintModal('${item.id}','facture')`:'void 0'}" class="trace-document"><b>${item.referenceCode||item.id}</b><small>${item.status||'active'} • ${item.supplierName||item.customerName||item.issuingOrganization||''}</small></button>`).join(''):'<p class="text-xs text-slate-400">Aucun document à cette étape</p>'}</div></section>`).join('')}</div></div></div>`;if(typeof lucide!=='undefined')lucide.createIcons();},
 
   exportCSV() {

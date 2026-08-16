@@ -29,6 +29,7 @@ describe('normalized external repository', () => {
     expect(sourceValue(row, 'name_json')).toEqual({ fr: 'Nom' });
     expect(sourceValue({ value:'inspection-est', order:3 }, 'option_value')).toBe('inspection-est');
     expect(sourceValue({ value:'inspection-est', order:3 }, 'sort_order')).toBe(3);
+    expect(sourceValue({ id:'prod-1', order:12 }, 'display_order')).toBe(12);
   });
 
   it('normalizes coupons, sequence counters and roles for relational constraints', () => {
