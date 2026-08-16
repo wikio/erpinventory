@@ -48,6 +48,7 @@ const SalesModule = {
     this.state.warehouses = await window.sariDB.getAll('warehouses');
     this.state.documentTemplates = await window.sariDB.getAll('documentTemplates');
     this.state.vatRates = (await window.sariDB.getAll('vatRates')).filter(rate => rate.isActive);
+    if (!this._currencyInitialized) { const settings = await window.sariDB.getById('settings', 'app-settings'); this.state.currency = settings?.currency || this.state.currency; this._currencyInitialized = true; }
     [this.state.purchaseDocuments,this.state.tenders,this.state.bankAccounts,this.state.referrals,this.state.coupons,this.state.paymentMethods,this.state.salesStages,this.state.documentCodes] = await Promise.all(['purchaseDocuments','tenders','bankAccounts','referrals','coupons','paymentMethods','salesStages','documentCodes'].map(s=>sariDB.getAll(s)));
 
     const pendingCustomerId=sessionStorage.getItem('sari_sales_customer_id');
@@ -61,6 +62,7 @@ const SalesModule = {
   },
 
   documentTypeOptions(){const definitions=[['invoice','FAV'],['quote','DVV'],['purchase_order','BCV'],['delivery_note','LIV']];return definitions.map(([value,code])=>{const definition=this.state.documentCodes.find(item=>item.code===code);return{value,code,label:definition?.designationI18n?.[i18n.currentLang]||definition?.designation||({invoice:'Facture vente',quote:'Devis vente',purchase_order:'Commande vente',delivery_note:'Bon de livraison'}[value])};});},
+  currencyCodes(){const rows=OptionCatalog.options('currency');return rows.length?rows.map(row=>row.value):Object.keys(SARI_CONFIG.CURRENCIES);},
   normalizeDocumentType(order){return window.SariCore.commerce.normalizeSalesDocumentType(order);},
   documentTypeLabel(type){return this.documentTypeOptions().find(option=>option.value===type)?.label||type;},
   paymentMethodLabel(code){return window.SariCore.commerce.localizedPaymentMethod(code||'bank_transfer',this.state.paymentMethods,i18n.currentLang)||i18n.t('paymentMethod','Mode de règlement');},
@@ -237,9 +239,9 @@ const SalesModule = {
 
               <!-- Commercial document configuration -->
               <div class="grid grid-cols-2 gap-2 mb-3 text-xs p-3 rounded-lg border bg-sari-blue/5">
-                <div><label class="block font-bold mb-1">ID technique</label><input readonly value="${this.state.editingOrderId?(this.state.orders.find(order=>order.id===this.state.editingOrderId)?.numericId||'—'):'Attribué à l’enregistrement'}" class="w-full px-2 py-1.5 border rounded bg-slate-100"></div><div><label class="block font-bold mb-1">Ordre / séquence</label><input type="number" min="1" value="${this.state.documentOrder||this.state.orders.length+1}" onchange="SalesModule.setDocumentField('documentOrder',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
+                <div><label class="block font-bold mb-1">ID technique</label><input readonly value="${this.state.editingOrderId?(this.state.orders.find(order=>order.id===this.state.editingOrderId)?.numericId||'—'):i18n.t('assignedToRecord','Attribué à l’enregistrement')}" class="w-full px-2 py-1.5 border rounded bg-slate-100"></div><div><label class="block font-bold mb-1">Ordre / séquence</label><input type="number" min="1" value="${this.state.documentOrder||this.state.orders.length+1}" onchange="SalesModule.setDocumentField('documentOrder',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
                 <div><label class="block font-bold mb-1">${i18n.t('documentTypeFilter','Type de document')}</label><select onchange="SalesModule.setDocumentField('documentType',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.documentTypeOptions().map(option=>`<option value="${option.value}" ${this.state.documentType===option.value?'selected':''}>${SariUtils.escapeHtml(option.label)} (${option.code})</option>`).join('')}</select></div>
-                <div><label class="block font-bold mb-1">Devise</label><select onchange="SalesModule.setDocumentField('currency',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${['DZD','EUR','USD'].map(c=>`<option ${c===this.state.currency?'selected':''}>${c}</option>`).join('')}</select></div>
+                <div><label class="block font-bold mb-1">Devise</label><select onchange="SalesModule.setDocumentField('currency',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.currencyCodes().map(c=>`<option ${c===this.state.currency?'selected':''}>${c}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Frais livraison</label><input type="number" value="${this.state.shippingFee}" onchange="SalesModule.setDocumentField('shippingFee',Number(this.value))" class="w-full px-2 py-1.5 border rounded"></div>
                 <div><label class="block font-bold mb-1">TVA globale optionnelle</label><select onchange="SalesModule.setDocumentField('globalVatRateId',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800"><option value="">Taux par produit</option>${this.state.vatRates.map(rate=>`<option value="${rate.id}" ${rate.id===this.state.globalVatRateId?'selected':''}>${rate.name?.[i18n.currentLang]||rate.label}</option>`).join('')}</select></div>
                 <div><label class="block font-bold mb-1">Modèle visuel</label><select onchange="SalesModule.setDocumentField('selectedTemplateId',this.value)" class="w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800">${this.state.documentTemplates.map(t=>`<option value="${t.id}" ${t.id===this.state.selectedTemplateId?'selected':''}>${t.nameI18n?.[i18n.currentLang]||t.name}</option>`).join('')}</select></div>
@@ -397,7 +399,7 @@ const SalesModule = {
                       </td>
                       <td class="p-3 text-right">
                         <div class="flex justify-end gap-1">
-                          <button onclick="SalesModule.openPrintModal('${o.id}', 'facture')" title="Consulter" class="px-2 py-1 rounded bg-slate-800 text-white text-xs font-bold">Voir</button>
+                          <button onclick="SalesModule.viewOrder('${o.id}')" title="Consulter" class="px-2 py-1 rounded bg-slate-800 text-white text-xs font-bold">Consulter</button>
                           <button onclick="SalesModule.openPrintModal('${o.id}', 'facture')" title="Imprimer Facture" class="px-2 py-1 rounded bg-sari-blue/10 hover:bg-sari-blue/20 text-sari-blue text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-text"></i> Facture
                           </button>
@@ -692,6 +694,14 @@ const SalesModule = {
     if (modalEl) modalEl.innerHTML = '';
   },
 
+  async viewOrder(orderId) {
+    const order=await sariDB.getById('orders',orderId);if(!order)return;
+    const customer=this.state.customers.find(item=>item.id===order.customerId)||{},warehouse=this.state.warehouses.find(item=>item.id===order.warehouseId)||{};
+    const root=document.getElementById('sari-modal-root');
+    root.innerHTML=`<div class="fixed inset-0 z-50 sari-modal-backdrop grid place-items-center p-3"><article class="sales-consultation w-full max-w-6xl max-h-[94vh] overflow-y-auto"><header><div><span class="sari-badge bg-white/15 text-white">${SariUtils.escapeHtml(this.documentTypeLabel(this.normalizeDocumentType(order)))}</span><h2>${SariUtils.escapeHtml(order.referenceCode||order.id)}</h2><p>${i18n.t('customer','Client')} • ${SariUtils.escapeHtml(order.customerName||customer.name||'—')}</p></div><button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header><div class="sales-consultation-body"><section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3"><div><small>${i18n.t('businessOrder','Ordre / séquence métier')}</small><b>${order.order||'—'}</b></div><div><small>${i18n.t('technicalId','ID technique')}</small><b>${order.numericId||'—'}</b></div><div><small>${i18n.t('status','Statut')}</small><b>${OptionCatalog.label('documentStatus',order.status)}</b></div><div class="accent"><small>${i18n.t('totalAmountDue','Montant total dû')}</small><b>${i18n.formatCurrency(order.total,order.currency||'DZD')}</b></div></section><section class="grid lg:grid-cols-[1fr_320px] gap-4 mt-5"><div><h3>${i18n.t('documentDetails','Détail du document')}</h3><div class="overflow-x-auto"><table class="w-full sari-table sales-consultation-lines"><thead><tr><th>${i18n.t('product','Produit')}</th><th>${i18n.t('quantity','Quantité')}</th><th>${i18n.t('price','Prix')}</th><th>${i18n.t('total','Total')}</th></tr></thead><tbody>${(order.items||[]).map(item=>`<tr><td>${SariUtils.escapeHtml(item.name||item.productId)}</td><td>${item.qty}</td><td>${i18n.formatCurrency(item.unitPrice,order.currency||'DZD')}</td><td>${i18n.formatCurrency(item.total,order.currency||'DZD')}</td></tr>`).join('')}</tbody></table></div></div><aside class="space-y-3"><div class="sales-consult-card"><small>${i18n.t('customer','Client')}</small><b>${SariUtils.escapeHtml(order.customerName||customer.name||'—')}</b><span>${SariUtils.escapeHtml(customer.contactInfo||customer.address||'')}</span></div><div class="sales-consult-card"><small>${i18n.t('warehouseHeader','Dépôt')}</small><b>${SariUtils.escapeHtml(warehouse.name||order.warehouseId||'—')}</b></div><div class="sales-consult-card"><small>${i18n.t('paymentMethod','Mode de règlement')}</small><b>${SariUtils.escapeHtml(this.paymentMethodLabel(order.paymentMethod))}</b></div></aside></section>${order.documentNote?`<section class="sales-consult-note"><h3>${i18n.t('notes','Notes')}</h3><p>${SariUtils.escapeHtml(order.documentNote)}</p></section>`:''}<footer class="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t"><button onclick="DocumentLifecycle.open('order','${order.id}')" class="sari-btn px-4 bg-slate-200">${i18n.t('viewLifecycle','Voir le processus complet')}</button><button onclick="DocumentManager.open('order','${order.id}','${SariUtils.escapeHtml(order.referenceCode||order.id)}')" class="sari-btn px-4 bg-slate-800 text-white">GED</button><button onclick="app.closeModalRoot();SalesModule.openPrintModal('${order.id}','facture')" class="sari-btn px-4 bg-sari-blue text-white">${i18n.t('previewInvoice','Aperçu facture')}</button></footer></div></article></div>`;
+    window.SariIcons?.hydrate();
+  },
+
   /**
    * Official Facture / Bon de Livraison (BL) Printable Modal
    */
@@ -727,7 +737,7 @@ const SalesModule = {
     if (o.shippingFee) { vatMap['0.19'] ||= { rate: .19, base: 0, tax: 0 }; vatMap['0.19'].base += Number(o.shippingFee); vatMap['0.19'].tax += Number(o.shippingFee)*.19; }
     const vatBreakdown = Object.values(vatMap);
     const formatMoney = value => new Intl.NumberFormat(i18n.currentLang === 'ar' ? 'ar-DZ' : 'fr-DZ', { style: 'currency', currency }).format(Number(value || 0));
-    const htmlTemplate = template.templateMode==='html' ? TemplateEngine.render(template.htmlContent,TemplateEngine.context({document:{...o,referenceCode:docCode,verificationUrl:printVerificationUrl},partner:customer,company:companySettings,title:docTitle,formatMoney,columns:template.lineItemsColumns,fontFamily:template.fontFamily})) : '';
+    const htmlTemplate = template.templateMode==='html' ? TemplateEngine.renderPublic(template.htmlContent,TemplateEngine.context({document:{...o,referenceCode:docCode,verificationUrl:printVerificationUrl},partner:customer,company:companySettings,title:docTitle,formatMoney,columns:template.lineItemsColumns,fontFamily:template.fontFamily})) : '';
 
     modalEl.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sari-modal-backdrop">
@@ -766,7 +776,7 @@ const SalesModule = {
                   ${docTitle}
                 </span>
                 <p class="text-base font-mono-tech font-bold text-sari-blue">${docCode}</p>
-                <p class="text-xs text-slate-600">Date d'émission: <strong>${i18n.formatDate(o.createdAt)}</strong></p><p class="text-[10px] font-mono-tech text-slate-500">Ordre: ${o.order||'—'} • ID technique: ${o.numericId||'—'}</p>
+                <p class="text-xs text-slate-600">Date d'émission: <strong>${i18n.formatDate(o.createdAt)}</strong></p>
                 <p class="text-xs text-slate-600">Dépôt: <strong>Alger Central</strong></p>
               </div>
             </div>

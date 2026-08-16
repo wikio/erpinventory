@@ -307,7 +307,7 @@ const TendersModule = {
             </button>
           </div>
 
-          <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${ten.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="ten-order" type="number" min="1" value="${ten.order||this.state.tenders.length+1}" class="doc-input"></label></div>
+          <form onsubmit="TendersModule.saveTender(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${ten.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="ten-order" type="number" min="1" value="${ten.order||this.state.tenders.length+1}" class="doc-input"></label></div>
             <div class="p-3 rounded-xl bg-sari-blue/5 border border-sari-blue/20"><label class="doc-label">Référence ERP automatique</label><input value="${previewReference}" readonly class="doc-input font-mono-tech font-bold text-sari-blue"><p class="text-[10px] text-slate-500 mt-1">La séquence définitive est réservée lors de l’enregistrement.</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>

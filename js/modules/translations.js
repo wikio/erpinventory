@@ -58,24 +58,24 @@ const TranslationsModule = {
             </div>
             <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <i data-lucide="languages" class="w-6 h-6 text-sari-blue"></i>
-              Gestionnaire des Traductions & Langues
+              ${i18n.t('translationManager','Gestionnaire des Traductions & Langues')}
             </h2>
             <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-              Édition en temps réel du dictionnaire trilingue, ajout de clés personnalisées et export des packs de langues.
+              ${i18n.t('translationManagerDescription','Édition en temps réel du dictionnaire trilingue, ajout de clés personnalisées et export des packs de langues.')}
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button onclick="TranslationCoverageReport.open()" class="sari-btn px-4 py-2 bg-slate-800 text-white text-sm"><i data-lucide="scan-search" class="w-4 h-4"></i> Audit couverture</button>
-            <button onclick="ReferenceTranslations.open()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-sm"><i data-lucide="list-tree" class="w-4 h-4"></i> Listes configurables</button>
+            <button onclick="TranslationCoverageReport.open()" class="sari-btn px-4 py-2 bg-slate-800 text-white text-sm"><i data-lucide="scan-search" class="w-4 h-4"></i> ${i18n.t('coverageAudit','Audit de couverture')}</button>
+            <button onclick="ReferenceTranslations.open()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-sm"><i data-lucide="list-tree" class="w-4 h-4"></i> ${i18n.t('configurableLists','Listes configurables')}</button>
             ${canWrite ? `
               <button onclick="TranslationsModule.openAddKeyModal()" class="sari-btn px-4 py-2 bg-sari-blue hover:bg-sari-blue/90 text-white shadow-sm text-sm">
                 <i data-lucide="plus" class="w-4 h-4"></i>
-                <span>+ Nouvelle Clé de Traduction</span>
+                <span>+ ${i18n.t('newTranslationKey','Nouvelle clé de traduction')}</span>
               </button>
             ` : ''}
             <button onclick="TranslationsModule.exportJSON()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
               <i data-lucide="download" class="w-4 h-4"></i>
-              <span>Exporter JSON</span>
+              <span>${i18n.t('exportJson','Exporter JSON')}</span>
             </button>
             <button onclick="TranslationsModule.importJSON()" class="sari-btn px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-sm">
               <i data-lucide="upload" class="w-4 h-4"></i>
@@ -102,7 +102,7 @@ const TranslationsModule = {
           <div class="flex items-end">
             <div class="w-full text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded border flex justify-between items-center">
               <span><strong>Clés actives :</strong> <span class="font-mono-tech font-bold text-sari-blue">${allKeys.length}</span></span>
-              <span><strong>Surcharge custom :</strong> <span class="font-mono-tech font-bold text-sari-lime-dark">${Object.keys(this.state.customTranslations).length}</span></span>
+              <span><strong>${i18n.t('customOverride','Surcharge personnalisée :')}</strong> <span class="font-mono-tech font-bold text-sari-lime-dark">${Object.keys(this.state.customTranslations).length}</span></span>
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ const TranslationsModule = {
           <table class="w-full text-left border-collapse sari-table text-sm">
             <thead>
               <tr class="border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                <th class="p-3 w-48">Clé Identifiant (Key)</th>
+                <th class="p-3 w-48">${i18n.t('keyIdentifier','Clé Identifiant (Key)')}</th>
                 <th class="p-3">Français (FR - LTR)</th>
                 <th class="p-3">العربية (AR - RTL)</th>
                 <th class="p-3">English (EN - LTR)</th>

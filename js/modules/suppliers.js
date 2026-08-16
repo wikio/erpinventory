@@ -229,7 +229,7 @@ const SuppliersModule = {
           </div>
 
           <form onsubmit="SuppliersModule.saveSupplier(event)" class="space-y-4 text-sm">
-            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sup.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sup-order" type="number" min="1" value="${sup.order||this.state.suppliers.length+1}" class="doc-input"></label></div>
+            <div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sup.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sup-order" type="number" min="1" value="${sup.order||this.state.suppliers.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom du Fournisseur / Société *</label>

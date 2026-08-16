@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isExternalSyncStore, requireNumericId } from '../src/core/db';
 import { externalMutationRequest, retryDelay } from '../src/core/sync';
-import { assertSafeTemplateSize, mergeFieldNames, mergeFields } from '../src/core/template-engine';
+import { assertSafeTemplateSize, mergeFieldNames, mergeFields, publicDocumentContext } from '../src/core/template-engine';
 
 describe('critical database contracts', () => {
   it('requires stable positive numeric IDs', () => {
@@ -36,6 +36,17 @@ describe('template merge engine', () => {
   it('replaces known fields and removes unresolved fields', () => {
     expect(mergeFields('<h1>{{ company.name }}</h1>{{missing}}', { 'company.name': 'SARI' })).toBe('<h1>SARI</h1>');
     expect(mergeFieldNames('{{a}} {{ b }} {{a}}')).toEqual(['a', 'b', 'a']);
+  });
+
+  it('removes internal order and technical identifiers from public document contexts', () => {
+    const context = publicDocumentContext({
+      'document.reference': 'SARI-FAV26-00001',
+      'document.internalId': 'order-private-id',
+      'document.numericId': 19,
+      'document.order': 7,
+    });
+    expect(context).toEqual({ 'document.reference': 'SARI-FAV26-00001' });
+    expect(mergeFields('{{document.reference}}|{{document.internalId}}|{{document.numericId}}|{{document.order}}', context)).toBe('SARI-FAV26-00001|||');
   });
 
   it('rejects oversized portable templates', () => {

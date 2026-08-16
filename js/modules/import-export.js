@@ -291,7 +291,7 @@ const ImportExportModule = {
             </button>
           </div>
 
-          <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sh.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sh-order" type="number" min="1" value="${sh.order||this.state.shipments.length+1}" class="doc-input"></label></div>
+          <form onsubmit="ImportExportModule.saveShipment(event)" class="space-y-4 text-sm"><div class="grid md:grid-cols-2 gap-3"><label class="doc-label">ID technique (immuable)<input value="${sh.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100"></label><label class="doc-label">Ordre / séquence métier<input id="sh-order" type="number" min="1" value="${sh.order||this.state.shipments.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">N° Expédition / Dossier *</label>

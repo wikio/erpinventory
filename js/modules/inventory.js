@@ -329,7 +329,7 @@ const InventoryModule = {
           </div>
 
           <form onsubmit="InventoryModule.saveProduct(event)" class="space-y-4 text-sm">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><label class="doc-label">${i18n.t('technicalIdImmutable','ID technique (immuable)')}<input value="${prod.numericId||'Attribué à l’enregistrement'}" readonly class="doc-input bg-slate-100 dark:bg-slate-900"></label><label class="doc-label">${i18n.t('businessOrder','Ordre / séquence métier')}<input id="form-order" type="number" min="1" value="${prod.order||this.state.products.length+1}" class="doc-input"></label></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><label class="doc-label">${i18n.t('technicalIdImmutable','ID technique (immuable)')}<input value="${prod.numericId||i18n.t('assignedToRecord','Attribué à l’enregistrement')}" readonly class="doc-input bg-slate-100 dark:bg-slate-900"></label><label class="doc-label">${i18n.t('businessOrder','Ordre / séquence métier')}<input id="form-order" type="number" min="1" value="${prod.order||this.state.products.length+1}" class="doc-input"></label></div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">SKU / Référence *</label>

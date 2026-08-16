@@ -182,6 +182,13 @@ class SariDB {
       {id:'purchaseStage-payment',listKey:'purchaseStage',value:'payment',name:{fr:'Paiement',ar:'دفع',en:'Payment'},color:'#8B5CF6',order:5,isActive:true}
     ];
     for(const stage of purchaseStages)if(!await this.getById('configurableOptions',stage.id))await this.save('configurableOptions',stage);
+    const currencies=[
+      {id:'currency-DZD',listKey:'currency',value:'DZD',code:'DZD',symbol:'DA',name:{fr:'Dinar algérien',ar:'دينار جزائري',en:'Algerian Dinar'},order:1,isActive:true},
+      {id:'currency-EUR',listKey:'currency',value:'EUR',code:'EUR',symbol:'€',name:{fr:'Euro',ar:'يورو',en:'Euro'},order:2,isActive:true},
+      {id:'currency-USD',listKey:'currency',value:'USD',code:'USD',symbol:'$',name:{fr:'Dollar américain',ar:'دولار أمريكي',en:'US Dollar'},order:3,isActive:true},
+      {id:'currency-CNY',listKey:'currency',value:'CNY',code:'CNY',symbol:'¥',name:{fr:'Yuan chinois',ar:'يوان صيني',en:'Chinese Yuan'},order:4,isActive:true}
+    ];
+    for(const currency of currencies)if(!await this.getById('configurableOptions',currency.id))await this.save('configurableOptions',currency);
     const inspectionOffices=[
       {id:'taxInspectionOffice-alger-est',listKey:'taxInspectionOffice',value:'alger-est',code:'DIW-16E',name:{fr:'Inspection des impôts Alger Est',ar:'مفتشية الضرائب الجزائر شرق',en:'Algiers East Tax Inspection'},address:'Bab Ezzouar, Alger',wilaya:'16',order:1,isActive:true},
       {id:'taxInspectionOffice-alger-centre',listKey:'taxInspectionOffice',value:'alger-centre',code:'DIW-16C',name:{fr:'Inspection des impôts Alger Centre',ar:'مفتشية الضرائب الجزائر وسط',en:'Algiers Centre Tax Inspection'},address:'Alger Centre',wilaya:'16',order:2,isActive:true},
