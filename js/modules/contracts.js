@@ -39,12 +39,24 @@ const ContractsModule = {
       lang: i18n.currentLang,
     });
   },
+  /** Shared mount for PDF generation: creates a temporary container when the host page has no contracts-modal (e.g. the employee portal). */
+  pdfMount() {
+    let mount = document.getElementById('contracts-modal');
+    const temporary = !mount;
+    if (!mount) {
+      mount = document.createElement('div');
+      mount.id = 'contracts-modal';
+      document.body.appendChild(mount);
+    }
+    return { mount, temporary };
+  },
   certificateTypeLabel(typeId) { return OptionCatalog.label('workCertificateType', typeId); },
   certificateTypes() { return OptionCatalog.options('workCertificateType'); },
 
   async load() {
     const [contracts, employees, paymentTypes, declarations, acceptances, rules, jobFunctions, certificates, settings] = await Promise.all(['employmentContracts', 'employees', 'paymentTypes', 'conflictDeclarations', 'ruleAcceptances', 'workRules', 'jobFunctions', 'workCertificates', 'settings'].map((store) => sariDB.getAll(store)));
     Object.assign(this.state, { contracts, employees, paymentTypes, declarations, acceptances, rules, jobFunctions, certificates });
+    if (window.OptionCatalog) await OptionCatalog.init().catch(() => {});
     this.state.policySettings = settings.find((record) => record.id === 'app-settings') || {};
     this.state.companySettings = settings.find((record) => record.id === 'app-settings') || {};
     this.state.certificateConfig = settings.find((record) => record.id === 'work-certificate-config') || { id: 'work-certificate-config', autoGenerate: false };
@@ -247,16 +259,16 @@ const ContractsModule = {
     const contract = await sariDB.getById('employmentContracts', id); if (!contract) return;
     await this.load();
     const employee = this.employee(contract.employeeId) || {};
-    const mount = document.getElementById('contracts-modal');
-    mount.innerHTML = `<div id="ctt-doc-${contract.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${window.SariCore.contracts.renderContractDocument({ contract, employee, company: this.companyInfo(), jobTasks: this.jobFunctionsFor(contract.position), lang: i18n.currentLang })}</div>`;
+    const { mount, temporary } = this.pdfMount();
+    // 320 — regenerate at export time so both signature blocks (incl. a company
+    // signature added after the employee signed) are present in the final PDF.
+    const frozen = this.contractDocumentHtml(contract);
+    mount.innerHTML = `<div id="ctt-doc-${contract.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${frozen}</div>`;
     window.SariIcons?.hydrate();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const reference = contract.referenceCode || contract.id;
-    const frozen = contract.contentHtml || this.contractDocumentHtml(contract);
-    const frozenMount = document.getElementById(`ctt-doc-${contract.id}`);
-    if (frozenMount) frozenMount.innerHTML = frozen;
     const blob = await SariUtils.createPDFBlob(`ctt-doc-${contract.id}`, 'A4', { pageFooter: (page, total) => `${reference} — ${i18n.t('pageOf', 'Page')} ${page}/${total}` });
-    mount.innerHTML = '';
+    if (temporary) mount.remove(); else mount.innerHTML = '';
     if (archive) {
       // 317 — automatically post the signed copy into the GED, linked to the employee.
       const documentId = `ctt-pdf-${contract.id}`;
@@ -310,6 +322,8 @@ const ContractsModule = {
     contract.signatures.company = { name, title, place, imageDataUrl: SignaturePad.value('cts-signature'), userId: auth.currentUser?.id, signedAt: new Date().toISOString() };
     if (contract.signatures.employee) { contract.status = 'signed'; contract.signedAt = new Date().toISOString(); }
     contract.updatedAt = new Date().toISOString();
+    // 318/320 — keep the stored full text in sync with the new signature block.
+    contract.contentHtml = this.contractDocumentHtml(contract);
     await sariDB.save('employmentContracts', contract);
     this.closeModal();
     app.showToast(this.t('companySigned', 'Contrat signé pour l’entreprise.'), 'success');
@@ -741,12 +755,14 @@ const ContractsModule = {
   async downloadCertificatePDF(id, { archive = false } = {}) {
     const record = await sariDB.getById('workCertificates', id); if (!record) return;
     await this.load();
-    const mount = document.getElementById('contracts-modal');
-    mount.innerHTML = `<div id="wct-doc-${record.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${record.contentHtml || this.certificateDocumentHtml(record)}</div>`;
+    const { mount, temporary } = this.pdfMount();
+    // 321 — regenerate so the framed manager signature block is always included.
+    const frozen = this.certificateDocumentHtml(record);
+    mount.innerHTML = `<div id="wct-doc-${record.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${frozen}</div>`;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const reference = record.referenceCode || record.id;
     const blob = await SariUtils.createPDFBlob(`wct-doc-${record.id}`, 'A4', { pageFooter: (page, total) => `${reference} — ${i18n.t('pageOf', 'Page')} ${page}/${total}` });
-    mount.innerHTML = '';
+    if (temporary) mount.remove(); else mount.innerHTML = '';
     if (archive) {
       const documentId = `wct-pdf-${record.id}`;
       const existing = await sariDB.getById('documents', documentId);

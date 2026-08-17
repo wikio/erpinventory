@@ -35,6 +35,12 @@ The contract must be signed by **both parties**. For each signer the system capt
 - The certificate is **electronically signed by the responsible manager** with a **canvas-drawn signature**, and the signed PDF is archived in the GED (employee file).
 - **Employee requests** come from the portal (Section 16); generation is **automatic or manual** according to the configurable `work-certificate-config` setting (`autoGenerate`).
 
+## Hardening (317/320/321)
+
+- **PDF export from any host page** — `ContractsModule.pdfMount()` creates a temporary render container when the page has no `contracts-modal` (e.g. the employee portal). Signing a contract or downloading a certificate from the portal now archives the signed PDF in the GED correctly, instead of failing silently.
+- **Always-complete signed documents** — the contract/certificate document is regenerated at PDF-export time (and after the company signature) so that **both framed signature blocks** are present even when the company signs after the employee.
+- The option catalog (certificate types) is refreshed in both the portal and the contracts module before rendering.
+
 ## 322. Leave calendar — weekend column ordering fix
 
 `weekColumnOrder()` previously appended weekend days in numeric order, which could break the column sequence (e.g. `[Mon…Fri, Sun, Sat]` for a Monday-first configuration), misaligning day names, dates and color coding. The fixed algorithm returns a **chronological rotation of the week** starting Sunday (when it is a working day) and ending with the longest possible weekend run — so Friday/Saturday always close the grid and every day cell lines up under its column, for any configured weekend.

@@ -62,6 +62,27 @@ describe('section 317 — signed contract copy archived in the GED', () => {
   });
 });
 
+describe('section 317/320 hardening — PDF export works from any host page', () => {
+  it('creates a temporary mount when the page has no contracts-modal container (portal flow)', () => {
+    const contracts = source('js/modules/contracts.js');
+    expect(contracts).toContain('pdfMount()');
+    expect(contracts).toContain("document.body.appendChild(mount)");
+    expect(contracts).toContain('if (temporary) mount.remove()');
+    // The portal (employee signing, Section 317) relies on this export path.
+    expect(source('js/modules/portal.js')).toContain('ContractsModule.downloadContractPDF(contractId, { archive: true })');
+  });
+  it('regenerates the document at export time so both signature blocks are included', () => {
+    const contracts = source('js/modules/contracts.js');
+    expect(contracts).toContain('const frozen = this.contractDocumentHtml(contract);');
+    expect(contracts).toContain('contract.contentHtml = this.contractDocumentHtml(contract);');
+    expect(contracts).toContain('const frozen = this.certificateDocumentHtml(record);');
+  });
+  it('keeps the configurable option catalog fresh in portal and contracts modules', () => {
+    expect(source('js/modules/portal.js')).toContain('OptionCatalog.init()');
+    expect(source('js/modules/contracts.js')).toContain('OptionCatalog.init()');
+  });
+});
+
 describe('section 318 — full contract text, header/footer, pagination & parties', () => {
   const contract = { id: 'ctt-1', referenceCode: 'SARI-CTT26-00001', type: 'CDI', title: 'Contrat test', position: 'Gestionnaire stocks', startDate: '2026-01-01', baseSalary: 95000, weeklyHours: 39, trialPeriodMonths: 3, clausesHtml: '<p>Clause particulière.</p>', status: 'signed', signatures: {} };
   const employee = { firstName: 'Nadir', lastName: 'Khelifi', dateOfBirth: '1991-09-20', postalAddress: 'Alger', cnasNumber: 'CNAS-160002' };

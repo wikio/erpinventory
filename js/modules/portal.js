@@ -16,6 +16,7 @@ const EmployeePortalModule = {
   async loadData() {
     const [employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays, certificates, jobFunctions, settings] = await Promise.all(['employees', 'careerRecords', 'missions', 'documents', 'conversations', 'messages', 'attendance', 'performanceRecords', 'salaryHistory', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'leaveRequests', 'leaveTypes', 'publicHolidays', 'workCertificates', 'jobFunctions', 'settings'].map((store) => sariDB.getAll(store)));
     Object.assign(this.state, { employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays, certificates, jobFunctions });
+    if (window.OptionCatalog) await OptionCatalog.init().catch(() => {});
     this.state.employee = this.state.employees.find((employee) => employee.userId === auth.currentUser.id) || null;
     this.state.schedule = schedule.find((record) => record.id === 'work-schedule') || window.SariCore.leave.defaultSchedule;
     this.state.companySettings = settings.find((record) => record.id === 'app-settings') || {};
