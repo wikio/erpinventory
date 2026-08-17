@@ -30,7 +30,12 @@ const STORE_TABLES = Object.freeze({
   casnosDeclarations: 'casnos_declarations', casnosPayments: 'casnos_payments',
   shareholders: 'shareholders', shareholderHistory: 'shareholder_history', companyRegisters: 'company_registers',
   socialAccounts: 'social_accounts', companyMinutes: 'company_minutes', tradeRegisters: 'trade_registers',
-  tradeRegisterHistory: 'trade_register_history', commerceRequests: 'commerce_requests', payslips: 'payslips'
+  tradeRegisterHistory: 'trade_register_history', commerceRequests: 'commerce_requests', payslips: 'payslips',
+  leaveTypes: 'leave_types', publicHolidays: 'public_holidays', leaveRequests: 'leave_requests',
+  workedHolidays: 'worked_holidays', paymentTypes: 'payment_types',
+  employmentContracts: 'employment_contracts', ruleAcceptances: 'rule_acceptances',
+  conflictDeclarations: 'conflict_declarations', workRules: 'work_rules',
+  occasionalWorkers: 'occasional_workers', workerAssignments: 'worker_assignments', onboardingStates: 'onboarding_states'
 });
 
 const FOREIGN_TABLES = Object.freeze({
@@ -58,6 +63,9 @@ const SOURCE_ALIASES = Object.freeze({
   employee_entries_json: ['employeeEntries'], shareholder_entries_json: ['shareholderEntries'],
   related_invoice_ids_json: ['relatedInvoiceIds'], register_ids_json: ['registerIds'], participants_json: ['participants'],
   shareholder_ids_json: ['shareholderIds'], resolutions_json: ['resolutions'], snapshot_json: ['snapshot'],
+  legal_notes_json: ['legalNotesI18n'], content_json: ['contentI18n'], title_json: ['titleI18n'],
+  blocked_modules_json: ['blockedModules'], exempt_roles_json: ['exemptRoles'],
+  leave_adjustments_json: ['leaveAdjustments'], worked_holidays_json: ['workedHolidays'], signature_json: ['signature'],
   declaration_uid: ['declarationId'], pv_type: ['pvType'], request_type: ['requestType'],
   template_html: ['templateHtml'], template_html_i18n_json: ['templateHtmlI18n'], document_template_id: ['templateId'],
   type: ['type','documentType'], file_name: ['fileName','name'], file_size: ['fileSize','size'], expires_at: ['expiresAt','expirationDate']

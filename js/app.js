@@ -14,7 +14,8 @@ class SariApp {
       'dashboard', 'inventory', 'suppliers', 'importExport', 'tenders', 'sales',
       'customers', 'reports', 'translations', 'auditLogs', 'settings', 'hr',
       'tasks', 'portal', 'purchases', 'ged', 'taxes', 'masterData',
-      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'payslips', 'documentDetail', 'bankAccountDetail'
+      'inventoryOps', 'bulkImport', 'api', 'users', 'smtp', 'cnas', 'casnos', 'commerceDirection', 'companyMinutes', 'payslips',
+      'leaves', 'contracts', 'occasionalWorkers', 'documentDetail', 'bankAccountDetail'
     ].map(name => [name, null]));
   }
 
@@ -149,7 +150,49 @@ class SariApp {
   permissionForModule(moduleName) {
     if(moduleName==='documentDetail')return window.DocumentDetailModule?.state?.recordType==='purchaseDocument'?'purchases':'sales';
     if(moduleName==='bankAccountDetail'||moduleName==='users'||moduleName==='smtp')return 'settings';
-    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings', payslips:'hr' })[moduleName] || moduleName;
+    return ({ auditLogs:'settings', translations:'settings', settings:'settings', cnas:'taxes', casnos:'taxes', commerceDirection:'settings', companyMinutes:'settings', payslips:'hr', leaves:'leaves', contracts:'contracts', occasionalWorkers:'occasionalWorkers' })[moduleName] || moduleName;
+  }
+
+  /**
+   * Section 304.5: an Administrator can block modules in the employee's
+   * personal space until the rules-acceptance / signature onboarding is done.
+   */
+  async isOnboardingBlocked(moduleName) {
+    if (moduleName === 'portal' || moduleName === 'dashboard') return false;
+    const user = window.auth?.currentUser;
+    const employee = window.auth?.employee;
+    if (!user || !employee || employee.userId !== user.id) return false;
+    if (user.role === 'admin') return false;
+    const settings = await window.sariDB?.getById('settings', 'app-settings');
+    const policy = settings?.portalAccessPolicy;
+    if (!policy?.enabled || !Array.isArray(policy.blockedModules) || !policy.blockedModules.length) return false;
+    if ((policy.exemptRoles || []).includes(user.role)) return false;
+    if (!policy.blockedModules.includes(moduleName)) return false;
+    const [contracts, acceptances, declarations, rules] = await Promise.all(['employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules'].map((store) => window.sariDB.getAll(store)));
+    const latest = (kind) => rules.filter((rule) => rule.kind === kind).sort((a, b) => Number(b.version) - Number(a.version))[0]?.version;
+    const onboarding = window.SariCore.leave.computeOnboarding({ employeeId: employee.id, acceptances, contracts, declarations, rulesVersion: latest('rules'), termsVersion: latest('terms') });
+    if (onboarding.done) return false;
+    const labels = {
+      rules_read: i18n.t('stepRulesRead', 'Lire le règlement intérieur'),
+      rules_accepted: i18n.t('stepRulesAccepted', 'Accepter & signer le règlement'),
+      terms_accepted: i18n.t('stepTermsAccepted', 'Accepter & signer les conditions générales'),
+      contract_signed: i18n.t('stepContractSigned', 'Signer mon contrat de travail'),
+      conflict_declared: i18n.t('stepConflictDeclared', 'Compléter la déclaration de conflits d’intérêts'),
+    };
+    const doneCount = onboarding.steps.filter((step) => step.done).length;
+    const pct = Math.round((doneCount / onboarding.steps.length) * 100);
+    const view = document.getElementById('sari-main-view');
+    if (view) view.innerHTML = `<div class="sari-tile p-10 max-w-3xl mx-auto">
+      <i data-lucide="lock" class="w-12 h-12 text-sari-amber mx-auto mb-3"></i>
+      <h2 class="text-xl font-extrabold text-slate-900 dark:text-white text-center">${i18n.t('moduleLockedTitle', 'Module temporairement verrouillé')}</h2>
+      <p class="text-sm text-slate-500 mt-2 text-center">${SariUtils.escapeHtml(policy.messageI18n?.[i18n.currentLang] || policy.messageI18n?.fr || '')}</p>
+      <div class="h-2 bg-slate-200 rounded-full mt-4 overflow-hidden max-w-md mx-auto"><div class="h-full bg-sari-amber" style="width:${pct}%"></div></div>
+      <p class="text-xs text-center text-slate-400 mt-1">${doneCount}/${onboarding.steps.length} ${i18n.t('stepsCompleted', 'étape(s) terminée(s)')}</p>
+      <div class="max-w-md mx-auto mt-4 space-y-2">${onboarding.steps.map((step, index) => `<div class="flex items-center gap-2 text-xs p-2 rounded-lg border ${step.done ? 'border-green-300 bg-green-50 dark:bg-green-500/10 text-green-700' : 'border-slate-200 text-slate-500'}"><span class="w-5 h-5 rounded-full grid place-items-center text-[9px] font-black shrink-0 ${step.done ? 'bg-green-500 text-white' : 'bg-slate-200'}">${index + 1}</span>${SariUtils.escapeHtml(labels[step.key] || step.key)}${step.done ? ' ✓' : ''}</div>`).join('')}</div>
+      <div class="text-center mt-5"><button onclick="window.app.navigate('portal')" class="sari-btn px-5 py-2 bg-sari-blue text-white">${i18n.t('goToOnboarding', 'Terminer mon parcours d’intégration')}</button></div>
+    </div>`;
+    window.SariIcons?.hydrate();
+    return true;
   }
 
   initializeSidebarMenus() {
@@ -157,7 +200,7 @@ class SariApp {
     const groups=[
       {id:'operations',key:'menuOperations',label:i18n.t('menuOperations'),icon:'blocks',items:['inventory','inventoryOps','importExport','tenders']},
       {id:'commerce',key:'menuCommerce',label:i18n.t('menuCommerce'),icon:'shopping-bag',items:['sales','purchases','customers','suppliers']},
-      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','payslips','tasks','portal']},
+      {id:'people',key:'menuPeople',label:i18n.t('menuPeople'),icon:'users-round',items:['hr','payslips','leaves','contracts','occasionalWorkers','tasks','portal']},
       {id:'analysis',key:'menuAnalytics',label:i18n.t('menuAnalytics'),icon:'chart-no-axes-combined',items:['reports','ged','taxes','cnas','casnos']},
       {id:'admin',key:'menuAdministration',label:i18n.t('menuAdministration'),icon:'settings-2',items:['bulkImport','api','users','commerceDirection','companyMinutes','masterData','translations','auditLogs','settings']}
     ];
@@ -252,6 +295,10 @@ class SariApp {
       if (typeof lucide !== 'undefined') lucide.createIcons();
       return;
     }
+
+    // Section 304.5: Administrator-configurable restriction until the employee
+    // completes the rules-acceptance / signature onboarding process.
+    if (window.auth && await this.isOnboardingBlocked(moduleName)) return;
 
     this.activeModule = moduleName;
     if (updateHash && window.location.hash !== `#${moduleName}`) {

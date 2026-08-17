@@ -5,5 +5,6 @@ import * as commerce from './commerce';
 import * as fiscal from './fiscal';
 import * as ordering from './ordering';
 import * as payroll from './payroll';
+import * as leave from './leave';
 
-export const SariCore = { db, sync, template, commerce, fiscal, ordering, payroll } as const;
+export const SariCore = { db, sync, template, commerce, fiscal, ordering, payroll, leave } as const;

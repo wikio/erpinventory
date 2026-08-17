@@ -178,3 +178,8 @@ SARI now includes dedicated CNAS and CASNOS declaration/payment workspaces, Trad
 ## 🆕 Algerian payslips (Sections 298–299)
 
 The HR area now includes a full payslip manager with salary/CNAS linkage, progressive IRG calculation, configurable drag-and-drop templates, modern consultation, PDF generation, and automatic GED archiving. Nested manager dialogs dynamically stack above their parent overlays, including the PV Type Manager. See [`docs/payslips.md`](docs/payslips.md).
+
+## 🆕 Leave, contracts, occasional workers & role-based dashboard (Sections 300–305)
+
+SARI now ships a complete Algerian leave & public-holiday manager: configurable leave types and payment types (including the **Occasional / Piece-Work "Pigiste"** regime with its IRG-at-source, non-CNAS rules), the editable Algerian public-holiday calendar with "worked holiday" overrides, live validation alerts and smart date suggestions, an employee leave calendar with comparison/coverage views, and **automatic payslip adjustments** for taken leave and unpaid absences. A temporary/freelance worker manager handles non-CNAS mission payments. Employment contracts are managed through a translated CRUD with an **electronic-signature workflow**: employees read, accept and sign the work rules, general terms and their contract from their portal, complete a guided conflict-of-interest declaration, and Administrators can restrict modules until the onboarding process is finished. The Dashboard is now **role-based**: each user only sees the blocks their role permits, plus a personalized workspace summary. See [`docs/leave-contracts.md`](docs/leave-contracts.md).
+
