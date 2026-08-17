@@ -44,7 +44,8 @@ const FOREIGN_TABLES = Object.freeze({
   tender_id: 'tenders', linked_tender_id: 'tenders', job_posting_id: 'job_postings', employee_id: 'employees',
   assignee_id: 'employees', stage_id: 'task_stages', template_id: 'checklist_templates',
   tax_record_id: 'tax_records', conversation_id: 'conversations', user_id: 'users', sender_user_id: 'users',
-  shareholder_id: 'shareholders', trade_register_id: 'trade_registers', salary_history_id: 'salary_history', cnas_declaration_id: 'cnas_declarations', document_template_id: 'document_templates'
+  shareholder_id: 'shareholders', trade_register_id: 'trade_registers', salary_history_id: 'salary_history', cnas_declaration_id: 'cnas_declarations', document_template_id: 'document_templates',
+  payment_type_id: 'payment_types', rc_id: 'trade_registers'
 });
 
 const SOURCE_ALIASES = Object.freeze({
@@ -66,6 +67,7 @@ const SOURCE_ALIASES = Object.freeze({
   legal_notes_json: ['legalNotesI18n'], content_json: ['contentI18n'], title_json: ['titleI18n'],
   blocked_modules_json: ['blockedModules'], exempt_roles_json: ['exemptRoles'],
   leave_adjustments_json: ['leaveAdjustments'], worked_holidays_json: ['workedHolidays'], signature_json: ['signature'],
+  payment_type_id: ['paymentTypeId'], rc_id: ['rcId'],
   declaration_uid: ['declarationId'], pv_type: ['pvType'], request_type: ['requestType'],
   template_html: ['templateHtml'], template_html_i18n_json: ['templateHtmlI18n'], document_template_id: ['templateId'],
   type: ['type','documentType'], file_name: ['fileName','name'], file_size: ['fileSize','size'], expires_at: ['expiresAt','expirationDate']

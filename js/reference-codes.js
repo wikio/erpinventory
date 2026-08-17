@@ -4,15 +4,20 @@ const ReferenceCodeManager = {
   periodFor(def, date) { const y=date.getFullYear(); const m=String(date.getMonth()+1).padStart(2,'0'); return def.resetFrequency==='monthly'?`${y}-${m}`:def.resetFrequency==='yearly'?String(y):'all'; },
   async getDefinition(code) { return sariDB.getById('documentCodes', code); },
   render(def, sequence, context = {}) {
-    const date = new Date(context.date || Date.now()); const yy=String(date.getFullYear()).slice(-2); const yyyy=String(date.getFullYear()); const mm=String(date.getMonth()+1).padStart(2,'0');
+    const date = new Date(context.date || Date.now()); const yy=String(date.getFullYear()).slice(-2); const yyyy=String(date.getFullYear()); const mm=String(date.getMonth()+1).padStart(2,'0'); const dd=String(date.getDate()).padStart(2,'0');
     const subtype=String(context.subType || def.subTypeOptions?.[0]?.code || '01').padStart(2,'0').slice(-2);
     const country=String(context.country || 'DZA').replace(/[^a-z]/gi,'').toUpperCase().padEnd(3,'X').slice(0,3);
     const template=String(context.templateType || 'FAC').replace(/[^a-z]/gi,'').toUpperCase().padEnd(3,'X').slice(0,3);
     const registry=this.pad(context.registry || sequence, 2);
+    // Section 306 — payslip-specific tokens: 2-letter payment type and the
+    // employee's own reference-code sequence (EMP type, 5 digits).
+    const paytype=String(context.paymentType || 'MO').replace(/[^a-z]/gi,'').toUpperCase().padEnd(2,'X').slice(0,2);
+    const empseq=this.pad(context.employeeSequence ?? sequence, 5);
     return String(def.mask || '{PREFIX}{YY}-{SEQ}')
-      .replaceAll('{PREFIX}',def.code).replaceAll('{YY}',yy).replaceAll('{YYYY}',yyyy).replaceAll('{MM}',mm)
+      .replaceAll('{PREFIX}',def.code).replaceAll('{YY}',yy).replaceAll('{YYYY}',yyyy).replaceAll('{MM}',mm).replaceAll('{DD}',dd)
       .replaceAll('{SEQ}',this.pad(sequence,def.sequenceMinDigits)).replaceAll('{SUBTYPE}',subtype)
-      .replaceAll('{COUNTRY3}',country).replaceAll('{TEMPLATE3}',template).replaceAll('{REGISTRY}',registry);
+      .replaceAll('{COUNTRY3}',country).replaceAll('{TEMPLATE3}',template).replaceAll('{REGISTRY}',registry)
+      .replaceAll('{PAYTYPE}',paytype).replaceAll('{EMPSEQ}',empseq);
   },
   async preview(code, context = {}) {
     const def=await this.getDefinition(code); if(!def)return `${code}-${Date.now()}`;

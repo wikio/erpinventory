@@ -142,6 +142,8 @@ const EmployeePortalModule = {
     await sariDB.save('ruleAcceptances', record);
     this.state.acceptances = [...this.state.acceptances.filter((acceptance) => acceptance.id !== record.id), record];
     app.showToast(this.t('rulesMarkedRead', 'Lecture confirmée : passez à l’acceptation et à la signature.'), 'success');
+    // Section 313 — refresh the onboarding page immediately after the step is done.
+    await this.render();
     this.openWizard('rules_accepted');
   },
   async signDocument(event, kind) {
@@ -154,6 +156,9 @@ const EmployeePortalModule = {
     await sariDB.save('ruleAcceptances', record);
     this.state.acceptances = [...this.state.acceptances.filter((acceptance) => acceptance.id !== record.id), record];
     app.showToast(this.t('documentSigned', 'Document signé électroniquement. Merci !'), 'success');
+    // Section 313 — re-render the page so the stepper shows the step as completed,
+    // then continue the wizard at the next pending step without a manual reload.
+    await this.render();
     const onboarding = this.onboarding();
     this.openWizard(onboarding.pending[0] || '');
   },
@@ -185,6 +190,8 @@ const EmployeePortalModule = {
     await sariDB.save('notifications', { id: `notif-${crypto.randomUUID()}`, type: 'contract', targetUserId: null, title: this.t('contractSignedTitle', 'Contrat signé'), titleI18n: { fr: 'Contrat signé', ar: 'عقد موقع', en: 'Contract signed' }, message: `${contract.referenceCode || contract.id} — ${name}`, isRead: false, createdAt: new Date().toISOString() });
     await app.updateNotificationsBadge();
     app.showToast(this.t('contractSigned', 'Contrat signé électroniquement. Félicitations !'), 'success');
+    // Section 313 — immediate visual refresh of the onboarding stepper.
+    await this.render();
     const onboarding = this.onboarding();
     this.openWizard(onboarding.pending[0] || '');
   },
@@ -196,6 +203,8 @@ const EmployeePortalModule = {
       ContractsModule.openDeclarationEditor(employeeId, {
         onDone: async () => {
           this.state.declarations = await sariDB.getAll('conflictDeclarations');
+          // Section 313 — refresh the page so the declaration step shows completed.
+          await this.render();
           this.openWizard(this.onboarding()?.pending[0] || '');
         },
         title: `${this.state.employee.firstName} ${this.state.employee.lastName}`,

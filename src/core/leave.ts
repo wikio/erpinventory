@@ -105,11 +105,29 @@ export function monthlyPeriods(start: string, end: string): string[] {
   return keys;
 }
 
+// Algerian work week (Section 307): Sunday → Thursday working, Friday/Saturday weekend.
 export const defaultSchedule: WorkSchedule = {
-  workingDays: [1, 2, 3, 4, 5], dailyHours: 8, weeklyHours: 40,
+  workingDays: [0, 1, 2, 3, 4], dailyHours: 8, weeklyHours: 40,
   startTime: '08:30', endTime: '17:00', paidLeaveDivisor: 26,
   holidayPremiumRate: 1.0, maxTeamAbsenceRatio: 0.5,
 };
+
+/**
+ * Section 307 — column order for calendar grids: the week starts on Sunday
+ * (first working day) and the configured weekend days are always displayed
+ * last. Recomputed from the live schedule, so layout follows configuration.
+ */
+export function weekColumnOrder(schedule: WorkSchedule = defaultSchedule): number[] {
+  const working = new Set(schedule.workingDays?.length ? schedule.workingDays : [0, 1, 2, 3, 4]);
+  const week = [0, 1, 2, 3, 4, 5, 6]; // 0 = Sunday … 6 = Saturday
+  return [...week.filter((day) => working.has(day)), ...week.filter((day) => !working.has(day))];
+}
+
+/** Section 306 — the 2-letter payment-type code used in payslip references. */
+export function paymentTypeCode(cycle = ''): string {
+  const codes: Record<string, string> = { annual: 'AN', monthly: 'MO', weekly: 'WE', daily: 'DA', piecework: 'PI' };
+  return codes[String(cycle)] || String(cycle).slice(0, 2).toUpperCase() || 'MO';
+}
 
 export function isWorkingDay(dateString: string, schedule: WorkSchedule = defaultSchedule): boolean {
   const days = schedule.workingDays?.length ? schedule.workingDays : [1, 2, 3, 4, 5];
@@ -372,4 +390,5 @@ export const leaveEngine = {
   round2, leaveDeduction, workedHolidayPremium,
   validateLeave, suggestLeaveDates, consumedBalance,
   pieceworkCalculation, computeOnboarding, defaultSchedule, stepKeys,
+  weekColumnOrder, paymentTypeCode,
 };

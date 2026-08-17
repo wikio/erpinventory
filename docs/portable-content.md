@@ -12,14 +12,15 @@ content/
   translations/fr.json
   translations/ar.json
   translations/en.json
+  holidays/2011.json … 2031.json   (Algerian public-holiday files, Sections 309.2/309.4)
 ```
 
 Names are restricted to safe single-file names and supported extensions. Writes are size-limited, JSON-validated and atomically renamed.
 
 ## Authenticated API
 
-- `GET /api/content/{config|templates|translations}` — list files.
-- `GET /api/content/{kind}/{name}` — read a parsed JSON value or raw HTML.
+- `GET /api/content/{config|templates|translations|holidays}` — list files.
+- `GET /api/content/{kind}/{name}` — read a parsed JSON value, raw CSV or HTML (holiday files return `format: json|csv`).
 - `PUT /api/content/{kind}/{name}` with `{ "content": ... }` — administrator-only import/update.
 - `POST /api/content/reload` — administrator-only snapshot/reload without deployment restart.
 

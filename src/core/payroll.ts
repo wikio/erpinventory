@@ -22,6 +22,30 @@ export function calculateMonthlyIrg(monthlyTaxable: number): number {
   return Math.max(0,Math.round((raw-abatement)*100)/100);
 }
 
+export interface FiscalIdentifiers { nif: string; nai: string; nis: string; rc: string; registerName: string }
+
+/**
+ * Section 310 — fiscal identifiers for a payslip. When the payslip is linked
+ * to one of the company's registered trade registers (RC), the identifiers
+ * attached to that register are used; otherwise the company settings
+ * (Section 283) apply. Missing register fields fall back to the settings.
+ */
+export function resolveFiscalIdentifiers(settings: Record<string, unknown> = {}, register: Record<string, unknown> | null = null): FiscalIdentifiers {
+  const pick = (key: string): string => {
+    const registerValue = register ? String(register[key] ?? '').trim() : '';
+    if (registerValue) return registerValue;
+    return String(settings[key] ?? '').trim();
+  };
+  const nai = register && String(register.nai ?? register.ai ?? '').trim() ? String(register.nai ?? register.ai).trim() : String(settings.nai ?? settings.ai ?? '').trim();
+  return {
+    nif: pick('nif'),
+    nai,
+    nis: pick('nis'),
+    rc: register && String(register.registerNumber ?? '').trim() ? String(register.registerNumber).trim() : String(settings.rc ?? '').trim(),
+    registerName: register ? String(register.legalName ?? register.registerNumber ?? '').trim() : '',
+  };
+}
+
 export function calculatePayslip(input: PayslipAmounts) {
   const gross=['baseSalary','seniorityAllowance','performanceBonus','otherBonuses','transportAllowance','housingAllowance','mealAllowance','overtimeAmount','otherAllowances','workedHolidayAmount'].reduce((sum,key)=>sum+amount(input[key as keyof PayslipAmounts]),0);
   const cnasEmployee=input.cnasEmployee===undefined?Math.round(gross*.09*100)/100:amount(input.cnasEmployee);

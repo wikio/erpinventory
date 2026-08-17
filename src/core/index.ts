@@ -6,5 +6,8 @@ import * as fiscal from './fiscal';
 import * as ordering from './ordering';
 import * as payroll from './payroll';
 import * as leave from './leave';
+import * as hijri from './hijri';
+import * as holidayImport from './holiday-import';
+import * as hrPolicies from './hr-policies';
 
-export const SariCore = { db, sync, template, commerce, fiscal, ordering, payroll, leave } as const;
+export const SariCore = { db, sync, template, commerce, fiscal, ordering, payroll, leave, hijri, holidayImport, hrPolicies } as const;

@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const KINDS = Object.freeze({ config: ['.json'], templates: ['.json', '.html'], translations: ['.json'] });
+const KINDS = Object.freeze({ config: ['.json'], templates: ['.json', '.html'], translations: ['.json'], holidays: ['.json', '.csv'] });
 
 class FileContentRepository {
   constructor(root) {
@@ -37,7 +37,8 @@ class FileContentRepository {
     const file = this.location(kind, name);
     const raw = fs.readFileSync(file, 'utf8');
     const extension = path.extname(file).toLowerCase();
-    return { kind, name, format: extension === '.json' ? 'json' : 'html', content: extension === '.json' ? JSON.parse(raw) : raw, etag: this.etag(raw), updatedAt: fs.statSync(file).mtime.toISOString() };
+    const format = extension === '.json' ? 'json' : extension === '.csv' ? 'csv' : 'html';
+    return { kind, name, format, content: extension === '.json' ? JSON.parse(raw) : raw, etag: this.etag(raw), updatedAt: fs.statSync(file).mtime.toISOString() };
   }
 
   write(kind, name, content) {

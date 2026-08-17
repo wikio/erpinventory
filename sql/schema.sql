@@ -521,6 +521,8 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   `payment_date` DATE,
   `status` VARCHAR(32),
   `generated_document_id` VARCHAR(255),
+  `payment_type_id` BIGINT UNSIGNED NULL,
+  `rc_id` BIGINT UNSIGNED NULL,
   `notes_html` MEDIUMTEXT,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL,
@@ -529,7 +531,9 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   CONSTRAINT `fk_payslip_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`),
   CONSTRAINT `fk_payslip_salary_history` FOREIGN KEY (`salary_history_id`) REFERENCES `salary_history` (`id`),
   CONSTRAINT `fk_payslip_cnas` FOREIGN KEY (`cnas_declaration_id`) REFERENCES `cnas_declarations` (`id`),
-  CONSTRAINT `fk_payslip_template` FOREIGN KEY (`document_template_id`) REFERENCES `document_templates` (`id`)
+  CONSTRAINT `fk_payslip_template` FOREIGN KEY (`document_template_id`) REFERENCES `document_templates` (`id`),
+  CONSTRAINT `fk_payslip_payment_type` FOREIGN KEY (`payment_type_id`) REFERENCES `payment_types` (`id`),
+  CONSTRAINT `fk_payslip_rc` FOREIGN KEY (`rc_id`) REFERENCES `trade_registers` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Sections 300–305: Leave & public holiday management, contracts/onboarding and occasional workers.

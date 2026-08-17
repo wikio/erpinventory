@@ -1,0 +1,181 @@
+[
+  {
+    "date": "2024-01-01",
+    "name": {
+      "fr": "Jour de l’an",
+      "ar": "رأس السنة الميلادية",
+      "en": "New Year’s Day"
+    },
+    "isFixed": true,
+    "source": "auto",
+    "baseKey": "new_year",
+    "notes": ""
+  },
+  {
+    "date": "2024-01-12",
+    "name": {
+      "fr": "Yennayer (Nouvel an amazigh)",
+      "ar": "يناير (رأس السنة الأمازيغية)",
+      "en": "Yennayer (Amazigh New Year)"
+    },
+    "isFixed": true,
+    "source": "auto",
+    "baseKey": "yennayer",
+    "notes": ""
+  },
+  {
+    "date": "2024-04-09",
+    "name": {
+      "fr": "Aïd el-Fitr (1er jour)",
+      "ar": "عيد الفطر (اليوم الأول)",
+      "en": "Eid al-Fitr (1st day)"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "eid_fitr_1",
+    "hijri": {
+      "year": 1445,
+      "month": 10,
+      "day": 1
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-04-10",
+    "name": {
+      "fr": "Aïd el-Fitr (2e jour)",
+      "ar": "عيد الفطر (اليوم الثاني)",
+      "en": "Eid al-Fitr (2nd day)"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "eid_fitr_2",
+    "hijri": {
+      "year": 1445,
+      "month": 10,
+      "day": 2
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-05-01",
+    "name": {
+      "fr": "Fête du Travail",
+      "ar": "عيد العمال",
+      "en": "Labour Day"
+    },
+    "isFixed": true,
+    "source": "auto",
+    "baseKey": "labour_day",
+    "notes": ""
+  },
+  {
+    "date": "2024-06-16",
+    "name": {
+      "fr": "Aïd el-Adha (1er jour)",
+      "ar": "عيد الأضحى (اليوم الأول)",
+      "en": "Eid al-Adha (1st day)"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "eid_adha_1",
+    "hijri": {
+      "year": 1445,
+      "month": 12,
+      "day": 10
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-06-17",
+    "name": {
+      "fr": "Aïd el-Adha (2e jour)",
+      "ar": "عيد الأضحى (اليوم الثاني)",
+      "en": "Eid al-Adha (2nd day)"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "eid_adha_2",
+    "hijri": {
+      "year": 1445,
+      "month": 12,
+      "day": 11
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-07-05",
+    "name": {
+      "fr": "Fête de l’Indépendance",
+      "ar": "عيد الاستقلال",
+      "en": "Independence Day"
+    },
+    "isFixed": true,
+    "source": "auto",
+    "baseKey": "independence_day",
+    "notes": ""
+  },
+  {
+    "date": "2024-07-07",
+    "name": {
+      "fr": "Awal Moharram (Nouvel an hégirien)",
+      "ar": "أول محرم (رأس السنة الهجرية)",
+      "en": "Awal Muharram (Islamic New Year)"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "awal_muharram",
+    "hijri": {
+      "year": 1446,
+      "month": 1,
+      "day": 1
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-07-16",
+    "name": {
+      "fr": "Achoura",
+      "ar": "عاشوراء",
+      "en": "Ashura"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "ashura",
+    "hijri": {
+      "year": 1446,
+      "month": 1,
+      "day": 10
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-09-15",
+    "name": {
+      "fr": "Mawlid Ennabaoui",
+      "ar": "المولد النبوي الشريف",
+      "en": "Mawlid Ennabaoui"
+    },
+    "isFixed": false,
+    "source": "auto",
+    "baseKey": "mawlid",
+    "hijri": {
+      "year": 1446,
+      "month": 3,
+      "day": 12
+    },
+    "notes": "Fête religieuse : date indicative (calcul tabulaire), à confirmer selon l’annonce officielle."
+  },
+  {
+    "date": "2024-11-01",
+    "name": {
+      "fr": "Fête de la Révolution (1er novembre)",
+      "ar": "عيد الثورة (1 نوفمبر)",
+      "en": "Revolution Day (November 1st)"
+    },
+    "isFixed": true,
+    "source": "auto",
+    "baseKey": "revolution_day",
+    "notes": ""
+  }
+]

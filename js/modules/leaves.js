@@ -11,6 +11,7 @@ const LeaveModule = {
     payslips: [], salaryHistory: [], attendance: [], paymentTypes: [],
     schedule: null, settings: {}, month: new Date().toISOString().slice(0, 7),
     compareMonth: new Date().toISOString().slice(0, 7), holidayYear: String(new Date().getFullYear()),
+    holidayYearQuery: '', holidayConfig: null, serverHolidayFiles: [], _serverSyncDone: false,
     employee: 'all', status: 'all', type: 'all', query: '', editing: null, editingOld: null,
     suggestions: [], alerts: [],
   },
@@ -18,15 +19,21 @@ const LeaveModule = {
   canWrite() { return auth.can('leaves', 'edit'); },
 
   async load() {
-    const [employees, types, holidays, records, worked, payslips, salaryHistory, attendance, paymentTypes, settings] = await Promise.all([
+    const [employees, types, holidays, records, worked, payslips, salaryHistory, attendance, paymentTypes, settings, holidayConfig] = await Promise.all([
       'employees', 'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays',
-      'payslips', 'salaryHistory', 'attendance', 'paymentTypes', 'settings'
+      'payslips', 'salaryHistory', 'attendance', 'paymentTypes', 'settings', 'settings'
     ].map((store) => sariDB.getAll(store)));
     Object.assign(this.state, { employees, types, holidays, records, worked, payslips, salaryHistory, attendance, paymentTypes, settings });
+    this.state.holidayConfig = holidayConfig.find((item) => item.id === 'holiday-config') || null;
     this.state.schedule = await sariDB.getById('settings', 'work-schedule') || {};
     const merged = { ...window.SariCore.leave.defaultSchedule, ...(this.state.schedule || {}) };
     this.state.schedule = merged;
     this.reconcileAdjustments().catch((error) => console.warn('[Leave] reconcile failed', error));
+    // 309.2 — automatic server-folder sync for years not yet present (once per session).
+    if (this.state.tab === 'holidays' && !this.state._serverSyncDone && this.state.holidayConfig?.autoFetchServer !== false) {
+      this.state._serverSyncDone = true;
+      this.syncServerHolidayFiles(false).catch((error) => console.warn('[Leave] server sync failed', error));
+    }
   },
 
   employee(id) { return this.state.employees.find((item) => item.id === id); },
@@ -461,10 +468,16 @@ const LeaveModule = {
   },
   calendarHtml() {
     const [year, month] = this.state.month.split('-').map(Number);
-    const first = new Date(year, month - 1, 1);
     const daysInMonth = new Date(year, month, 0).getDate();
-    const startOffset = (first.getDay() + 6) % 7; // Monday-first grid
     const engine = window.SariCore.leave;
+    // Section 307 — Sunday-first week with the configured weekend days always
+    // displayed last (recomputed from the live work-schedule configuration).
+    const dayOrder = engine.weekColumnOrder(this.state.schedule);
+    const workingSet = new Set(this.state.schedule?.workingDays?.length ? this.state.schedule.workingDays : [0, 1, 2, 3, 4]);
+    const dayLabels = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayFallbacks = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const firstWeekday = new Date(year, month - 1, 1).getDay();
+    const startOffset = dayOrder.indexOf(firstWeekday);
     const today = engine.isoDate(new Date());
     const cells = [];
     for (let i = 0; i < startOffset; i++) cells.push('');
@@ -486,7 +499,7 @@ const LeaveModule = {
         ${this.state.types.slice(0, 6).map((type) => `<span class="sari-badge text-[9px]" style="background:${type.color}22;color:${type.color}">${SariUtils.escapeHtml(this.typeName(type.id))}</span>`).join('')}
       </section>
       <section class="sari-tile p-3 overflow-x-auto"><div class="grid grid-cols-7 gap-1 min-w-[760px]">
-        ${[1, 2, 3, 4, 5, 6, 0].map((day) => `<div class="text-center text-[10px] font-bold uppercase text-slate-400 py-2">${i18n.t(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][day === 0 ? 6 : day - 1], ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][day === 0 ? 6 : day - 1])}</div>`).join('')}
+        ${dayOrder.map((weekday) => `<div class="text-center text-[10px] font-bold uppercase text-slate-400 py-2 ${workingSet.has(weekday) ? '' : 'opacity-60'}">${i18n.t(dayLabels[weekday], dayFallbacks[weekday])}</div>`).join('')}
         ${cells.map((cell) => cell === '' ? '<div class="min-h-24"></div>' : `<div class="min-h-24 rounded-lg border p-1.5 ${cell.holiday ? 'bg-red-500/5 border-red-300' : cell.weekend ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200' : 'bg-white dark:bg-slate-800'}">
           <div class="flex justify-between items-center"><b class="text-xs font-mono-tech ${cell.holiday ? 'text-red-600' : ''}">${Number(cell.date.slice(-2))}</b>
             ${cell.holiday ? `<i data-lucide="party-popper" class="w-3 h-3 text-red-500" title="${SariUtils.escapeHtml(this.holidayName(cell.holiday))}"></i>` : ''}</div>
@@ -600,26 +613,56 @@ const LeaveModule = {
   async toggleType(id) { const type = await sariDB.getById('leaveTypes', id); type.isActive = type.isActive === false; await sariDB.save('leaveTypes', type); await this.render(); },
   async deleteType(id) { if (!await DialogManager.confirm(this.t('deleteLeaveTypeConfirm', 'Supprimer ce type de congé ?'))) return; await sariDB.delete('leaveTypes', id); await this.render(); },
 
-  /* ─────────────────────── 301 Holiday calendar & worked-holiday override ─────────────────────── */
+  /* ─────────────────────── 301/308/309 Holiday calendar, sources & import ─────────────────────── */
+  holidaySourceLabel(source) {
+    const labels = { auto: this.t('holidaySourceAuto', 'Calcul automatique'), csv: this.t('holidaySourceCsv', 'Import CSV'), json: this.t('holidaySourceJson', 'Import JSON'), manual: this.t('holidaySourceManual', 'Saisie manuelle') };
+    return labels[source] || this.t('holidaySourceManual', 'Saisie manuelle');
+  },
+  holidaySourceBadge(holiday) {
+    const tones = { auto: 'bg-sari-blue/10 text-sari-blue', csv: 'bg-sari-lime/20 text-sari-lime-dark', json: 'bg-sari-lime/20 text-sari-lime-dark', manual: 'bg-sari-amber/15 text-sari-amber' };
+    return `<span class="sari-badge text-[9px] ${tones[holiday.source] || tones.manual}" title="${this.t('holidaySourceHelp', 'Source de la date : chaque entrée, y compris auto-calculée, reste modifiable manuellement.')}">${SariUtils.escapeHtml(this.holidaySourceLabel(holiday.source))}</span>`;
+  },
   holidaysHtml(canWrite) {
-    const holidays = this.state.holidays.filter((holiday) => String(holiday.date).startsWith(this.state.holidayYear)).sort((a, b) => a.date.localeCompare(b.date));
+    const engine = window.SariCore.leave;
+    const config = this.state.holidayConfig || {};
+    const years = [...new Set(this.state.holidays.map((holiday) => String(holiday.date).slice(0, 4)).filter(Boolean))].sort().reverse();
+    const holidays = this.state.holidays.filter((holiday) => String(holiday.date).startsWith(String(this.state.holidayYear))).sort((a, b) => a.date.localeCompare(b.date));
+    const serverFiles = this.state.serverHolidayFiles || [];
     return `<div class="space-y-4">
       <section class="sari-tile p-4 flex flex-wrap items-center gap-3">
-        <input type="number" class="doc-input w-32" min="2020" max="2040" value="${this.state.holidayYear}" onchange="LeaveModule.state.holidayYear=this.value;LeaveModule.render()">
-        <span class="text-xs text-slate-500">${this.t('holidayCalendarHelp', 'Calendrier algérien éditable : ajoutez, déplacez ou supprimez les dates, notamment les fêtes religieuses à dates variables.')}</span>
-        ${canWrite ? `<button onclick="LeaveModule.editHoliday()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs ml-auto"><i data-lucide="plus"></i>${this.t('addHoliday', 'Ajouter un jour férié')}</button><button onclick="LeaveModule.editWorkedHoliday()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-xs"><i data-lucide="briefcase"></i>${this.t('markWorkedHoliday', 'Marquer « travaillé »')}</button>` : ''}
+        <label class="doc-label !mb-0 min-w-56">${this.t('yearFilter', 'Année')}
+          <input list="holiday-years" class="doc-input w-40" value="${this.state.holidayYear}" placeholder="${new Date().getFullYear()}" oninput="LeaveModule.state.holidayYearQuery=this.value" onchange="LeaveModule.state.holidayYear=this.value||${new Date().getFullYear()};LeaveModule.render()">
+          <datalist id="holiday-years">${years.map((year) => `<option value="${year}">`).join('')}</datalist>
+        </label>
+        <span class="text-xs text-slate-500 max-w-md">${this.t('holidayCalendarHelp', 'Calendrier algérien éditable : ajoutez, déplacez ou supprimez les dates, notamment les fêtes religieuses à dates variables.')}</span>
+        ${canWrite ? `<span class="flex flex-wrap gap-2 ml-auto"><button onclick="LeaveModule.editHoliday()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus"></i>${this.t('addHoliday', 'Ajouter un jour férié')}</button><button onclick="LeaveModule.editWorkedHoliday()" class="sari-btn px-4 py-2 bg-sari-lime text-slate-900 text-xs"><i data-lucide="briefcase"></i>${this.t('markWorkedHoliday', 'Marquer « travaillé »')}</button></span>` : ''}
       </section>
+      ${canWrite ? `<section class="sari-tile p-4 grid lg:grid-cols-3 gap-4">
+        <div class="border rounded-xl p-3"><h4 class="font-extrabold text-sm flex gap-2"><i data-lucide="upload" class="text-sari-blue"></i>${this.t('importHolidays', 'Importer un fichier (CSV / JSON)')}</h4>
+          <p class="text-[11px] text-slate-500 mt-1">${this.t('importHolidaysHelp', 'Colonnes configurables : date, noms FR/AR/EN, nature (fixe/variable), notes.')}</p>
+          <button onclick="LeaveModule.openHolidayImport()" class="sari-btn px-4 py-2 mt-2 bg-sari-blue text-white text-xs w-full"><i data-lucide="file-up"></i>${this.t('chooseHolidayFile', 'Choisir un fichier & importer')}</button></div>
+        <div class="border rounded-xl p-3"><h4 class="font-extrabold text-sm flex gap-2"><i data-lucide="server" class="text-sari-lime-dark"></i>${this.t('serverHolidayFolder', 'Dossier serveur (auto-fetch)')}</h4>
+          <p class="text-[11px] text-slate-500 mt-1">${this.t('serverHolidayFolderHelp', `Fichiers prêts à importer couvrant 2011 → 2031 détectés dans le dossier serveur.`)}</p>
+          <p class="text-[10px] font-mono-tech text-sari-blue mt-1">${serverFiles.length ? serverFiles.map((file) => file.year).join(' • ') : this.t('noServerFile', 'Aucun fichier détecté')}</p>
+          <div class="flex gap-2 mt-2"><button onclick="LeaveModule.syncServerHolidayFiles(true)" class="sari-btn px-3 py-2 bg-sari-lime text-slate-900 text-xs flex-1">${this.t('syncServerNow', 'Synchroniser maintenant')}</button><button onclick="LeaveModule.autoCalculateReligious()" class="sari-btn px-3 py-2 bg-slate-800 text-white text-xs flex-1"><i data-lucide="calculator"></i>${this.t('autoCalculateReligious', 'Calcul auto religieux')}</button></div></div>
+        <form onsubmit="LeaveModule.saveHolidayConfig(event)" class="border rounded-xl p-3"><h4 class="font-extrabold text-sm flex gap-2"><i data-lucide="moon-star" class="text-sari-amber"></i>${this.t('religiousSourceConfig', 'Source des fêtes religieuses')}</h4>
+          <p class="text-[11px] text-slate-500 mt-1">${this.t('religiousSourceHelp', 'Par défaut : calcul automatique (calendrier hégirien tabulaire). Chaque entrée reste modifiable manuellement.')}</p>
+          <select name="religiousSource" class="doc-input mt-2">${[['auto', this.t('holidaySourceAuto', 'Calcul automatique')], ['csv', this.t('holidaySourceCsv', 'Import CSV')], ['json', this.t('holidaySourceJson', 'Import JSON')], ['manual', this.t('holidaySourceManual', 'Saisie manuelle')]].map(([value, label]) => `<option value="${value}" ${config.religiousSource === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
+          <label class="flex items-center gap-2 mt-2 text-xs"><input type="checkbox" name="autoFetchServer" ${config.autoFetchServer !== false ? 'checked' : ''}> ${this.t('autoFetchServerToggle', 'Importer automatiquement les fichiers du serveur')}</label>
+          <button class="sari-btn px-4 py-2 mt-2 bg-slate-800 text-white text-xs w-full">${this.t('saveHolidayConfig', 'Enregistrer la configuration')}</button></form>
+      </section>` : ''}
       <section class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">${holidays.map((holiday) => `<article class="p-4 rounded-xl border ${holiday.isFixed ? '' : 'border-dashed border-sari-amber/60'}">
         <div class="flex justify-between items-start"><span class="font-mono-tech text-xs font-bold text-sari-blue">${i18n.formatDate(holiday.date)}</span>
         ${holiday.isFixed ? `<span class="sari-badge text-[9px]">${this.t('fixedDate', 'Date fixe')}</span>` : `<span class="sari-badge text-[9px] bg-sari-amber/15 text-sari-amber">${this.t('variableDate', 'Variable')}</span>`}</div>
         <h4 class="font-extrabold text-sm mt-2">${SariUtils.escapeHtml(this.holidayName(holiday))}</h4>
+        <div class="flex flex-wrap gap-1 mt-1">${this.holidaySourceBadge(holiday)}${holiday.hijri ? `<span class="sari-badge text-[9px] text-slate-500">${holiday.hijri.day}/${holiday.hijri.month}/${holiday.hijri.year} H</span>` : ''}</div>
         ${holiday.notes ? `<p class="text-[10px] text-slate-500 mt-1">${SariUtils.escapeHtml(holiday.notes)}</p>` : ''}
         <div class="flex gap-1 mt-2">${this.state.worked.filter((worked) => worked.holidayId === holiday.id).slice(0, 3).map((worked) => `<span class="sari-badge text-[9px] bg-sari-blue/10 text-sari-blue" title="${this.t('workedBy', 'Travaillé par')} ${SariUtils.escapeHtml(this.employeeName(worked.employeeId))}">${SariUtils.escapeHtml(this.initials(this.employeeName(worked.employeeId)))} ✓</span>`).join('')}</div>
         ${canWrite ? `<footer class="flex gap-2 mt-3 pt-3 border-t"><button onclick="LeaveModule.editHoliday('${holiday.id}')" class="doc-action">${this.t('edit', 'Modifier')}</button><button onclick="LeaveModule.deleteHoliday('${holiday.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button></footer>` : ''}</article>`).join('') || `<p class="text-sm text-slate-400">${this.t('noHoliday', 'Aucun jour férié pour cette année.')}</p>`}</section>
       <section class="sari-tile p-5"><h4 class="font-extrabold text-sm flex gap-2"><i data-lucide="briefcase" class="text-sari-blue"></i>${this.t('workedHolidaysLabel', 'Jours fériés travaillés')}</h4>
         <p class="text-xs text-slate-500 mt-1">${this.t('workedHolidaysHelp', 'Un jour férié marqué « travaillé » est compté en présence et valorisé en majoration sur la fiche de paie (100 % par défaut, taux configurable).')}</p>
         <div class="overflow-x-auto mt-3"><table class="w-full sari-table text-xs"><thead><tr><th>${this.t('employee', 'Salarié')}</th><th>${this.t('holidayDate', 'Jour férié')}</th><th>${this.t('workedHours', 'Heures')}</th><th>${this.t('premiumAmount', 'Majoration')}</th><th>${this.t('payrollImpact', 'Impact paie')}</th><th></th></tr></thead><tbody>
-        ${this.state.worked.map((worked) => { const holiday = this.state.holidays.find((item) => item.id === worked.holidayId) || {}; const salary = this.latestSalary(worked.employeeId, window.SariCore.leave.monthKey(worked.date || holiday.date)); const base = Number(salary?.newAmount ?? this.employee(worked.employeeId)?.salary ?? 0); const premium = window.SariCore.leave.workedHolidayPremium(base, Number(worked.hours) || this.state.schedule.dailyHours || 8, this.state.schedule); return `<tr class="border-t"><td class="p-2"><b>${SariUtils.escapeHtml(this.employeeName(worked.employeeId))}</b></td><td>${i18n.formatDate(worked.date || holiday.date)} — ${SariUtils.escapeHtml(this.holidayName(holiday))}</td><td>${worked.hours || this.state.schedule.dailyHours || 8}</td><td class="font-bold text-green-600">${i18n.formatCurrency(premium)}</td><td><span class="sari-badge text-green-600">${this.t('addedToPayslip', 'Ajoutée à la paie')}</span></td><td>${this.canWrite() ? `<button onclick="LeaveModule.deleteWorkedHoliday('${worked.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="6" class="p-6 text-slate-400">${this.t('noWorkedHoliday', 'Aucun jour férié travaillé enregistré.')}</td></tr>`}</tbody></table></div></section>
+        ${this.state.worked.map((worked) => { const holiday = this.state.holidays.find((item) => item.id === worked.holidayId) || {}; const salary = this.latestSalary(worked.employeeId, engine.monthKey(worked.date || holiday.date)); const base = Number(salary?.newAmount ?? this.employee(worked.employeeId)?.salary ?? 0); const premium = engine.workedHolidayPremium(base, Number(worked.hours) || this.state.schedule.dailyHours || 8, this.state.schedule); return `<tr class="border-t"><td class="p-2"><b>${SariUtils.escapeHtml(this.employeeName(worked.employeeId))}</b></td><td>${i18n.formatDate(worked.date || holiday.date)} — ${SariUtils.escapeHtml(this.holidayName(holiday))}</td><td>${worked.hours || this.state.schedule.dailyHours || 8}</td><td class="font-bold text-green-600">${i18n.formatCurrency(premium)}</td><td><span class="sari-badge text-green-600">${this.t('addedToPayslip', 'Ajoutée à la paie')}</span></td><td>${this.canWrite() ? `<button onclick="LeaveModule.deleteWorkedHoliday('${worked.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="6" class="p-6 text-slate-400">${this.t('noWorkedHoliday', 'Aucun jour férié travaillé enregistré.')}</td></tr>`}</tbody></table></div></section>
       <div id="leave-modal"></div></div>`;
   },
   async editHoliday(id = '') {
@@ -630,15 +673,142 @@ const LeaveModule = {
       { name: 'ar', label: 'العربية', value: old.name?.ar || '', required: true },
       { name: 'en', label: 'English', value: old.name?.en || '', required: true },
       { name: 'isFixed', label: this.t('dateNature', 'Nature de la date'), type: 'select', value: old.isFixed ? 'fixed' : 'variable', options: [{ value: 'fixed', label: this.t('fixedDate', 'Date fixe') }, { value: 'variable', label: this.t('variableDate', 'Variable (fête religieuse…)') }] },
+      { name: 'source', label: this.t('holidaySource', 'Source de la date'), type: 'select', value: old.source || 'manual', options: [['auto', this.t('holidaySourceAuto', 'Calcul automatique')], ['csv', this.t('holidaySourceCsv', 'Import CSV')], ['json', this.t('holidaySourceJson', 'Import JSON')], ['manual', this.t('holidaySourceManual', 'Saisie manuelle')]].map(([value, label]) => ({ value, label })) },
       { name: 'notes', label: this.t('notes', 'Notes'), type: 'textarea', value: old.notes || '' },
-    ]);
+    ], { message: this.t('holidaySourceNote', 'Une correction manuelle de la date ou du libellé fait passer la source en « saisie manuelle » afin de préserver la correction lors des recalculs automatiques.') });
     if (!values) return;
-    await sariDB.save('publicHolidays', { ...old, id: id || `ph-${crypto.randomUUID()}`, date: values.date, name: { fr: values.fr, ar: values.ar, en: values.en }, isFixed: values.isFixed === 'fixed', isWorkable: true, notes: values.notes, order: old.order ?? this.state.holidays.length + 1 });
+    // Any manual correction switches the source to 'manual' so auto-recalc preserves it.
+    const source = (values.date !== old.date || values.fr !== old.name?.fr || values.isFixed !== (old.isFixed ? 'fixed' : 'variable')) ? 'manual' : values.source;
+    await sariDB.save('publicHolidays', { ...old, id: id || `ph-${crypto.randomUUID()}`, date: values.date, name: { fr: values.fr, ar: values.ar, en: values.en }, isFixed: values.isFixed === 'fixed', source, isWorkable: true, notes: values.notes, order: old.order ?? this.state.holidays.length + 1 });
     await this.reconcileAdjustments();
     app.showToast(this.t('holidaySaved', 'Jour férié enregistré.'), 'success');
     await this.render();
   },
   async deleteHoliday(id) { if (!await DialogManager.confirm(this.t('deleteHolidayConfirm', 'Supprimer ce jour férié ?'))) return; await sariDB.delete('publicHolidays', id); await this.reconcileAdjustments(); await this.render(); },
+  /* 309.4 — automatic religious-holiday calculation for the selected year. */
+  async autoCalculateReligious(year = this.state.holidayYear) {
+    const engine = window.SariCore.hijri;
+    if (!engine) return app.showToast(this.t('hijriUnavailable', 'Moteur de calcul indisponible.'), 'error');
+    const computed = engine.religiousHolidaysForYear(Number(year));
+    if (!computed.length) return app.showToast(this.t('noComputedHoliday', 'Aucune fête religieuse calculée pour cette année.'), 'warning');
+    let upserted = 0;
+    for (const entry of computed) {
+      const id = `ph-${year}-${entry.baseKey}`;
+      const existing = await sariDB.getById('publicHolidays', id);
+      // Keep manual corrections: only touch entries that are auto/computed or missing.
+      if (existing && existing.source && existing.source !== 'auto') continue;
+      await sariDB.save('publicHolidays', { ...(existing || {}), id, date: entry.date, name: entry.name, isFixed: false, source: 'auto', baseKey: entry.baseKey, year: Number(year), hijri: entry.hijri, isWorkable: true, notes: existing?.notes || 'Fête religieuse calculée automatiquement (calendrier hégirien tabulaire) — ajustable selon l’annonce officielle.', order: existing?.order ?? this.state.holidays.length + upserted + 1 });
+      upserted++;
+    }
+    // Remove auto entries of that year whose definition disappeared from the computed set.
+    const computedKeys = new Set(computed.map((entry) => entry.baseKey));
+    for (const holiday of this.state.holidays.filter((item) => String(item.date).startsWith(String(year)) && item.source === 'auto' && !item.isFixed && item.baseKey && !computedKeys.has(item.baseKey))) {
+      await sariDB.delete('publicHolidays', holiday.id);
+    }
+    app.showToast(`${this.t('religiousCalculated', 'Fêtes religieuses calculées')} ${year} : ${upserted} ${this.t('entriesUpdated', 'entrée(s) mise(s) à jour (les corrections manuelles sont préservées).')}`, 'success');
+    await this.render();
+  },
+  async saveHolidayConfig(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const config = await sariDB.getById('settings', 'holiday-config') || { id: 'holiday-config' };
+    config.religiousSource = form.elements.religiousSource.value;
+    config.autoFetchServer = form.elements.autoFetchServer.checked;
+    config.updatedAt = new Date().toISOString();
+    await sariDB.save('settings', config);
+    this.state.holidayConfig = config;
+    app.showToast(this.t('holidayConfigSaved', 'Configuration des sources de jours fériés enregistrée.'), 'success');
+    await this.render();
+  },
+  /* 309.1 — file import with a configurable column mapping. */
+  async openHolidayImport() {
+    const config = this.state.holidayConfig || {};
+    const mapping = config.importMapping?.csv || window.SariCore.holidayImport.defaultCsvMapping;
+    const modal = document.getElementById('leave-modal');
+    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3">
+      <form onsubmit="LeaveModule.importHolidayFile(event)" class="sari-tile w-full max-w-3xl max-h-[94vh] overflow-y-auto p-6">
+        <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${this.t('importHolidays', 'Importer des jours fériés')}</span>
+          <h3 class="text-xl font-extrabold mt-2">${this.t('holidayFileImport', 'Import CSV / JSON')}</h3>
+          <p class="text-xs text-slate-500 mt-1">${this.t('holidayFileImportHelp', 'Choisissez le fichier puis ajustez le mappage des colonnes (CSV) ou des champs (JSON). Les formats d’exemple sont dans content/holidays.')}</p></div>
+          <button type="button" onclick="LeaveModule.closeEditor()"><i data-lucide="x"></i></button></header>
+        <label class="doc-label mt-4">${this.t('holidayFile', 'Fichier (.csv ou .json)')}<input id="holiday-import-file" type="file" accept=".csv,.json" class="doc-input" required></label>
+        <p class="text-[11px] text-slate-500 mt-2">${this.t('mappingHelp', 'Mappage : nom de la colonne CSV (en-tête) ou chemin du champ JSON (ex. name.fr) pour chaque donnée.')}</p>
+        <div class="grid sm:grid-cols-3 gap-3 mt-3">
+          <label class="doc-label">${this.t('mappingDate', 'Date (YYYY-MM-DD)')}<input id="hm-date" class="doc-input" value="${SariUtils.escapeHtml(mapping.date || 'date')}"></label>
+          <label class="doc-label">${this.t('mappingFr', 'Nom FR')}<input id="hm-fr" class="doc-input" value="${SariUtils.escapeHtml(mapping.fr || 'name_fr')}"></label>
+          <label class="doc-label">${this.t('mappingAr', 'Nom AR')}<input id="hm-ar" class="doc-input" value="${SariUtils.escapeHtml(mapping.ar || 'name_ar')}"></label>
+          <label class="doc-label">${this.t('mappingEn', 'Nom EN')}<input id="hm-en" class="doc-input" value="${SariUtils.escapeHtml(mapping.en || 'name_en')}"></label>
+          <label class="doc-label">${this.t('mappingIsFixed', 'Fixe ? (true/false)')}<input id="hm-fixed" class="doc-input" value="${SariUtils.escapeHtml(mapping.isFixed || 'is_fixed')}"></label>
+          <label class="doc-label">${this.t('mappingNotes', 'Notes')}<input id="hm-notes" class="doc-input" value="${SariUtils.escapeHtml(mapping.notes || 'notes')}"></label>
+        </div>
+        <footer class="flex justify-end gap-2 mt-5 pt-4 border-t"><button type="button" onclick="LeaveModule.closeEditor()" class="sari-btn px-4 bg-slate-200">${this.t('cancel', 'Annuler')}</button><button class="sari-btn px-5 bg-sari-blue text-white">${this.t('importNow', 'Importer')}</button></footer>
+      </form></div>`;
+    window.SariIcons?.hydrate();
+  },
+  async importHolidayFile(event) {
+    event.preventDefault();
+    const input = document.getElementById('holiday-import-file');
+    const file = input?.files?.[0];
+    if (!file) return app.showToast(this.t('noFileSelected', 'Choisissez un fichier.'), 'warning');
+    const mapping = { date: document.getElementById('hm-date').value.trim() || 'date', fr: document.getElementById('hm-fr').value.trim() || 'name_fr', ar: document.getElementById('hm-ar').value.trim() || 'name_ar', en: document.getElementById('hm-en').value.trim() || 'name_en', isFixed: document.getElementById('hm-fixed').value.trim() || 'is_fixed', notes: document.getElementById('hm-notes').value.trim() || 'notes' };
+    const config = await sariDB.getById('settings', 'holiday-config') || { id: 'holiday-config' };
+    const kind = String(file.name).toLowerCase().endsWith('.csv') ? 'csv' : 'json';
+    config.importMapping = { ...(config.importMapping || {}), [kind]: mapping };
+    await sariDB.save('settings', config);
+    const text = await file.text();
+    let parsed;
+    try { parsed = window.SariCore.holidayImport.parseHolidayFile(text, mapping); } catch (error) { return app.showToast(`${this.t('importParseError', 'Fichier illisible')} : ${error?.message || error}`, 'error'); }
+    if (!parsed.normalized.length) return app.showToast(this.t('noImportableRow', 'Aucune ligne exploitable avec ce mappage.'), 'error');
+    const count = await this.applyImportedHolidays(parsed.normalized, kind);
+    this.closeEditor();
+    app.showToast(`${this.t('holidaysImported', 'Jours fériés importés')} : ${count} ${this.t('entriesImported', 'entrée(s)')}${parsed.rejected ? ` — ${parsed.rejected} ${this.t('entriesRejected', 'ligne(s) rejetée(s)')}` : ''}.`, 'success');
+    await this.render();
+  },
+  /** Upserts normalized rows into publicHolidays (import sources: csv/json). */
+  async applyImportedHolidays(rows, source) {
+    let count = 0;
+    for (const row of rows) {
+      const id = window.SariCore.holidayImport.importedHolidayId(row.date, row.name);
+      const existing = await sariDB.getById('publicHolidays', id);
+      const record = { ...(existing || {}), id, date: row.date, name: row.name, isFixed: Boolean(row.isFixed), source, year: Number(String(row.date).slice(0, 4)), isWorkable: true, notes: row.notes || existing?.notes || (source === 'csv' ? 'Importé depuis un fichier CSV.' : 'Importé depuis un fichier JSON.'), order: existing?.order ?? this.state.holidays.length + count + 1 };
+      await sariDB.save('publicHolidays', record);
+      count++;
+    }
+    return count;
+  },
+  /* 309.2 — automatic retrieval of holiday files from the designated server folder. */
+  async fetchServerHolidayFiles() {
+    try {
+      const response = await fetch('/api/content/holidays', { credentials: 'same-origin' });
+      if (!response.ok) return [];
+      const { files } = await response.json();
+      return files || [];
+    } catch (_) { return []; }
+  },
+  async syncServerHolidayFiles(force = false) {
+    const config = this.state.holidayConfig || {};
+    if (!force && config.autoFetchServer === false) return;
+    const files = await this.fetchServerHolidayFiles();
+    this.state.serverHolidayFiles = files;
+    let imported = 0;
+    for (const file of files) {
+      const year = String(file.name).replace(/\.(json|csv)$/i, '');
+      const existing = this.state.holidays.filter((holiday) => String(holiday.date).startsWith(year));
+      if (existing.length && !force) continue; // years already present are skipped in auto mode
+      try {
+        const response = await fetch(`/api/content/holidays/${encodeURIComponent(file.name)}`, { credentials: 'same-origin' });
+        if (!response.ok) continue;
+        const payload = await response.json();
+        const parsed = window.SariCore.holidayImport.parseHolidayFile(payload.content, window.SariCore.holidayImport.defaultJsonMapping);
+        imported += await this.applyImportedHolidays(parsed.normalized, 'json');
+      } catch (_) { /* unreadable file: skipped */ }
+    }
+    if (imported) {
+      this.state.holidays = await sariDB.getAll('publicHolidays');
+      app.showToast(`${this.t('serverHolidaysImported', 'Fichiers serveur importés')} : ${imported} ${this.t('entriesImported', 'entrée(s)')}.`, 'success');
+    }
+    this.state._serverSyncDone = true;
+  },
   async editWorkedHoliday() {
     const holidays = this.state.holidays.sort((a, b) => a.date.localeCompare(b.date));
     const values = await DialogManager.form(this.t('markWorkedHoliday', 'Marquer un jour férié « travaillé »'), [
