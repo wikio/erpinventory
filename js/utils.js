@@ -189,11 +189,14 @@ const SariUtils = {
     return canvas;
   },
 
-  async createPDFBlob(elementId,paperFormat='A4') {
+  async createPDFBlob(elementId,paperFormat='A4',options={}) {
     const element=document.getElementById(elementId);if(!element)throw Error('Printable element not found');
     await window.SariVendors?.loadPdf();if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined')throw Error('PDF engine unavailable');
     const canvas=await this.elementToCanvas(element,paperFormat),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=8,contentW=pageW-margin*2,ratio=contentW/canvas.width,imageH=canvas.height*ratio,image=canvas.toDataURL('image/jpeg',.95),capacity=pageH-margin*2;
     let consumed=0,page=0;while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');consumed+=capacity;}
+    const totalPages=pdf.getNumberOfPages();
+    // Section 318 — optional page numbering/footer for multi-page documents.
+    if(typeof options.pageFooter==='function'){pdf.setFontSize(8);pdf.setTextColor(90);for(let index=1;index<=totalPages;index++){pdf.setPage(index);pdf.text(String(options.pageFooter(index,totalPages)),pageW/2,pageH-4,{align:'center'});}}
     return pdf.output('blob');
   },
 

@@ -138,7 +138,7 @@ describe('section 300–305 wiring in the SARI codebase', () => {
     expect(db).toContain('ensureEnhancement300Data');
     expect(db).toContain('ph-2026-eid-fitr-1');
     expect(db).toContain('pt-piecework');
-    expect(db).toContain('version = 19');
+    expect(db).toContain('version = 20');
     expect(source('js/app.js')).toContain("'leaves'");
     expect(source('js/app.js')).toContain('isOnboardingBlocked');
     expect(source('index.html')).toContain('data-nav-item="leaves"');

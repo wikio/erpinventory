@@ -29,6 +29,7 @@ import '../js/dialogs.js';
 import '../js/validation.js';
 import '../js/managed-autocomplete.js';
 import '../js/image-dropzone.js';
+import '../js/signature-pad.js';
 import '../js/rich-editor.js';
 import '../js/template-engine.js';
 import '../js/template-designer.js';

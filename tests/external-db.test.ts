@@ -45,7 +45,7 @@ describe('normalized external repository', () => {
   });
 
   it('covers every external IndexedDB entity mapping', () => {
-    expect(Object.keys(STORE_TABLES)).toHaveLength(90);
+    expect(Object.keys(STORE_TABLES)).toHaveLength(92);
     expect(new Set(Object.values(STORE_TABLES)).size).toBeGreaterThan(60);
   });
 

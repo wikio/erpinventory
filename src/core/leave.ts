@@ -33,6 +33,7 @@ export interface LeaveRequestLike {
   id?: string; employeeId: string; typeId?: string;
   startDate: string; endDate: string; durationDays?: number;
   isPaid?: boolean; status?: string;
+  reason?: string; updatedAt?: string;
 }
 
 export interface ValidationAlert {
@@ -117,10 +118,27 @@ export const defaultSchedule: WorkSchedule = {
  * (first working day) and the configured weekend days are always displayed
  * last. Recomputed from the live schedule, so layout follows configuration.
  */
+/**
+ * Section 307/322 — calendar column order. The week starts on Sunday (first
+ * working day) and the configured weekend days are always displayed last.
+ * The result MUST be a cyclic rotation of the chronological week, otherwise
+ * the day cells (which flow chronologically) no longer line up under their
+ * day-name columns. We therefore pick the rotation that (a) begins with
+ * Sunday when it is a working day, and (b) ends with the longest possible
+ * run of configured weekend days, so Friday/Saturday always close the grid.
+ */
 export function weekColumnOrder(schedule: WorkSchedule = defaultSchedule): number[] {
   const working = new Set(schedule.workingDays?.length ? schedule.workingDays : [0, 1, 2, 3, 4]);
-  const week = [0, 1, 2, 3, 4, 5, 6]; // 0 = Sunday … 6 = Saturday
-  return [...week.filter((day) => working.has(day)), ...week.filter((day) => !working.has(day))];
+  const rotation = (start: number): number[] => Array.from({ length: 7 }, (_, index) => (start + index) % 7);
+  const weekendRun = (order: number[]): number => { let run = 0; for (let index = 6; index >= 0; index--) { if (!working.has(order[index])) run++; else break; } return run; };
+  let best = rotation(0);
+  let bestRun = weekendRun(best);
+  for (let start = 1; start < 7; start++) {
+    const order = rotation(start);
+    const run = weekendRun(order);
+    if (run > bestRun) { best = order; bestRun = run; }
+  }
+  return best;
 }
 
 /** Section 306 — the 2-letter payment-type code used in payslip references. */
@@ -356,7 +374,7 @@ const stepKeys = ['rules_read', 'rules_accepted', 'terms_accepted', 'contract_si
 export interface OnboardingContext {
   employeeId: string;
   acceptances?: RuleAcceptance[];
-  contracts?: { id?: string; employeeId?: string; status?: string; signedAt?: string }[];
+  contracts?: { id?: string; employeeId?: string; status?: string; signedAt?: string; signature?: Record<string, unknown>; signatures?: Record<string, unknown> }[];
   declarations?: ConflictDeclaration[];
   rulesVersion?: number;
   termsVersion?: number;
@@ -369,7 +387,9 @@ export function computeOnboarding(context: OnboardingContext): OnboardingResult 
   const read = acceptances.find((item) => item.employeeId === employeeId && item.kind === 'rules_read');
   const rulesAccepted = find('rules');
   const termsAccepted = find('terms');
-  const contract = contracts.find((item) => item.employeeId === employeeId && item.status === 'signed');
+  // Section 320 — dual signature: the employee's onboarding step is complete as soon
+  // as they have signed (legacy single signature or the new employee signature block).
+  const contract = contracts.find((item) => item.employeeId === employeeId && (item.status === 'signed' || item.status === 'employee_signed' || Boolean(item.signature?.signedAt) || Boolean((item.signatures as { employee?: { signedAt?: string } } | undefined)?.employee?.signedAt)));
   const declaration = declarations.find((item) => item.employeeId === employeeId);
   const steps: OnboardingStep[] = [
     { key: 'rules_read', done: Boolean(read), at: read?.acceptedAt },
@@ -383,6 +403,35 @@ export function computeOnboarding(context: OnboardingContext): OnboardingResult 
   return { steps, done: pending.length === 0, completedAt, pending, rulesVersion, termsVersion };
 }
 
+export type LeaveAmendmentType = 'postpone' | 'modify' | 'cancel';
+
+/** A leave request the employee can still edit/delete directly (Section 315). */
+export function canEmployeeEditLeave(record: LeaveRequestLike & { amendmentTargetId?: string }): boolean {
+  return ['draft', 'submitted', 'rejected'].includes(record.status || '') && !record.amendmentTargetId;
+}
+
+/**
+ * Section 315 — after approval, employees route changes as amendments that
+ * require HR approval. Applying an approved amendment mutates the original
+ * request (postpone/modify) or cancels it, and marks the amendment processed.
+ */
+export function applyLeaveAmendment(original: LeaveRequestLike, amendment: LeaveRequestLike & { amendmentType?: LeaveAmendmentType; amendmentApplied?: boolean; appliedAt?: string }): { original: LeaveRequestLike; amendment: LeaveRequestLike & { amendmentApplied?: boolean; appliedAt?: string } } {
+  if (amendment.amendmentType === 'cancel') original.status = 'cancelled';
+  else {
+    if (amendment.startDate) original.startDate = amendment.startDate;
+    if (amendment.endDate) original.endDate = amendment.endDate;
+    if (Number(amendment.durationDays) > 0) original.durationDays = amendment.durationDays;
+    if (amendment.typeId) original.typeId = amendment.typeId;
+    if (amendment.reason) original.reason = amendment.reason;
+    original.status = 'approved';
+  }
+  original.updatedAt = new Date().toISOString();
+  amendment.amendmentApplied = true;
+  amendment.appliedAt = new Date().toISOString();
+  amendment.status = 'approved';
+  return { original, amendment };
+}
+
 export const leaveEngine = {
   parseIso, isoDate, addDays, rangeDates, monthKey, monthlyPeriods,
   isWorkingDay, holidayMap, isPublicHoliday,
@@ -391,4 +440,5 @@ export const leaveEngine = {
   validateLeave, suggestLeaveDates, consumedBalance,
   pieceworkCalculation, computeOnboarding, defaultSchedule, stepKeys,
   weekColumnOrder, paymentTypeCode,
+  canEmployeeEditLeave, applyLeaveAmendment,
 };

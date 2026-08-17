@@ -35,7 +35,8 @@ const STORE_TABLES = Object.freeze({
   workedHolidays: 'worked_holidays', paymentTypes: 'payment_types',
   employmentContracts: 'employment_contracts', ruleAcceptances: 'rule_acceptances',
   conflictDeclarations: 'conflict_declarations', workRules: 'work_rules',
-  occasionalWorkers: 'occasional_workers', workerAssignments: 'worker_assignments', onboardingStates: 'onboarding_states'
+  occasionalWorkers: 'occasional_workers', workerAssignments: 'worker_assignments', onboardingStates: 'onboarding_states',
+  jobFunctions: 'job_functions', workCertificates: 'work_certificates'
 });
 
 const FOREIGN_TABLES = Object.freeze({
@@ -68,6 +69,7 @@ const SOURCE_ALIASES = Object.freeze({
   blocked_modules_json: ['blockedModules'], exempt_roles_json: ['exemptRoles'],
   leave_adjustments_json: ['leaveAdjustments'], worked_holidays_json: ['workedHolidays'], signature_json: ['signature'],
   payment_type_id: ['paymentTypeId'], rc_id: ['rcId'],
+  position_json: ['position'], tasks_json: ['tasks'], signatures_json: ['signatures'],
   declaration_uid: ['declarationId'], pv_type: ['pvType'], request_type: ['requestType'],
   template_html: ['templateHtml'], template_html_i18n_json: ['templateHtmlI18n'], document_template_id: ['templateId'],
   type: ['type','documentType'], file_name: ['fileName','name'], file_size: ['fileSize','size'], expires_at: ['expiresAt','expirationDate']

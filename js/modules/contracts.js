@@ -7,18 +7,47 @@
 const ContractsModule = {
   state: {
     tab: 'contracts', contracts: [], employees: [], paymentTypes: [], declarations: [],
-    acceptances: [], rules: [], query: '', employee: 'all', status: 'all',
+    acceptances: [], rules: [], jobFunctions: [], certificates: [], certificateConfig: null,
+    query: '', employee: 'all', status: 'all', certStatus: 'all',
   },
   t(key, fallback) { return i18n.t(key, fallback); },
   canWrite() { return auth.can('contracts', 'edit'); },
   employee(id) { return this.state.employees.find((item) => item.id === id); },
   employeeName(id) { const employee = this.employee(id); return employee ? `${employee.firstName} ${employee.lastName}` : id || '—'; },
   rule(kind) { return this.state.rules.filter((rule) => rule.kind === kind).sort((a, b) => Number(b.version) - Number(a.version))[0]; },
+  /* 319 — configurable job functions/tasks per position, reused by contracts & certificates. */
+  jobFunctionsFor(position = '') {
+    const normalized = String(position).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    return this.state.jobFunctions.find((item) => String(item.position?.fr || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === normalized) || null;
+  },
+  companyInfo() {
+    const settings = this.state.companySettings || {};
+    return {
+      companyName: settings.companyName || 'SARI SYSTÈME',
+      legalName: settings.legalName || settings.companyName || 'SARI SYSTÈME',
+      address: settings.address || 'Algérie', nif: settings.nif || '', rc: settings.rc || '',
+      nai: settings.nai || settings.ai || '', ai: settings.ai || '', nis: settings.nis || '',
+      documentLogo: settings.documentLogo || '', phone: settings.phone || '', email: settings.email || '',
+    };
+  },
+  /* 318/319/320 — full contract document (articles, parties, dual signature blocks). */
+  contractDocumentHtml(contract) {
+    const employee = this.employee(contract.employeeId) || {};
+    return window.SariCore.contracts.renderContractDocument({
+      contract, employee, company: this.companyInfo(),
+      jobTasks: this.jobFunctionsFor(contract.position),
+      lang: i18n.currentLang,
+    });
+  },
+  certificateTypeLabel(typeId) { return OptionCatalog.label('workCertificateType', typeId); },
+  certificateTypes() { return OptionCatalog.options('workCertificateType'); },
 
   async load() {
-    const [contracts, employees, paymentTypes, declarations, acceptances, rules, settings] = await Promise.all(['employmentContracts', 'employees', 'paymentTypes', 'conflictDeclarations', 'ruleAcceptances', 'workRules', 'settings'].map((store) => sariDB.getAll(store)));
-    Object.assign(this.state, { contracts, employees, paymentTypes, declarations, acceptances, rules });
+    const [contracts, employees, paymentTypes, declarations, acceptances, rules, jobFunctions, certificates, settings] = await Promise.all(['employmentContracts', 'employees', 'paymentTypes', 'conflictDeclarations', 'ruleAcceptances', 'workRules', 'jobFunctions', 'workCertificates', 'settings'].map((store) => sariDB.getAll(store)));
+    Object.assign(this.state, { contracts, employees, paymentTypes, declarations, acceptances, rules, jobFunctions, certificates });
     this.state.policySettings = settings.find((record) => record.id === 'app-settings') || {};
+    this.state.companySettings = settings.find((record) => record.id === 'app-settings') || {};
+    this.state.certificateConfig = settings.find((record) => record.id === 'work-certificate-config') || { id: 'work-certificate-config', autoGenerate: false };
   },
   async render(containerId = 'sari-main-view') {
     const c = document.getElementById(containerId); if (!c) return;
@@ -26,6 +55,8 @@ const ContractsModule = {
     const canWrite = this.canWrite();
     const tabs = [
       ['contracts', 'file-signature', 'contractsLabel'],
+      ['functions', 'list-checks', 'jobFunctionsLabel'],
+      ['certificates', 'file-badge', 'workCertificatesLabel'],
       ['rules', 'scroll-text', 'workRulesLabel'],
       ['declarations', 'scale', 'conflictDeclarationsLabel'],
       ['onboarding', 'list-checks', 'onboardingLabel'],
@@ -52,7 +83,8 @@ const ContractsModule = {
   setTab(tab) { this.state.tab = tab; this.render(); },
   tabHtml(canWrite) {
     const map = {
-      contracts: () => this.contractsHtml(canWrite), rules: () => this.rulesHtml(canWrite),
+      contracts: () => this.contractsHtml(canWrite), functions: () => this.functionsHtml(canWrite),
+      certificates: () => this.certificatesHtml(canWrite), rules: () => this.rulesHtml(canWrite),
       declarations: () => this.declarationsHtml(canWrite), onboarding: () => this.onboardingHtml(canWrite),
       access: () => this.accessHtml(canWrite),
     };
@@ -63,12 +95,13 @@ const ContractsModule = {
   statusLabel(status) {
     const labels = {
       draft: { fr: 'Brouillon', ar: 'مسودة', en: 'Draft' }, sent: { fr: 'Envoyé à la signature', ar: 'أُرسل للتوقيع', en: 'Sent for signature' },
-      signed: { fr: 'Signé', ar: 'موقع', en: 'Signed' }, archived: { fr: 'Archivé', ar: 'مؤرشف', en: 'Archived' },
+      employee_signed: { fr: 'Signé par le salarié', ar: 'وقعه العامل', en: 'Employee signed' },
+      signed: { fr: 'Signé (2 parties)', ar: 'موقع (طرفان)', en: 'Signed (both parties)' }, archived: { fr: 'Archivé', ar: 'مؤرشف', en: 'Archived' },
     };
     return labels[status]?.[i18n.currentLang] || labels[status]?.fr || status || '—';
   },
   contractStatusBadge(status) {
-    const colors = { draft: 'text-slate-600', sent: 'text-sari-amber', signed: 'text-green-600', archived: 'text-slate-400' };
+    const colors = { draft: 'text-slate-600', sent: 'text-sari-amber', employee_signed: 'text-sari-blue', signed: 'text-green-600', archived: 'text-slate-400' };
     return `<span class="sari-badge ${colors[status] || ''}">${SariUtils.escapeHtml(this.statusLabel(status))}</span>`;
   },
   contractsHtml(canWrite) {
@@ -143,6 +176,8 @@ const ContractsModule = {
       updatedAt: new Date().toISOString(), createdAt: old.createdAt || new Date().toISOString(),
     };
     if (record.status === 'signed' && !record.signature) record.signature = { name: 'Signé manuellement (RH)', signedAt: new Date().toISOString().slice(0, 10), device: 'Contrats SARI' };
+    // 318/319 — persist the full text (Algerian template + configurable job functions).
+    record.contentHtml = this.contractDocumentHtml(record);
     await sariDB.save('employmentContracts', record);
     this.closeModal();
     app.showToast(this.t('contractSaved', 'Contrat enregistré.'), 'success');
@@ -163,37 +198,123 @@ const ContractsModule = {
   async removeContract(id) { if (!await DialogManager.confirm(this.t('deleteContractConfirm', 'Supprimer ce contrat ?'))) return; await sariDB.delete('employmentContracts', id); await this.render(); },
   async viewContract(id) {
     const contract = await sariDB.getById('employmentContracts', id); if (!contract) return;
+    await this.load();
     const employee = this.employee(contract.employeeId) || {};
     const paymentType = this.state.paymentTypes.find((type) => type.id === contract.paymentTypeId) || {};
+    // 318 — full text with header/footer, pagination and identified parties
+    // (regenerated live in the active language; the archived PDF keeps the
+    // frozen version stored at signature time).
+    const documentHtml = this.contractDocumentHtml(contract);
+    const employeeSig = contract.signatures?.employee;
+    const companySig = contract.signatures?.company;
+    const legacy = contract.signature;
     const root = document.getElementById('sari-modal-root');
     root.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3"><article class="w-full max-w-4xl max-h-[94vh] overflow-y-auto sari-tile p-6" id="ctt-print-${contract.id}">
-      <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${contract.referenceCode || contract.id}</span>
+      <header class="no-print flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${contract.referenceCode || contract.id}</span>
         <h2 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(contract.title)}</h2><p class="text-xs text-slate-500">${SariUtils.escapeHtml(contract.employeeName || this.employeeName(contract.employeeId))} • ${this.statusLabel(contract.status)}</p></div>
         <button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-sm">
+      <div class="no-print grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-sm">
         <div><small class="text-slate-400">${this.t('contractType', 'Type')}</small><b class="block">${SariUtils.escapeHtml(contract.type || '—')}</b></div>
         <div><small class="text-slate-400">${this.t('position', 'Poste')}</small><b class="block">${SariUtils.escapeHtml(contract.position || '—')}</b></div>
         <div><small class="text-slate-400">${this.t('contractPeriod', 'Période')}</small><b class="block font-mono-tech text-xs">${i18n.formatDate(contract.startDate)}${contract.endDate ? ` → ${i18n.formatDate(contract.endDate)}` : ''}</b></div>
         <div><small class="text-slate-400">${this.t('baseSalary', 'Salaire')}</small><b class="block">${i18n.formatCurrency(contract.baseSalary)}</b></div>
-        <div><small class="text-slate-400">${this.t('paymentType', 'Paiement')}</small><b class="block">${SariUtils.escapeHtml(paymentType.name?.[i18n.currentLang] || paymentType.name?.fr || '—')}</b></div>
-        <div><small class="text-slate-400">${this.t('weeklyHours', 'Heures/sem')}</small><b class="block">${contract.weeklyHours || '—'}</b></div>
-        <div><small class="text-slate-400">${this.t('trialPeriodMonths', 'Essai')}</small><b class="block">${contract.trialPeriodMonths ?? '—'} ${this.t('monthsShort', 'mois')}</b></div>
-        <div><small class="text-slate-400">${this.t('employeeReference', 'Réf. employé')}</small><b class="block font-mono-tech text-xs">${SariUtils.escapeHtml(employee.referenceCode || '—')}</b></div>
       </div>
-      <section class="mt-5 p-4 border rounded-xl"><h4 class="font-extrabold text-sm">${this.t('contractClauses', 'Clauses & mentions particulières')}</h4><div class="rich-content mt-2 text-sm">${RichTextEditor.sanitize(contract.clausesHtml || '<p>—</p>')}</div></section>
-      <section class="mt-4 p-4 border rounded-xl grid md:grid-cols-2 gap-3">
-        <div><h4 class="font-extrabold text-sm">${this.t('signature', 'Signature électronique')}</h4>
-          ${contract.signature?.signedAt ? `<p class="text-sm mt-2"><b class="text-green-600">✓ ${SariUtils.escapeHtml(contract.signature.name || '')}</b><br><small class="text-slate-400">${i18n.formatDate(contract.signature.signedAt)} • ${SariUtils.escapeHtml(contract.signature.device || '')}</small></p>` : `<p class="text-sm text-slate-500 mt-2">${this.t('pendingSignature', 'En attente de signature par le salarié dans son espace collaborateur.')}</p>`}</div>
+      <div class="no-print mt-4 p-4 border rounded-xl grid sm:grid-cols-2 gap-3">
+        <div><h4 class="font-extrabold text-sm">${this.t('signatureStatus', 'État des signatures')}</h4>
+          <div class="space-y-1 mt-2 text-xs">${[
+            [companySig, this.t('companySignature', 'Signature de l’entreprise')],
+            [employeeSig || legacy, this.t('employeeSignature', 'Signature du salarié')],
+          ].map(([sig, label]) => `<div class="flex items-center gap-2">${sig ? `<i data-lucide="check-circle-2" class="w-4 h-4 text-green-600"></i>` : `<i data-lucide="circle" class="w-4 h-4 text-slate-300"></i>`}<span>${label}${sig ? ` — ${SariUtils.escapeHtml(sig.name || '')} • ${i18n.formatDate(sig.signedAt)}` : ''}</span></div>`).join('')}</div></div>
         <div><h4 class="font-extrabold text-sm">${this.t('workflowHistory', 'Historique')}</h4><p class="text-xs text-slate-500 mt-2">${this.t('sentAt', 'Envoyé')} : ${i18n.formatDate(contract.sentAt)}<br>${this.t('createdAt', 'Créé')} : ${i18n.formatDate(contract.createdAt)}</p></div>
-      </section>
-      <footer class="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t"><button onclick="ContractsModule.printContract('${contract.id}')" class="sari-btn px-4 bg-sari-lime text-slate-900"><i data-lucide="printer"></i>PDF</button>${this.canWrite() ? `<button onclick="app.closeModalRoot();ContractsModule.openContractEditor('${contract.id}')" class="sari-btn px-4 bg-sari-blue text-white">${this.t('edit', 'Modifier')}</button>` : ''}</footer></article></div>`;
+      </div>
+      <div class="contract-print-sheet mt-5 bg-white text-slate-900 border rounded-xl p-5">${documentHtml}</div>
+      <footer class="no-print flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t">
+        <button onclick="ContractsModule.downloadContractPDF('${contract.id}')" class="sari-btn px-4 bg-sari-lime text-slate-900"><i data-lucide="download"></i>PDF</button>
+        <button onclick="ContractsModule.printContract('${contract.id}')" class="sari-btn px-4 bg-slate-800 text-white"><i data-lucide="printer"></i>${this.t('print', 'Imprimer')}</button>
+        <button onclick="DocumentManager.open('employmentContract','${contract.id}','${contract.referenceCode || contract.id}')" class="sari-btn px-4 bg-slate-200">GED</button>
+        ${this.canWrite() && !companySig ? `<button onclick="ContractsModule.openCompanySignature('${contract.id}')" class="sari-btn px-4 bg-sari-blue text-white"><i data-lucide="file-signature"></i>${this.t('signForCompany', 'Signer pour l’entreprise')}</button>` : ''}
+        ${this.canWrite() ? `<button onclick="app.closeModalRoot();ContractsModule.openContractEditor('${contract.id}')" class="sari-btn px-4 bg-slate-200">${this.t('edit', 'Modifier')}</button>` : ''}
+      </footer></article></div>`;
     window.SariIcons?.hydrate();
   },
   printContract(id) {
     const source = document.getElementById(`ctt-print-${id}`);
     if (source) { SariUtils.printElement(`ctt-print-${id}`, 'Contrat SARI'); return; }
-    // The consultation is not open: open it, then print after a frame.
     this.viewContract(id).then(() => setTimeout(() => { const el = document.getElementById(`ctt-print-${id}`); if (el) SariUtils.printElement(`ctt-print-${id}`, 'Contrat SARI'); }, 400));
+  },
+  /** 318/320 — PDF export of the full document with page numbering. */
+  async downloadContractPDF(id, { archive = false } = {}) {
+    const contract = await sariDB.getById('employmentContracts', id); if (!contract) return;
+    await this.load();
+    const employee = this.employee(contract.employeeId) || {};
+    const mount = document.getElementById('contracts-modal');
+    mount.innerHTML = `<div id="ctt-doc-${contract.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${window.SariCore.contracts.renderContractDocument({ contract, employee, company: this.companyInfo(), jobTasks: this.jobFunctionsFor(contract.position), lang: i18n.currentLang })}</div>`;
+    window.SariIcons?.hydrate();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const reference = contract.referenceCode || contract.id;
+    const frozen = contract.contentHtml || this.contractDocumentHtml(contract);
+    const frozenMount = document.getElementById(`ctt-doc-${contract.id}`);
+    if (frozenMount) frozenMount.innerHTML = frozen;
+    const blob = await SariUtils.createPDFBlob(`ctt-doc-${contract.id}`, 'A4', { pageFooter: (page, total) => `${reference} — ${i18n.t('pageOf', 'Page')} ${page}/${total}` });
+    mount.innerHTML = '';
+    if (archive) {
+      // 317 — automatically post the signed copy into the GED, linked to the employee.
+      const documentId = `ctt-pdf-${contract.id}`;
+      const existing = await sariDB.getById('documents', documentId);
+      const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+      const document = { ...existing, id: documentId, name: `${reference}-signe.pdf`, mimeType: 'application/pdf', size: blob.size, data, documentType: 'employmentContract', category: 'hr', notes: `${this.t('signedContractCopy', 'Copie signée du contrat')} ${contract.title || ''} • ${contract.employeeName || ''}`, tags: ['contract', 'signé', contract.status].filter(Boolean), links: [{ recordType: 'employmentContract', recordId: contract.id }, { recordType: 'employee', recordId: contract.employeeId }], uploaderId: auth.currentUser?.id || '', uploaderName: auth.currentUser?.name || 'SARI', version: (existing?.version || 0) + 1, createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await sariDB.save('documents', document);
+      contract.generatedDocumentId = documentId;
+      contract.generatedAt = new Date().toISOString();
+      await sariDB.save('employmentContracts', contract);
+      app.showToast(this.t('signedCopyArchived', 'Copie signée archivée dans la GED (dossier du salarié).'), 'success');
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `${reference}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+    return blob;
+  },
+  /** 320 — company side of the dual signature (canvas-drawn). */
+  async openCompanySignature(contractId) {
+    const contract = await sariDB.getById('employmentContracts', contractId); if (!contract) return;
+    const modal = document.getElementById('contracts-modal');
+    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3">
+      <form onsubmit="ContractsModule.saveCompanySignature(event,'${contractId}')" class="sari-tile w-full max-w-2xl max-h-[94vh] overflow-y-auto p-6">
+        <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${this.t('companySignature', 'Signature de l’entreprise')}</span>
+          <h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(contract.title || contract.referenceCode || contract.id)}</h3>
+          <p class="text-xs text-slate-500 mt-1">${this.t('companySignatureHelp', 'Signature du représentant de l’entreprise : nom, fonction, lieu, date/heure et signature manuscrite tracée sur le pavé.')}</p></div>
+          <button type="button" onclick="ContractsModule.closeModal()"><i data-lucide="x"></i></button></header>
+        <div class="grid md:grid-cols-2 gap-3 mt-4">
+          <label class="doc-label">${this.t('fullName', 'Nom complet du signataire')} *<input id="cts-name" class="doc-input" value="${SariUtils.escapeHtml(auth.currentUser?.name || '')}" required></label>
+          <label class="doc-label">${this.t('signatureTitle', 'Fonction / titre')} *<input id="cts-title" class="doc-input" value="${this.t('companyRepresentative', 'Représentant de l’entreprise')}" required></label>
+          <label class="doc-label md:col-span-2">${this.t('signaturePlace', 'Lieu de signature')} *<input id="cts-place" class="doc-input" value="${SariUtils.escapeHtml(this.companyInfo().address || 'Alger')}" required></label>
+          <div class="md:col-span-2">${SignaturePad.html('cts-signature', this.t('drawSignature', 'Signature manuscrite (souris / doigt / stylet)'), contract.signatures?.company?.imageDataUrl || '')}</div>
+        </div>
+        <footer class="flex justify-end gap-2 mt-5 pt-4 border-t"><button type="button" onclick="ContractsModule.closeModal()" class="sari-btn px-4 bg-slate-200">${this.t('cancel', 'Annuler')}</button><button class="sari-btn px-5 bg-sari-blue text-white">${this.t('signAndFinalize', 'Signer & finaliser')}</button></footer>
+      </form></div>`;
+    window.SariIcons?.hydrate();
+    SignaturePad.mount();
+  },
+  async saveCompanySignature(event, contractId) {
+    event.preventDefault();
+    const contract = await sariDB.getById('employmentContracts', contractId);
+    const name = document.getElementById('cts-name')?.value.trim();
+    const title = document.getElementById('cts-title')?.value.trim();
+    const place = document.getElementById('cts-place')?.value.trim();
+    if (!name || !title || !place) return app.showToast(this.t('signatureFieldsRequired', 'Renseignez le nom, la fonction et le lieu.'), 'warning');
+    if (SignaturePad.isEmpty('cts-signature')) return app.showToast(this.t('drawRequired', 'Tracez votre signature manuscrite dans le pavé.'), 'warning');
+    contract.signatures = contract.signatures || {};
+    contract.signatures.company = { name, title, place, imageDataUrl: SignaturePad.value('cts-signature'), userId: auth.currentUser?.id, signedAt: new Date().toISOString() };
+    if (contract.signatures.employee) { contract.status = 'signed'; contract.signedAt = new Date().toISOString(); }
+    contract.updatedAt = new Date().toISOString();
+    await sariDB.save('employmentContracts', contract);
+    this.closeModal();
+    app.showToast(this.t('companySigned', 'Contrat signé pour l’entreprise.'), 'success');
+    await this.downloadContractPDF(contractId, { archive: true });
+    await this.render();
   },
 
   /* ─────────────────── 304.2 Work rules & general terms publishing ─────────────────── */
@@ -402,6 +523,251 @@ const ContractsModule = {
     app.showToast(this.t('policySaved', 'Politique d’accès enregistrée.'), 'success');
     await this.render();
   },
-};
+  /* ──────────────────── 319 Job functions & tasks per position (CRUD) ──────────────────── */
+  functionsHtml(canWrite) {
+    const rows = [...this.state.jobFunctions].sort((a, b) => (a.order || 0) - (b.order || 0));
+    return `<section class="sari-tile p-5"><header class="flex justify-between items-center mb-4"><div><h3 class="font-extrabold text-lg">${this.t('jobFunctionsLabel', 'Fonctions & tâches par poste')}</h3>
+      <p class="text-xs text-slate-500">${this.t('jobFunctionsHelp', 'Liste CRUD des missions de chaque poste : injectées automatiquement dans le contrat (article « Fonctions et tâches ») et réutilisables dans l’attestation de travail (Section 321).')}</p></div>
+      ${canWrite ? `<button onclick="ContractsModule.editFunction()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus"></i>${this.t('newJobFunction', 'Nouvelle fiche de poste')}</button>` : ''}</header>
+      <div class="grid md:grid-cols-2 gap-3">${rows.map((item) => `<article class="p-4 rounded-xl border ${item.isActive === false ? 'opacity-50' : ''}">
+        <div class="flex justify-between items-start"><b>${SariUtils.escapeHtml(item.position?.[i18n.currentLang] || item.position?.fr || item.id)}</b><span class="sari-badge text-[9px]">${item.order || '—'}</span></div>
+        <div class="rich-content text-xs mt-2 max-h-44 overflow-y-auto">${RichTextEditor.sanitize(item.tasks?.[i18n.currentLang] || item.tasks?.fr || '')}</div>
+        ${canWrite ? `<footer class="flex gap-2 mt-3 pt-3 border-t"><button onclick="ContractsModule.editFunction('${item.id}')" class="doc-action">${this.t('edit', 'Modifier')}</button><button onclick="ContractsModule.toggleFunction('${item.id}')" class="doc-action">${item.isActive === false ? this.t('activate', 'Activer') : this.t('deactivate', 'Désactiver')}</button><button onclick="ContractsModule.deleteFunction('${item.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button></footer>` : ''}</article>`).join('')}</div></section>`;
+  },
+  async editFunction(id = '') {
+    const old = id ? await sariDB.getById('jobFunctions', id) : {};
+    const values = await DialogManager.form(id ? this.t('editJobFunction', 'Modifier la fiche de poste') : this.t('newJobFunction', 'Nouvelle fiche de poste'), [
+      { name: 'fr', label: `${this.t('position', 'Poste')} (FR)`, value: old.position?.fr || '', required: true },
+      { name: 'ar', label: `${this.t('position', 'Poste')} (AR)`, value: old.position?.ar || '' },
+      { name: 'en', label: `${this.t('position', 'Poste')} (EN)`, value: old.position?.en || '' },
+      { name: 'tasksFr', label: `${this.t('tasksLabel', 'Tâches & fonctions')} (FR, HTML)`, type: 'textarea', value: old.tasks?.fr || '<ul><li></li></ul>' },
+      { name: 'tasksAr', label: `${this.t('tasksLabel', 'Tâches & fonctions')} (AR, HTML)`, type: 'textarea', value: old.tasks?.ar || '' },
+      { name: 'tasksEn', label: `${this.t('tasksLabel', 'Tâches & fonctions')} (EN, HTML)`, type: 'textarea', value: old.tasks?.en || '' },
+      { name: 'order', label: this.t('orderLabel', 'Ordre'), type: 'number', value: old.order ?? this.state.jobFunctions.length + 1 },
+    ]);
+    if (!values) return;
+    await sariDB.save('jobFunctions', { ...old, id: id || `jf-${crypto.randomUUID()}`, position: { fr: values.fr, ar: values.ar, en: values.en }, tasks: { fr: values.tasksFr, ar: values.tasksAr, en: values.tasksEn }, order: Number(values.order) || 0, isActive: old.isActive !== false });
+    app.showToast(this.t('jobFunctionSaved', 'Fiche de poste enregistrée.'), 'success');
+    await this.render();
+  },
+  async toggleFunction(id) { const item = await sariDB.getById('jobFunctions', id); item.isActive = item.isActive === false; await sariDB.save('jobFunctions', item); await this.render(); },
+  async deleteFunction(id) { if (!await DialogManager.confirm(this.t('deleteJobFunctionConfirm', 'Supprimer cette fiche de poste ?'))) return; await sariDB.delete('jobFunctions', id); await this.render(); },
+
+  /* ──────────────────────── 321 Work certificates manager (CRUD) ──────────────────────── */
+  certificateStatusLabel(status) {
+    const labels = {
+      requested: { fr: 'Demandée', ar: 'مطلوبة', en: 'Requested' }, draft: { fr: 'Brouillon', ar: 'مسودة', en: 'Draft' },
+      generated: { fr: 'Générée', ar: 'مولدة', en: 'Generated' }, signed: { fr: 'Signée', ar: 'موقعة', en: 'Signed' }, archived: { fr: 'Archivée', ar: 'مؤرشفة', en: 'Archived' },
+    };
+    return labels[status]?.[i18n.currentLang] || labels[status]?.fr || status || '—';
+  },
+  certificatesHtml(canWrite) {
+    const config = this.state.certificateConfig || {};
+    const rows = window.SariCore.ordering.stableOrder(this.state.certificates).filter((record) => (this.state.certStatus === 'all' || record.status === this.state.certStatus) && (this.state.employee === 'all' || record.employeeId === this.state.employee));
+    return `<div class="space-y-4">
+      <section class="sari-tile p-4 flex flex-wrap items-center gap-3">
+        <select class="doc-input w-44" onchange="ContractsModule.state.employee=this.value;ContractsModule.render()"><option value="all">${this.t('allEmployees', 'Tous les salariés')}</option>${this.state.employees.map((employee) => `<option value="${employee.id}" ${this.state.employee === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)}</option>`).join('')}</select>
+        <select class="doc-input w-44" onchange="ContractsModule.state.certStatus=this.value;ContractsModule.render()"><option value="all">${this.t('allStatuses', 'Tous les statuts')}</option>${['requested', 'draft', 'generated', 'signed', 'archived'].map((status) => `<option value="${status}" ${this.state.certStatus === status ? 'selected' : ''}>${this.certificateStatusLabel(status)}</option>`).join('')}</select>
+        <label class="flex items-center gap-2 text-xs ml-auto"><input type="checkbox" ${config.autoGenerate ? 'checked' : ''} onchange="ContractsModule.toggleCertificateAutoGenerate(this.checked)"> ${this.t('certificateAutoGeneration', 'Génération automatique à la demande du salarié')}</label>
+        ${canWrite ? `<button onclick="ContractsModule.openCertificateEditor()" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="plus"></i>${this.t('newCertificate', 'Nouvelle attestation')}</button>` : ''}
+      </section>
+      <section class="sari-tile overflow-x-auto"><table class="w-full sari-table"><thead><tr>
+        <th>${this.t('orderLabel', 'Ordre')}</th><th>${this.t('reference', 'Référence')}</th><th>${this.t('employee', 'Salarié')}</th><th>${this.t('certificateType', 'Type')}</th><th>${this.t('issueDate', 'Délivrée le')}</th><th>${this.t('signature', 'Signature')}</th><th>${this.t('status', 'Statut')}</th><th>${this.t('actionsHeader', 'Actions')}</th>
+      </tr></thead><tbody>${rows.map((record) => `<tr>
+        <td class="text-center font-mono-tech text-sari-blue">${record.order || '—'}</td>
+        <td class="font-mono-tech text-sari-blue font-bold">${record.referenceCode || record.id}</td>
+        <td><b>${SariUtils.escapeHtml(record.employeeName || this.employeeName(record.employeeId))}</b><small class="block">${SariUtils.escapeHtml(record.position || '')}</small></td>
+        <td><span class="sari-badge">${SariUtils.escapeHtml(this.certificateTypeLabel(record.typeId))}</span></td>
+        <td class="font-mono-tech text-xs">${i18n.formatDate(record.issueDate)}</td>
+        <td>${record.signatures?.manager?.signedAt ? `<span class="text-green-600 text-xs"><i data-lucide="badge-check" class="w-3 h-3 inline"></i> ${SariUtils.escapeHtml(record.signatures.manager.name || '')}</span>` : `<span class="text-slate-400 text-xs">${this.t('pendingSignature', 'En attente')}</span>`}</td>
+        <td><span class="sari-badge ${record.status === 'signed' ? 'text-green-600' : ''}">${this.certificateStatusLabel(record.status)}</span></td>
+        <td><div class="flex flex-wrap gap-1"><button onclick="ContractsModule.viewCertificate('${record.id}')" class="doc-action">${this.t('view', 'Voir')}</button>${canWrite ? `<button onclick="ContractsModule.openCertificateEditor('${record.id}')" class="doc-action">${this.t('edit', 'Modifier')}</button>${record.status !== 'signed' ? `<button onclick="ContractsModule.openCertificateSignature('${record.id}')" class="doc-action text-sari-blue"><i data-lucide="file-signature"></i>${this.t('sign', 'Signer')}</button>` : `<button onclick="ContractsModule.downloadCertificatePDF('${record.id}')" class="doc-action"><i data-lucide="download"></i>PDF</button>`}<button onclick="ContractsModule.removeCertificate('${record.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button>` : ''}</div></td></tr>`).join('') || `<tr><td colspan="8" class="p-8 text-slate-400">${this.t('noCertificate', 'Aucune attestation de travail.')}</td></tr>`}</tbody></table></section>
+      <div id="contracts-modal"></div></div>`;
+  },
+  async toggleCertificateAutoGenerate(value) {
+    const config = await sariDB.getById('settings', 'work-certificate-config') || { id: 'work-certificate-config' };
+    config.autoGenerate = Boolean(value);
+    config.updatedAt = new Date().toISOString();
+    await sariDB.save('settings', config);
+    this.state.certificateConfig = config;
+    app.showToast(this.t('certificateConfigSaved', 'Paramètre de génération enregistré.'), 'success');
+  },
+  certificateDocumentHtml(record) {
+    const employee = this.employee(record.employeeId) || {};
+    return window.SariCore.contracts.renderWorkCertificate({
+      certificate: record, employee, company: this.companyInfo(),
+      jobTasks: this.jobFunctionsFor(record.position),
+      lang: i18n.currentLang,
+    });
+  },
+  async openCertificateEditor(id = '') {
+    const old = id ? await sariDB.getById('workCertificates', id) : {};
+    const types = this.certificateTypes();
+    const modal = document.getElementById('contracts-modal');
+    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3">
+      <form onsubmit="ContractsModule.saveCertificate(event)" class="sari-tile w-full max-w-4xl max-h-[94vh] overflow-y-auto p-6">
+        <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${this.t('workCertificate', 'Attestation de travail')}</span>
+          <h3 class="text-xl font-extrabold mt-2">${id ? this.t('editCertificate', 'Modifier l’attestation') : this.t('newCertificate', 'Nouvelle attestation')}</h3></div>
+          <button type="button" onclick="ContractsModule.closeModal()"><i data-lucide="x"></i></button></header>
+        <input type="hidden" id="wct-id" value="${id || ''}">
+        <div class="grid md:grid-cols-2 gap-3 mt-4">
+          <label class="doc-label">${this.t('employee', 'Salarié')} *<select id="wct-employee" class="doc-input" required onchange="ContractsModule.certificateEmployeeChanged()">${this.state.employees.map((employee) => `<option value="${employee.id}" ${old.employeeId === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)} — ${SariUtils.escapeHtml(employee.position || '')}</option>`).join('')}</select></label>
+          <label class="doc-label">${this.t('certificateType', 'Type d’attestation')} *<select id="wct-type" class="doc-input" onchange="ContractsModule.certificateTypeChanged()">${types.map((type) => `<option value="${type.value}" ${old.typeId === type.value ? 'selected' : ''}>${SariUtils.escapeHtml(type.name?.[i18n.currentLang] || type.name?.fr || type.value)}</option>`).join('')}</select></label>
+          <label class="doc-label">${this.t('issueDate', 'Date de délivrance')}<input id="wct-date" type="date" class="doc-input" value="${old.issueDate || new Date().toISOString().slice(0, 10)}"></label>
+          <label class="doc-label">${this.t('status', 'Statut')}<select id="wct-status" class="doc-input">${['requested', 'draft', 'generated', 'signed', 'archived'].map((status) => `<option value="${status}" ${old.status === status ? 'selected' : ''}>${this.certificateStatusLabel(status)}</option>`).join('')}</select></label>
+          <label class="doc-label">${this.t('position', 'Poste')}<input id="wct-position" class="doc-input" value="${SariUtils.escapeHtml(old.position || '')}"></label>
+          <label class="doc-label">${this.t('salaryForCertificate', 'Salaire mensuel (DA)')}<input id="wct-salary" type="number" class="doc-input" value="${old.salary ?? ''}"></label>
+          <label class="doc-label md:col-span-2">${this.t('notes', 'Notes / mentions')}${RichTextEditor.html('wct-notes', old.notesHtml || '', this.t('notes', 'Notes'))}</label>
+        </div>
+        <div id="wct-preview" class="mt-4"></div>
+        <footer class="flex justify-end gap-2 mt-5 pt-4 border-t"><button type="button" onclick="ContractsModule.closeModal()" class="sari-btn px-4 bg-slate-200">${this.t('cancel', 'Annuler')}</button><button class="sari-btn px-5 bg-sari-blue text-white">${this.t('save', 'Enregistrer')}</button></footer>
+      </form></div>`;
+    window.SariIcons?.hydrate();
+    this.certificateEmployeeChanged();
+  },
+  certificateEmployeeChanged() {
+    const employeeId = document.getElementById('wct-employee')?.value;
+    const employee = this.employee(employeeId);
+    if (!employee) return;
+    const positionInput = document.getElementById('wct-position');
+    if (positionInput && !positionInput.value) positionInput.value = employee.position || '';
+    const salaryInput = document.getElementById('wct-salary');
+    if (salaryInput && !salaryInput.value) salaryInput.value = employee.salary || '';
+    this.certificateTypeChanged();
+  },
+  certificateTypeChanged() {
+    const preview = document.getElementById('wct-preview');
+    if (!preview) return;
+    const typeId = document.getElementById('wct-type')?.value;
+    const employeeId = document.getElementById('wct-employee')?.value;
+    const employee = this.employee(employeeId) || {};
+    const record = {
+      id: 'wct-preview-record', typeId, employeeId,
+      employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+      position: document.getElementById('wct-position')?.value || employee.position || '',
+      hireDate: employee.hireDate || '',
+      issueDate: document.getElementById('wct-date')?.value || '',
+      includeSalary: typeId !== 'withoutSalary',
+      includeTasks: typeId === 'withTasks',
+      salary: Number(document.getElementById('wct-salary')?.value) || employee.salary || 0,
+      signatures: {},
+    };
+    preview.innerHTML = `<h4 class="font-extrabold text-xs">${this.t('certificatePreview', 'Aperçu')}</h4><div class="certificate-print-sheet mt-2 bg-white text-slate-900 border rounded-xl p-5 max-h-96 overflow-y-auto">${this.certificateDocumentHtml(record)}</div>`;
+    window.SariIcons?.hydrate();
+  },
+  async saveCertificate(event) {
+    event.preventDefault();
+    const id = document.getElementById('wct-id').value;
+    const old = id ? await sariDB.getById('workCertificates', id) : {};
+    const employeeId = document.getElementById('wct-employee').value;
+    const employee = this.employee(employeeId) || {};
+    const typeId = document.getElementById('wct-type').value;
+    const record = {
+      ...old, id: id || `wct-${crypto.randomUUID()}`, employeeId,
+      employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+      position: document.getElementById('wct-position').value || employee.position || '',
+      department: employee.department || '',
+      hireDate: employee.hireDate || '',
+      typeId,
+      issueDate: document.getElementById('wct-date').value,
+      includeSalary: typeId !== 'withoutSalary',
+      includeTasks: typeId === 'withTasks',
+      salary: Number(document.getElementById('wct-salary').value) || employee.salary || 0,
+      status: document.getElementById('wct-status').value || 'draft',
+      notesHtml: RichTextEditor.value('wct-notes'),
+      updatedAt: new Date().toISOString(), createdAt: old.createdAt || new Date().toISOString(),
+    };
+    if (record.status === 'generated' || record.status === 'signed') { record.contentHtml = this.certificateDocumentHtml(record); record.generatedAt = record.generatedAt || new Date().toISOString(); }
+    await sariDB.save('workCertificates', record);
+    this.closeModal();
+    app.showToast(this.t('certificateSaved', 'Attestation enregistrée.'), 'success');
+    await this.render();
+  },
+  async viewCertificate(id) {
+    const record = await sariDB.getById('workCertificates', id); if (!record) return;
+    await this.load();
+    const root = document.getElementById('sari-modal-root');
+    root.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3"><article class="w-full max-w-4xl max-h-[94vh] overflow-y-auto sari-tile p-6" id="wct-print-${record.id}">
+      <header class="no-print flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${record.referenceCode || record.id}</span>
+        <h2 class="text-xl font-extrabold mt-2">${this.t('workCertificate', 'Attestation de travail')} — ${SariUtils.escapeHtml(record.employeeName || this.employeeName(record.employeeId))}</h2>
+        <p class="text-xs text-slate-500">${SariUtils.escapeHtml(this.certificateTypeLabel(record.typeId))} • ${this.certificateStatusLabel(record.status)}</p></div>
+        <button onclick="app.closeModalRoot()"><i data-lucide="x"></i></button></header>
+      <div class="mt-4 bg-white text-slate-900 border rounded-xl p-5">${this.certificateDocumentHtml(record)}</div>
+      <footer class="no-print flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t">
+        <button onclick="ContractsModule.downloadCertificatePDF('${record.id}')" class="sari-btn px-4 bg-sari-lime text-slate-900"><i data-lucide="download"></i>PDF</button>
+        <button onclick="SariUtils.printElement('wct-print-${record.id}','Attestation de travail')" class="sari-btn px-4 bg-slate-800 text-white"><i data-lucide="printer"></i>${this.t('print', 'Imprimer')}</button>
+        ${this.canWrite() && record.status !== 'signed' ? `<button onclick="app.closeModalRoot();ContractsModule.openCertificateSignature('${record.id}')" class="sari-btn px-4 bg-sari-blue text-white"><i data-lucide="file-signature"></i>${this.t('sign', 'Signer')}</button>` : ''}
+      </footer></article></div>`;
+    window.SariIcons?.hydrate();
+  },
+  async openCertificateSignature(id) {
+    const record = await sariDB.getById('workCertificates', id); if (!record) return;
+    const modal = document.getElementById('contracts-modal');
+    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3">
+      <form onsubmit="ContractsModule.saveCertificateSignature(event,'${id}')" class="sari-tile w-full max-w-2xl max-h-[94vh] overflow-y-auto p-6">
+        <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${this.t('certificateManagerSignature', 'Signature du responsable')}</span>
+          <h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(record.employeeName || this.employeeName(record.employeeId))}</h3>
+          <p class="text-xs text-slate-500 mt-1">${this.t('certificateSignatureHelp', 'L’attestation est signée électroniquement par le responsable habilité, avec signature manuscrite tracée au pavé (Section 320).')}</p></div>
+          <button type="button" onclick="ContractsModule.closeModal()"><i data-lucide="x"></i></button></header>
+        <div class="grid md:grid-cols-2 gap-3 mt-4">
+          <label class="doc-label">${this.t('fullName', 'Nom complet du responsable')} *<input id="wcts-name" class="doc-input" value="${SariUtils.escapeHtml(auth.currentUser?.name || '')}" required></label>
+          <label class="doc-label">${this.t('signatureTitle', 'Fonction / titre')} *<input id="wcts-title" class="doc-input" value="${this.t('hrManager', 'Responsable Ressources Humaines')}" required></label>
+          <label class="doc-label md:col-span-2">${this.t('signaturePlace', 'Lieu de signature')} *<input id="wcts-place" class="doc-input" value="${SariUtils.escapeHtml(this.companyInfo().address || 'Alger')}" required></label>
+          <div class="md:col-span-2">${SignaturePad.html('wcts-signature', this.t('drawSignature', 'Signature manuscrite (souris / doigt / stylet)'), record.signatures?.manager?.imageDataUrl || '')}</div>
+        </div>
+        <footer class="flex justify-end gap-2 mt-5 pt-4 border-t"><button type="button" onclick="ContractsModule.closeModal()" class="sari-btn px-4 bg-slate-200">${this.t('cancel', 'Annuler')}</button><button class="sari-btn px-5 bg-sari-blue text-white">${this.t('signAndGenerate', 'Signer & générer le PDF')}</button></footer>
+      </form></div>`;
+    window.SariIcons?.hydrate();
+    SignaturePad.mount();
+  },
+  async saveCertificateSignature(event, id) {
+    event.preventDefault();
+    const record = await sariDB.getById('workCertificates', id);
+    const name = document.getElementById('wcts-name')?.value.trim();
+    const title = document.getElementById('wcts-title')?.value.trim();
+    const place = document.getElementById('wcts-place')?.value.trim();
+    if (!name || !title || !place) return app.showToast(this.t('signatureFieldsRequired', 'Renseignez le nom, la fonction et le lieu.'), 'warning');
+    if (SignaturePad.isEmpty('wcts-signature')) return app.showToast(this.t('drawRequired', 'Tracez votre signature manuscrite dans le pavé.'), 'warning');
+    record.signatures = { manager: { name, title, place, imageDataUrl: SignaturePad.value('wcts-signature'), userId: auth.currentUser?.id, signedAt: new Date().toISOString() } };
+    record.status = 'signed';
+    record.contentHtml = this.certificateDocumentHtml(record);
+    record.generatedAt = new Date().toISOString();
+    await sariDB.save('workCertificates', record);
+    this.closeModal();
+    app.showToast(this.t('certificateSigned', 'Attestation signée.'), 'success');
+    await this.downloadCertificatePDF(id, { archive: true });
+    await this.render();
+  },
+  async downloadCertificatePDF(id, { archive = false } = {}) {
+    const record = await sariDB.getById('workCertificates', id); if (!record) return;
+    await this.load();
+    const mount = document.getElementById('contracts-modal');
+    mount.innerHTML = `<div id="wct-doc-${record.id}" class="bg-white text-slate-900" style="width:794px;padding:24px;font-family:'Plus Jakarta Sans',Arial,sans-serif">${record.contentHtml || this.certificateDocumentHtml(record)}</div>`;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const reference = record.referenceCode || record.id;
+    const blob = await SariUtils.createPDFBlob(`wct-doc-${record.id}`, 'A4', { pageFooter: (page, total) => `${reference} — ${i18n.t('pageOf', 'Page')} ${page}/${total}` });
+    mount.innerHTML = '';
+    if (archive) {
+      const documentId = `wct-pdf-${record.id}`;
+      const existing = await sariDB.getById('documents', documentId);
+      const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+      const document = { ...existing, id: documentId, name: `${reference}.pdf`, mimeType: 'application/pdf', size: blob.size, data, documentType: 'workCertificate', category: 'hr', notes: `${this.t('workCertificate', 'Attestation de travail')} ${record.employeeName || ''}`, tags: ['certificate', record.typeId, record.status].filter(Boolean), links: [{ recordType: 'workCertificate', recordId: record.id }, { recordType: 'employee', recordId: record.employeeId }], uploaderId: auth.currentUser?.id || '', uploaderName: auth.currentUser?.name || 'SARI', version: (existing?.version || 0) + 1, createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await sariDB.save('documents', document);
+      record.generatedDocumentId = documentId;
+      await sariDB.save('workCertificates', record);
+      app.showToast(this.t('certificateArchived', 'Attestation PDF archivée dans la GED (dossier du salarié).'), 'success');
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `${reference}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+    return blob;
+  },
+  async removeCertificate(id) { if (!await DialogManager.confirm(this.t('deleteCertificateConfirm', 'Supprimer cette attestation ?'))) return; await sariDB.delete('workCertificates', id); await this.render(); },
+
+}
 window.ContractsModule = ContractsModule;
 export {};
+

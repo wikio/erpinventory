@@ -121,7 +121,7 @@ const LeaveModule = {
         return `<tr><td class="text-center font-mono-tech text-sari-blue">${record.order || '—'}</td>
         <td class="font-mono-tech text-sari-blue font-bold">${record.referenceCode || record.id}</td>
         <td><b>${SariUtils.escapeHtml(record.employeeName || this.employeeName(record.employeeId))}</b><small class="block">${SariUtils.escapeHtml(record.department || '')}</small></td>
-        <td><span class="sari-badge" style="background:${this.typeColor(record.typeId)}22;color:${this.typeColor(record.typeId)}">${SariUtils.escapeHtml(this.typeName(record.typeId))}</span></td>
+        <td><span class="sari-badge" style="background:${this.typeColor(record.typeId)}22;color:${this.typeColor(record.typeId)}">${SariUtils.escapeHtml(this.typeName(record.typeId))}</span>${record.amendmentTargetId ? `<span class="sari-badge text-[9px] bg-sari-amber/15 text-sari-amber mt-1"><i data-lucide="arrow-right-left" class="w-3 h-3 inline"></i>${SariUtils.escapeHtml(this.t('leaveAmendment','Demande de modification') + (record.amendmentType ? ' — ' + this.t('amendmentType_' + record.amendmentType, record.amendmentType) : ''))}</span>` : ''}</td>
         <td class="font-mono-tech text-xs">${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)}</td>
         <td class="font-bold">${record.durationDays ?? window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays)}</td>
         <td class="font-mono-tech">${this.balanceAfter(record)}</td><td>${impact}</td><td>${this.statusBadge(record.status)}</td>
@@ -428,6 +428,18 @@ const LeaveModule = {
     const blocking = this.state.alerts.filter((alert) => alert.severity === 'error' && alert.code === 'balance_exceeded');
     if (blocking.length && record.status !== 'draft') return app.showToast(this.t('fixBlockingAlerts', 'Corrigez les alertes bloquantes (solde dépassé) ou laissez la demande en brouillon.'), 'error');
     await sariDB.save('leaveRequests', record);
+    // Section 315 — approved amendments (postpone/modify/cancel) are applied to the original request.
+    if (record.amendmentTargetId && !record.amendmentApplied && ['approved', 'taken'].includes(record.status)) {
+      const original = await sariDB.getById('leaveRequests', record.amendmentTargetId);
+      if (original) {
+        const applied = window.SariCore.leave.applyLeaveAmendment(original, record);
+        await sariDB.save('leaveRequests', applied.original);
+        await sariDB.save('leaveRequests', applied.amendment);
+        this.state.records = this.state.records.map((item) => item.id === applied.original.id ? applied.original : item.id === applied.amendment.id ? applied.amendment : item);
+        await sariDB.save('notifications', { id: `notif-${crypto.randomUUID()}`, type: 'leave', targetUserId: this.employee(original.employeeId)?.userId || null, title: this.t('amendmentAppliedTitle', 'Modification de congé appliquée'), titleI18n: { fr: 'Modification de congé appliquée', ar: 'تم تطبيق تعديل الإجازة', en: 'Leave change applied' }, message: `${original.employeeName} — ${i18n.formatDate(original.startDate)} → ${i18n.formatDate(original.endDate)}`, isRead: false, createdAt: new Date().toISOString() });
+        await app.updateNotificationsBadge();
+      }
+    }
     await this.reconcileAdjustments();
     this.closeEditor();
     app.showToast(this.t('leaveSaved', 'Demande de congé enregistrée et fiches de paie synchronisées.'), 'success');
@@ -455,6 +467,7 @@ const LeaveModule = {
         <div><small class="text-slate-400">${this.t('status', 'Statut')}</small><b class="block">${this.statusLabel(record.status)}</b></div>
         <div><small class="text-slate-400">${this.t('balanceAfter', 'Solde après')}</small><b class="block font-mono-tech">${this.balanceAfter(record)}</b></div>
         <div class="sm:col-span-2"><small class="text-slate-400">${this.t('justification', 'Motif')}</small><p class="mt-1">${SariUtils.escapeHtml(record.reason || '—')}</p></div>
+        ${record.amendmentTargetId ? `<div class="sm:col-span-2 p-3 rounded-xl border border-sari-amber/50 bg-sari-amber/5"><b class="text-sari-amber text-xs"><i data-lucide="arrow-right-left" class="w-3 h-3 inline"></i> ${this.t('leaveAmendment','Demande de modification')} — ${this.t('amendmentType_' + (record.amendmentType||'modify'), record.amendmentType || 'modify')}${record.amendmentApplied ? ' ✓' : ''}</b><p class="text-[11px] text-slate-500 mt-1">${this.t('amendmentTargets','Porte sur le congé')} ${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)}</p></div>` : ''}
         ${record.deductionAmount ? `<div class="sm:col-span-2 p-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-500/10"><b class="text-red-600 text-xs">${this.t('unpaidDeduction', 'Retenue appliquée')} : ${i18n.formatCurrency(record.deductionAmount)}</b><p class="text-[11px] text-slate-500">${this.t('adjustedPeriods', 'Périodes de paie ajustées')} : ${(record.adjustedPeriods || []).join(', ')}</p></div>` : ''}
         <div class="sm:col-span-2 text-xs text-slate-400">${this.t('requestedAt', 'Demandée le')} ${i18n.formatDate(record.requestedAt)}${record.decidedBy ? ` • ${this.t('processedBy', 'Traitée par')} ${SariUtils.escapeHtml(record.decidedBy)} (${i18n.formatDate(record.decidedAt)})` : ''}</div>
       </div>
