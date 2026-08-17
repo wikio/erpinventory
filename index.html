@@ -8,7 +8,12 @@
   <!-- PWA Manifest & Theme -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#009CC5" />
-  <link rel="icon" type="image/svg+xml" href="/assets/icon-192.svg" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SARI ERP" />
+  <link id="sari-favicon" rel="icon" type="image/svg+xml" href="/assets/icon-192.svg" />
+  <link id="sari-apple-touch-icon" rel="apple-touch-icon" href="/assets/icon-192.svg" />
 
   <!-- Compiled Tailwind, self-hosted fonts/icons and application bundles are
        emitted by Vite from this single ES-module entry. No runtime CDN. -->
@@ -25,9 +30,9 @@
           <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-3">
               <div class="w-11 h-11 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center">
-                <svg class="w-7 h-7 text-white" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true"><path d="M216 128h80v88h88v80h-88v88h-80v-88h-88v-80h88z"/></svg>
+                <img id="sari-login-logo" data-sari-site-logo class="hidden w-9 h-9 object-contain" alt="Logo SARI" /><svg data-sari-default-logo class="w-7 h-7 text-white" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true"><path d="M216 128h80v88h88v80h-88v88h-80v-88h-88v-80h88z"/></svg>
               </div>
-              <div><div class="font-black tracking-tight">SARI SYSTÈME</div><div class="text-[10px] text-cyan-100 uppercase tracking-widest">Espace professionnel sécurisé</div></div>
+              <div><div id="login-company-name" class="font-black tracking-tight">SARI SYSTÈME</div><div id="login-company-subtitle" class="text-[10px] text-cyan-100 uppercase tracking-widest">Distribution Matériel Médical & Consommables</div></div>
             </div>
             <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-lime-300 text-slate-900">ALGÉRIE</span>
           </div>
@@ -77,27 +82,28 @@
   </div>
 
   <!-- Top System Bar (Full Width 100%) -->
-  <header class="w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 sticky top-0 z-40 no-print flex items-center justify-between gap-4">
+  <header class="sari-topbar w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 no-print">
     <!-- Left: Brand Title & Mobile Menu Button -->
-    <div class="flex items-center gap-3">
+    <div class="topbar-brand-zone flex items-center gap-3">
       <button
+        id="topbar-hamburger"
         onclick="window.app.toggleMobileSidebar()"
-        class="lg:hidden p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+        class="topbar-hamburger lg:hidden rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
       >
         <i data-lucide="menu" class="w-5 h-5"></i>
       </button>
 
-      <div class="flex items-center gap-2.5 cursor-pointer" onclick="window.app.navigate('dashboard')">
-        <div class="w-9 h-9 rounded-xl bg-sari-blue flex items-center justify-center shadow-sm text-white border-2 border-sari-lime">
-          <img id="sari-site-logo" class="hidden w-7 h-7 object-contain" alt="Logo SARI" />
-          <svg id="sari-default-logo" class="w-5 h-5" viewBox="0 0 512 512" fill="currentColor"><path d="M 216 128 H 296 V 216 H 384 V 296 H 296 V 384 H 216 V 296 H 128 V 216 H 216 Z" /></svg>
+      <div class="topbar-brand flex items-center gap-2.5 cursor-pointer" onclick="window.app.navigate('dashboard')">
+        <div class="topbar-logo-shell w-9 h-9 rounded-xl bg-sari-blue flex items-center justify-center shadow-sm text-white border-2 border-sari-lime">
+          <img id="sari-site-logo" data-sari-site-logo class="hidden w-7 h-7 object-contain" alt="Logo SARI" />
+          <svg id="sari-default-logo" data-sari-default-logo class="w-5 h-5" viewBox="0 0 512 512" fill="currentColor"><path d="M 216 128 H 296 V 216 H 384 V 296 H 296 V 384 H 216 V 296 H 128 V 216 H 216 Z" /></svg>
         </div>
-        <div>
+        <div class="topbar-brand-copy">
           <div class="flex items-center gap-2">
-            <span class="text-base font-black text-slate-900 dark:text-white tracking-tight" data-i18n="appName">SARI SYSTÈME</span>
-            <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-sari-lime text-slate-900 rounded">ALGÉRIE</span>
+            <span id="header-company-name" class="text-base font-black text-slate-900 dark:text-white tracking-tight">SARI SYSTÈME</span>
+            <span class="topbar-country text-[10px] uppercase font-bold px-1.5 py-0.5 bg-sari-lime text-slate-900 rounded">ALGÉRIE</span>
           </div>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block" data-i18n="appSubtitle">
+          <p id="header-company-subtitle" class="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
             Distribution Matériel Médical & Consommables
           </p>
         </div>
@@ -105,19 +111,19 @@
     </div>
 
     <!-- Right: Global Search, Network Badge, Sync, Notifications, Language, Themes, Role -->
-    <div class="flex flex-wrap items-center gap-2 justify-end">
+    <div class="topbar-actions flex items-center gap-2 justify-end">
       <!-- Global Search Button -->
       <button
         onclick="window.app.openGlobalSearchModal()"
         title="Recherche Rapide (Ctrl+K)"
-        class="sari-btn px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold"
+        class="topbar-search sari-btn px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold"
       >
         <i data-lucide="search" class="w-3.5 h-3.5 text-sari-blue"></i>
         <span class="hidden md:inline">Recherche (Ctrl+K)</span>
       </button>
 
       <!-- Network Connectivity Badge -->
-      <div id="sari-network-badge" class="flex items-center px-2.5 py-1 rounded-lg border text-xs font-bold border-sari-lime text-sari-lime-dark bg-slate-50 dark:bg-slate-800/80">
+      <div id="sari-network-badge" class="topbar-secondary topbar-network flex items-center px-2.5 py-1 rounded-lg border text-xs font-bold border-sari-lime text-sari-lime-dark bg-slate-50 dark:bg-slate-800/80">
         <span id="sari-network-dot" class="w-2 h-2 rounded-full bg-sari-lime mr-1.5 animate-pulse"></span>
         <span id="sari-network-text" data-i18n="online">En Ligne</span>
         <button
@@ -131,7 +137,7 @@
 
       <!-- Sync Queue Button & Count -->
       <button
-        id="sari-sync-btn"
+        id="sari-sync-btn" data-topbar-secondary
         onclick="window.syncController.processSyncQueue()"
         title="Synchroniser la file d'attente hors-ligne"
         class="sari-btn px-2 py-1.5 bg-sari-blue/10 text-sari-blue text-xs font-bold opacity-50 flex items-center gap-1"
@@ -144,14 +150,14 @@
       <button
         onclick="window.app.openNotificationsModal()"
         title="Centre de Notifications"
-        class="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+        class="topbar-icon-button relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
       >
         <i data-lucide="bell" class="w-4 h-4"></i>
         <span id="sari-notif-badge" class="hidden absolute top-1 right-1 bg-sari-amber text-slate-900 text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-extrabold"></span>
       </button>
 
       <!-- Trilingual Language Switcher (FR / AR / EN) -->
-      <div class="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-bold">
+      <div class="topbar-language flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-bold">
         <button onclick="i18n.setLanguage('fr')" data-lang-btn="fr" class="px-2 py-1 bg-sari-blue text-white">FR</button>
         <button onclick="i18n.setLanguage('ar')" data-lang-btn="ar" class="px-2 py-1 text-slate-600 dark:text-slate-300">AR</button>
         <button onclick="i18n.setLanguage('en')" data-lang-btn="en" class="px-2 py-1 text-slate-600 dark:text-slate-300">EN</button>
@@ -161,16 +167,16 @@
       <button
         onclick="window.app.navigate('settings'); setTimeout(() => SettingsModule.setTab('themes'), 100);"
         title="4 Thèmes Natifs Apple Style"
-        class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-xs font-semibold"
+        class="topbar-secondary topbar-icon-button p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-xs font-semibold"
       >
         <i data-lucide="palette" class="w-4 h-4 text-sari-blue"></i>
       </button>
 
       <!-- Inline translation mode toggle -->
-      <button id="inline-translation-toggle" onclick="TranslationOverlay.toggleMode()" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sari-blue" aria-pressed="false" title="Activer la traduction en ligne"><i data-lucide="languages" class="w-4 h-4"></i></button>
+      <button id="inline-translation-toggle" onclick="TranslationOverlay.toggleMode()" class="topbar-secondary topbar-icon-button p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sari-blue" aria-pressed="false" title="Activer la traduction en ligne"><i data-lucide="languages" class="w-4 h-4"></i></button>
 
       <!-- Authenticated-user profile menu and server-issued role -->
-      <div id="sari-profile-menu-wrap" class="relative flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
+      <div id="sari-profile-menu-wrap" class="topbar-profile relative flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
         <button id="sari-profile-menu-trigger" onclick="auth.toggleProfileMenu(event)" class="flex items-center gap-2 px-1 min-w-0" aria-haspopup="menu" aria-expanded="false" title="Mon profil">
           <div class="w-7 h-7 rounded-full bg-sari-blue/15 flex items-center justify-center overflow-hidden"><img id="sari-active-user-avatar" class="hidden w-full h-full object-cover" alt="Photo utilisateur"><i id="sari-active-user-avatar-fallback" data-lucide="user-round-check" class="w-3.5 h-3.5 text-sari-blue"></i></div>
           <div class="hidden xl:block leading-tight max-w-40 text-left rtl:text-right">
@@ -183,6 +189,15 @@
         <div id="sari-profile-menu" class="profile-dropdown hidden" role="menu" aria-labelledby="sari-profile-menu-trigger">
           <button onclick="auth.closeProfileMenu();auth.openProfileView()" role="menuitem"><i data-lucide="contact-round"></i><span data-i18n="viewMyProfile">Consulter mon profil</span></button>
           <button onclick="auth.closeProfileMenu();auth.openPasswordUpdate()" role="menuitem"><i data-lucide="lock-keyhole"></i><span data-i18n="updatePassword">Mettre à jour le mot de passe</span></button>
+        </div>
+      </div>
+      <div class="topbar-overflow-wrap relative">
+        <button id="topbar-overflow-trigger" type="button" class="topbar-icon-button topbar-overflow-trigger" onclick="app.toggleTopbarOverflow(event)" title="Plus d’actions" aria-haspopup="menu" aria-expanded="false"><i data-lucide="more-horizontal"></i></button>
+        <div id="topbar-overflow-menu" class="topbar-overflow-menu hidden" role="menu">
+          <button type="button" onclick="app.closeTopbarOverflow();app.openGlobalSearchModal()"><i data-lucide="search"></i><span>Recherche</span></button>
+          <button type="button" onclick="app.closeTopbarOverflow();syncController.processSyncQueue()"><i data-lucide="refresh-cw"></i><span>Synchroniser</span></button>
+          <button type="button" onclick="app.closeTopbarOverflow();app.navigate('settings');setTimeout(()=>SettingsModule.setTab('themes'),100)"><i data-lucide="palette"></i><span>Thèmes</span></button>
+          <button type="button" onclick="app.closeTopbarOverflow();TranslationOverlay.toggleMode()"><i data-lucide="languages"></i><span>Traduction</span></button>
         </div>
       </div>
     </div>
@@ -313,6 +328,9 @@
       </div>
     </main>
   </div>
+
+  <!-- Role-aware mobile primary navigation (populated at runtime) -->
+  <nav id="sari-mobile-bottom-nav" class="mobile-bottom-nav no-print" aria-label="Navigation mobile principale"></nav>
 
   <!-- Footer (100% Full Width) -->
   <footer class="w-full border-t border-slate-200 dark:border-slate-800 py-4 px-6 text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 no-print">

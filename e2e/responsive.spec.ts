@@ -40,3 +40,31 @@ test('dense inventory table becomes readable cards on mobile', async ({ page }, 
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('mobile-inventory-cards.png'), fullPage: true });
 });
+
+test('topbar keeps fixed proportions and no overflow at required breakpoints', async ({ page }) => {
+  const widths = [320, 375, 768, 1024, 1280];
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width <= 375 ? 700 : 820 });
+    await page.waitForTimeout(100);
+    const metrics = await page.evaluate(() => {
+      const logo = document.querySelector('.topbar-logo-shell') as HTMLElement;
+      const header = document.querySelector('.sari-topbar') as HTMLElement;
+      const hamburger = document.getElementById('topbar-hamburger') as HTMLElement;
+      const iconButtons = [...document.querySelectorAll('.topbar-icon-button')] as HTMLElement[];
+      return {
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        logoWidth: logo?.getBoundingClientRect().width || 0,
+        logoHeight: logo?.getBoundingClientRect().height || 0,
+        headerRight: header?.getBoundingClientRect().right || 0,
+        hamburgerSize: getComputedStyle(hamburger).display === 'none' ? 0 : Math.min(hamburger.getBoundingClientRect().width, hamburger.getBoundingClientRect().height),
+        minIconSize: iconButtons.filter(button => getComputedStyle(button).display !== 'none').reduce((min, button) => Math.min(min, button.getBoundingClientRect().width, button.getBoundingClientRect().height), 999),
+      };
+    });
+    expect(metrics.overflow, `overflow at ${width}px`).toBeLessThanOrEqual(1);
+    expect(metrics.logoWidth, `logo width at ${width}px`).toBeGreaterThanOrEqual(35);
+    expect(metrics.logoHeight, `logo height at ${width}px`).toBeGreaterThanOrEqual(35);
+    expect(metrics.headerRight, `header clipping at ${width}px`).toBeLessThanOrEqual(width + 1);
+    if (width <= 640) expect(metrics.hamburgerSize, `hamburger at ${width}px`).toBeGreaterThanOrEqual(44);
+    expect(metrics.minIconSize, `icon target at ${width}px`).toBeGreaterThanOrEqual(36);
+  }
+});

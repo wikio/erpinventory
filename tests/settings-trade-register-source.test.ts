@@ -1,0 +1,9 @@
+import {describe,expect,it} from 'vitest';
+import {readFileSync} from 'node:fs';import {join} from 'node:path';
+const source=(file:string)=>readFileSync(join(process.cwd(),file),'utf8');
+describe('Company settings trade-register source',()=>{
+  it('loads the same tradeRegisters store managed by Commerce Direction',()=>{const settings=source('js/modules/settings.js'),commerce=source('js/modules/commerce-direction.js');expect(settings).toContain("'tradeRegisters'");expect(commerce).toContain("sariDB.getAll(store)");expect(commerce).toContain("'tradeRegisters'");expect(settings).toContain('Registre de commerce géré par la Direction de Commerce');});
+  it('shows business labels while storing stable register IDs',()=>{const settings=source('js/modules/settings.js');expect(settings).toContain('ManagedAutocomplete.html');expect(settings).toContain('item.registerNumber');expect(settings).toContain('item.legalName');expect(settings).toContain('valueFor:item=>item.id');expect(settings).toContain("selectedTradeRegisterId: document.getElementById('cfg-rc-autocomplete')?.value");});
+  it('prefills fiscal fields and links to the Commerce Direction manager',()=>{const settings=source('js/modules/settings.js');expect(settings).toContain('applyTradeRegister');for(const field of ['cfg-name','cfg-addr','cfg-nif','cfg-rc','cfg-ai','cfg-nis'])expect(settings).toContain(`'${field}'`);expect(settings).toContain('openTradeRegisterManager');expect(settings).toContain("CommerceDirectionModule.state.tab='tradeRegisters'");});
+  it('supports optional managed autocomplete values without exposing IDs',()=>{const autocomplete=source('js/managed-autocomplete.js');expect(autocomplete).toContain("onChange=''");expect(autocomplete).toContain('current?labelFor(current)');expect(autocomplete).toContain("option?.dataset.code||''");expect(autocomplete).toContain("!required&&!input.value");});
+});

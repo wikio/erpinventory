@@ -16,7 +16,9 @@ const LeaveModule = {
     suggestions: [], alerts: [],
   },
   t(key, fallback) { return i18n.t(key, fallback); },
-  canWrite() { return auth.can('leaves', 'edit'); },
+  isAdmin() { return auth.currentRole === 'admin'; },
+  canWrite() { return this.isAdmin() && auth.can('leaves', 'edit'); },
+  currentEmployee() { return this.state.employees.find((employee) => employee.userId === auth.currentUser?.id); },
 
   async load() {
     const [employees, types, holidays, records, worked, payslips, salaryHistory, attendance, paymentTypes, settings, holidayConfig] = await Promise.all([
@@ -47,14 +49,13 @@ const LeaveModule = {
     const c = document.getElementById(containerId); if (!c) return;
     await this.load();
     const canWrite = this.canWrite();
-    const tabs = [
-      ['requests', 'calendar-clock', 'leaveRequests'],
-      ['calendar', 'calendar-days', 'leaveCalendar'],
-      ['comparison', 'users-round', 'leaveComparison'],
-      ['types', 'list-todo', 'leaveTypesLabel'],
-      ['holidays', 'party-popper', 'publicHolidays'],
-      ['configuration', 'settings-2', 'leaveConfiguration'],
+    const allTabs = [
+      ['requests', 'calendar-clock', 'leaveRequests'], ['calendar', 'calendar-days', 'leaveCalendar'],
+      ['comparison', 'users-round', 'leaveComparison'], ['types', 'list-todo', 'leaveTypesLabel'],
+      ['holidays', 'party-popper', 'publicHolidays'], ['configuration', 'settings-2', 'leaveConfiguration'],
     ];
+    const tabs = this.isAdmin() ? allTabs : allTabs.filter(([tab]) => ['requests', 'calendar'].includes(tab));
+    if (!tabs.some(([tab]) => tab === this.state.tab)) this.state.tab = 'calendar';
     c.innerHTML = `<div class="space-y-5">
       <section class="sari-tile p-5 sari-grid-pattern flex flex-col md:flex-row justify-between gap-4">
         <div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${this.t('hrLeaveBadge', 'Ressources humaines • Congés')}</span>
@@ -72,7 +73,7 @@ const LeaveModule = {
     </div>`;
     window.SariIcons?.hydrate(); app.enhanceSearchInputs();
   },
-  setTab(tab) { this.state.tab = tab; this.render(); },
+  setTab(tab) { if (!this.isAdmin() && !['requests','calendar'].includes(tab)) return app.showToast('Configuration réservée aux administrateurs.','warning'); this.state.tab = tab; this.render(); },
 
   tabHtml(canWrite) {
     const map = {
@@ -100,7 +101,9 @@ const LeaveModule = {
     return `<span class="sari-badge ${colors[status] || ''}">${SariUtils.escapeHtml(this.statusLabel(status))}</span>`;
   },
   requestsHtml(canWrite) {
+    const ownEmployee = this.currentEmployee();
     const rows = window.SariCore.ordering.stableOrder(this.state.records).filter((record) =>
+      (this.isAdmin() || (ownEmployee && record.employeeId === ownEmployee.id)) &&
       (this.state.employee === 'all' || record.employeeId === this.state.employee)
       && (this.state.status === 'all' || record.status === this.state.status)
       && (this.state.type === 'all' || record.typeId === this.state.type)
@@ -108,11 +111,11 @@ const LeaveModule = {
     return `<div class="space-y-4">
       <section class="sari-tile p-4 grid md:grid-cols-[1fr_200px_180px_180px] gap-2">
         <input class="doc-input" value="${SariUtils.escapeHtml(this.state.query)}" oninput="LeaveModule.state.query=this.value" onkeydown="SariUtils.searchKeyHandler(event,()=>LeaveModule.render())" placeholder="${this.t('searchLeave', 'Rechercher un congé, un salarié, un motif')}">
-        <select class="doc-input" onchange="LeaveModule.state.employee=this.value;LeaveModule.render()"><option value="all">${this.t('allEmployees', 'Tous les salariés')}</option>${this.state.employees.map((employee) => `<option value="${employee.id}" ${this.state.employee === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)}</option>`).join('')}</select>
+        ${this.isAdmin() ? `<select class="doc-input" onchange="LeaveModule.state.employee=this.value;LeaveModule.render()"><option value="all">${this.t('allEmployees', 'Tous les salariés')}</option>${this.state.employees.map((employee) => `<option value="${employee.id}" ${this.state.employee === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)}</option>`).join('')}</select>` : '<div class="doc-input bg-slate-50 text-slate-500">Mes demandes uniquement</div>'}
         <select class="doc-input" onchange="LeaveModule.state.type=this.value;LeaveModule.render()"><option value="all">${this.t('allLeaveTypes', 'Tous les types')}</option>${this.state.types.map((type) => `<option value="${type.id}" ${this.state.type === type.id ? 'selected' : ''}>${SariUtils.escapeHtml(this.typeName(type.id))}</option>`).join('')}</select>
         <select class="doc-input" onchange="LeaveModule.state.status=this.value;LeaveModule.render()"><option value="all">${this.t('allStatuses', 'Tous les statuts')}</option>${['draft', 'submitted', 'approved', 'taken', 'rejected', 'cancelled'].map((status) => `<option value="${status}" ${this.state.status === status ? 'selected' : ''}>${this.statusLabel(status)}</option>`).join('')}</select>
       </section>
-      ${canWrite ? `<button onclick="LeaveModule.openEditor()" class="sari-btn px-4 py-2 bg-sari-blue text-white"><i data-lucide="plus"></i>${this.t('newLeaveRequest', 'Nouvelle demande de congé')}</button>` : ''}
+      ${(canWrite || ownEmployee) ? `<button onclick="LeaveModule.openEditor()" class="sari-btn px-4 py-2 bg-sari-blue text-white"><i data-lucide="plus"></i>${this.t('newLeaveRequest', 'Nouvelle demande de congé')}</button>` : ''}
       <section class="sari-tile overflow-x-auto"><table class="w-full sari-table"><thead><tr>
         <th>${this.t('orderLabel', 'Ordre')}</th><th>${this.t('reference', 'Référence')}</th><th>${this.t('employee', 'Salarié')}</th><th>${this.t('leaveType', 'Type')}</th><th>${this.t('leavePeriod', 'Période')}</th><th>${this.t('durationDays', 'Jours')}</th><th>${this.t('balanceAfter', 'Solde après')}</th><th>${this.t('payrollImpact', 'Impact paie')}</th><th>${this.t('status', 'Statut')}</th><th>${this.t('actionsHeader', 'Actions')}</th>
       </tr></thead><tbody>${rows.map((record) => {
@@ -125,14 +128,14 @@ const LeaveModule = {
         <td class="font-mono-tech text-xs">${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)}</td>
         <td class="font-bold">${record.durationDays ?? window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays)}</td>
         <td class="font-mono-tech">${this.balanceAfter(record)}</td><td>${impact}</td><td>${this.statusBadge(record.status)}</td>
-        <td><div class="flex flex-wrap gap-1"><button onclick="LeaveModule.viewRequest('${record.id}')" class="doc-action">${this.t('view', 'Voir')}</button><button onclick="DocumentManager.open('leaveRequest','${record.id}','${SariUtils.escapeHtml(record.referenceCode || record.id)}')" class="doc-action">GED</button>${canWrite ? `<button onclick="LeaveModule.openEditor('${record.id}')" class="doc-action">${this.t('edit', 'Modifier')}</button><button onclick="LeaveModule.removeRequest('${record.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button>` : ''}</div></td></tr>`;
+        <td><div class="flex flex-wrap gap-1"><button onclick="LeaveModule.viewRequest('${record.id}')" class="doc-action">${this.t('view', 'Voir')}</button><button onclick="DocumentManager.open('leaveRequest','${record.id}','${SariUtils.escapeHtml(record.referenceCode || record.id)}')" class="doc-action">GED</button>${canWrite || (!this.isAdmin() && ['draft','submitted'].includes(record.status)) ? `<button onclick="LeaveModule.openEditor('${record.id}')" class="doc-action">${this.t('edit', 'Modifier')}</button><button onclick="LeaveModule.removeRequest('${record.id}')" class="doc-action text-red-600">${this.t('delete', 'Supprimer')}</button>` : ''}</div></td></tr>`;
       }).join('') || `<tr><td colspan="10" class="p-8 text-slate-400">${this.t('noLeaveRequest', 'Aucune demande de congé.')}</td></tr>`}</tbody></table></section>
     </div>`;
   },
 
   /* ─────────────────────────── 300.1 Payslip auto-adjustment ─────────────────────────── */
   leaveBalanceUsed(employeeId, year) {
-    return this.state.records.filter((record) => record.employeeId === employeeId && this.type(record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
+    return this.state.records.filter((record) => record.employeeId === employeeId && this.type(record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel' && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
   },
   balanceFor(employeeId, typeId) {
     const type = this.type(typeId); if (!type || type.deductsBalance === false || !Number(type.daysPerYear)) return null;
@@ -189,7 +192,7 @@ const LeaveModule = {
   async doReconcile() {
     const engine = window.SariCore.leave;
     if (!engine) return;
-    const activeLeaves = this.state.records.filter((record) => ['approved', 'taken'].includes(record.status));
+    const activeLeaves = this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel');
     const activeWorked = this.state.worked.filter((record) => record.status !== 'cancelled');
     const touched = new Set();
     // 1. Strip previously derived data.
@@ -279,6 +282,7 @@ const LeaveModule = {
   /* ──────────────────── 300.2 Editor with live alerts & suggestions ──────────────────── */
   async openEditor(id = '', preset = null) {
     const record = id ? await sariDB.getById('leaveRequests', id) : (preset || {});
+    if(!this.isAdmin()&&id&&record.employeeId!==this.currentEmployee()?.id)return app.showToast('Accès interdit à cette demande.','error');
     this.state.editing = { ...record };
     this.state.editingOld = { ...record };
     this.state.suggestions = []; this.state.alerts = [];
@@ -292,7 +296,7 @@ const LeaveModule = {
           <div class="space-y-4">
             <div class="grid md:grid-cols-2 gap-3">
               <label class="doc-label">${this.t('employee', 'Salarié')} *
-                <select id="lv-employee" class="doc-input" required onchange="LeaveModule.refreshValidation()">${this.state.employees.map((employee) => `<option value="${employee.id}" ${this.state.editing.employeeId === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)} — ${SariUtils.escapeHtml(employee.department || '')}</option>`).join('')}</select></label>
+                <select id="lv-employee" class="doc-input" required ${this.isAdmin() ? '' : 'disabled'} onchange="LeaveModule.refreshValidation()">${this.state.employees.filter((employee) => this.isAdmin() || employee.id === this.currentEmployee()?.id).map((employee) => `<option value="${employee.id}" ${(this.state.editing.employeeId || this.currentEmployee()?.id) === employee.id ? 'selected' : ''}>${SariUtils.escapeHtml(`${employee.firstName} ${employee.lastName}`)} — ${SariUtils.escapeHtml(employee.department || '')}</option>`).join('')}</select></label>
               <label class="doc-label">${this.t('leaveType', 'Type de congé')} *
                 <select id="lv-type" class="doc-input" required onchange="LeaveModule.onTypeChange()">${this.state.types.filter((type) => type.isActive !== false).map((type) => `<option value="${type.id}" ${this.state.editing.typeId === type.id ? 'selected' : ''}>${SariUtils.escapeHtml(this.typeName(type.id))}</option>`).join('')}</select></label>
               <label class="doc-label">${this.t('startDate', 'Date début')} *
@@ -301,7 +305,7 @@ const LeaveModule = {
                 <input id="lv-end" type="date" class="doc-input" value="${this.state.editing.endDate || ''}" required onchange="LeaveModule.refreshValidation()"></label>
               <label class="doc-label">${this.t('durationDays', 'Jours ouvrés décomptés')}<input id="lv-duration" type="number" min="0" step="0.5" class="doc-input" value="${this.state.editing.durationDays ?? ''}" onchange="LeaveModule.refreshValidation()"></label>
               <label class="doc-label">${this.t('status', 'Statut')}
-                <select id="lv-status" class="doc-input" onchange="LeaveModule.refreshValidation()">${['draft', 'submitted', 'approved', 'taken', 'rejected', 'cancelled'].map((status) => `<option value="${status}" ${this.state.editing.status === status ? 'selected' : ''}>${this.statusLabel(status)}</option>`).join('')}</select></label>
+                <select id="lv-status" class="doc-input" ${this.isAdmin() ? '' : 'disabled'} onchange="LeaveModule.refreshValidation()">${['draft', 'submitted', 'approved', 'taken', 'rejected', 'cancelled'].map((status) => `<option value="${status}" ${this.state.editing.status === status ? 'selected' : ''}>${this.statusLabel(status)}</option>`).join('')}</select></label>
               <label class="doc-label flex items-center gap-2 pt-4"><input id="lv-paid" type="checkbox" ${this.state.editing.isPaid !== false ? 'checked' : ''} onchange="LeaveModule.refreshValidation()"> ${this.t('paidLeave', 'Congé payé (aucune retenue de salaire)')}</label>
               <label class="doc-label">${this.t('justification', 'Justificatif / motif')} <textarea id="lv-reason" class="doc-input" rows="2">${SariUtils.escapeHtml(this.state.editing.reason || '')}</textarea></label>
             </div>
@@ -338,12 +342,12 @@ const LeaveModule = {
     const end = document.getElementById('lv-end')?.value || '';
     const autoDays = window.SariCore.leave.paidWorkingDaysBetween(start, end, this.state.schedule, this.state.holidays);
     return {
-      employeeId: document.getElementById('lv-employee')?.value || '',
+      employeeId: document.getElementById('lv-employee')?.value || this.currentEmployee()?.id || '',
       typeId: document.getElementById('lv-type')?.value || '',
       startDate: start, endDate: end,
       durationDays: Number(durationRaw) > 0 ? Number(durationRaw) : autoDays,
       isPaid: document.getElementById('lv-paid')?.checked !== false,
-      status: document.getElementById('lv-status')?.value || 'draft',
+      status: this.isAdmin() ? (document.getElementById('lv-status')?.value || 'draft') : (this.state.editing?.status || 'submitted'),
       reason: document.getElementById('lv-reason')?.value || '',
     };
   },
@@ -427,13 +431,25 @@ const LeaveModule = {
     if (['approved', 'taken'].includes(record.status) && !old.decidedAt) { record.decidedBy = auth.currentUser?.name || auth.currentUser?.username || 'SARI'; record.decidedAt = new Date().toISOString(); }
     const blocking = this.state.alerts.filter((alert) => alert.severity === 'error' && alert.code === 'balance_exceeded');
     if (blocking.length && record.status !== 'draft') return app.showToast(this.t('fixBlockingAlerts', 'Corrigez les alertes bloquantes (solde dépassé) ou laissez la demande en brouillon.'), 'error');
+    // Section 315: approving a linked change atomically supersedes the old
+    // approved leave. A rejected change leaves the original untouched.
+    if (record.parentRequestId && ['approved', 'taken'].includes(record.status) && !['approved', 'taken'].includes(old.status)) {
+      const parent = await sariDB.getById('leaveRequests', record.parentRequestId);
+      if (parent) {
+        parent.status = 'cancelled'; parent.supersededBy = record.id; parent.updatedAt = new Date().toISOString();
+        parent.cancellationReason = record.changeReason; await sariDB.save('leaveRequests', parent);
+      }
+      record.changeAppliedAt = new Date().toISOString();
+    }
     await sariDB.save('leaveRequests', record);
+    this.state.records = await sariDB.getAll('leaveRequests');
     await this.reconcileAdjustments();
     this.closeEditor();
     app.showToast(this.t('leaveSaved', 'Demande de congé enregistrée et fiches de paie synchronisées.'), 'success');
     await this.render();
   },
   async removeRequest(id) {
+    const target=await sariDB.getById('leaveRequests',id);if(!this.isAdmin()&&(target?.employeeId!==this.currentEmployee()?.id||!['draft','submitted'].includes(target?.status)))return app.showToast('Suppression non autorisée.','error');
     if (!await DialogManager.confirm(this.t('deleteLeaveConfirm', 'Supprimer cette demande de congé ? Les ajustements de paie correspondants seront annulés.'))) return;
     await sariDB.delete('leaveRequests', id);
     this.state.records = this.state.records.filter((record) => record.id !== id);
@@ -464,7 +480,7 @@ const LeaveModule = {
 
   /* ──────────────────────────────── 302 Leave calendar ──────────────────────────────── */
   activeLeaveOn(date) {
-    return this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && date >= record.startDate && date <= record.endDate);
+    return this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel' && date >= record.startDate && date <= record.endDate);
   },
   calendarHtml() {
     const [year, month] = this.state.month.split('-').map(Number);
@@ -472,7 +488,10 @@ const LeaveModule = {
     const engine = window.SariCore.leave;
     // Section 307 — Sunday-first week with the configured weekend days always
     // displayed last (recomputed from the live work-schedule configuration).
-    const dayOrder = engine.weekColumnOrder(this.state.schedule);
+    const configuredDayOrder = engine.weekColumnOrder(this.state.schedule);
+    // Section 322: keep labels, dates and colours in strict chronological order.
+    // Friday/Saturday are therefore adjacent at the end of the Sunday-first week.
+    const dayOrder = [0, 1, 2, 3, 4, 5, 6];
     const workingSet = new Set(this.state.schedule?.workingDays?.length ? this.state.schedule.workingDays : [0, 1, 2, 3, 4]);
     const dayLabels = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayFallbacks = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -849,8 +868,8 @@ const LeaveModule = {
       </form>
       <section class="sari-tile p-5"><header class="flex justify-between border-b pb-3"><div><h3 class="font-extrabold text-lg flex gap-2"><i data-lucide="banknote" class="text-sari-lime-dark"></i>${this.t('paymentTypesLabel', 'Types de paiement')}</h3>
         <p class="text-xs text-slate-500 mt-1">${this.t('paymentTypesHelp', 'Journalier, hebdomadaire, mensuel, annuel et Occasionnel / Pigiste avec ses règles de retenue algériennes.')}</p></div>
-        ${canWrite ? `<button onclick="LeaveModule.editPaymentType()" class="doc-action">${this.t('addPaymentType', '+ Ajouter')}</button>` : ''}</section>
-        <div class="space-y-2 mt-4">${this.state.paymentTypes.map((type) => `<article class="p-3 rounded-xl border ${type.isActive === false ? 'opacity-50' : ''}">
+        ${canWrite ? `<button onclick="LeaveModule.editPaymentType()" class="doc-action">${this.t('addPaymentType', '+ Ajouter')}</button>` : ''}</header>
+        <div id="payment-types-list" class="space-y-2 mt-4">${this.state.paymentTypes.map((type) => `<article class="p-3 rounded-xl border ${type.isActive === false ? 'opacity-50' : ''}">
           <div class="flex justify-between gap-2"><div><b>${SariUtils.escapeHtml(type.name?.[i18n.currentLang] || type.name?.fr || type.code)}</b><small class="block font-mono-tech text-sari-blue text-[10px]">${type.cycle}</small></div>
           ${type.isPiecework ? `<span class="sari-badge bg-sari-amber/15 text-sari-amber">${this.t('nonCnas', 'Non CNAS')}</span>` : `<span class="sari-badge text-green-700">CNAS</span>`}</div>
           ${type.isPiecework ? `<div class="mt-2 p-2 rounded-lg bg-sari-amber/5 border border-sari-amber/30 text-[10px]"><b>${this.t('retentionRate', 'Retenue à la source IRG')} : ${Math.round((type.irgWithholdingRate ?? 0.15) * 100)}%</b><p class="text-slate-500 mt-0.5">${SariUtils.escapeHtml(type.legalNotesI18n?.[i18n.currentLang] || type.legalNotesI18n?.fr || '')}</p></div>` : `<p class="text-[10px] text-slate-500 mt-1">${SariUtils.escapeHtml(type.legalNotesI18n?.[i18n.currentLang] || type.legalNotesI18n?.fr || '')}</p>`}

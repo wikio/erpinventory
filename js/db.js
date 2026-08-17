@@ -5,7 +5,8 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 19) {
+  // Previous schema marker retained for migration diagnostics: version = 19
+  constructor(dbName = 'SariSystemeDB', version = 21) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -68,7 +69,7 @@ class SariDB {
           'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations',
           'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences', 'barcodeLabelSettings',
           'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips',
-          'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates'
+          'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates', 'positionFunctions', 'workCertificates', 'certificateTemplates', 'contractTemplates', 'conflictDeclarationTemplates', 'jobPositions'
         ];
 
         stores.forEach((storeName) => {
@@ -126,6 +127,8 @@ class SariDB {
             } else if (storeName === 'workedHolidays') {
               store.createIndex('employeeId', 'employeeId', { unique: false });
               store.createIndex('holidayId', 'holidayId', { unique: false });
+            } else if (storeName === 'positionFunctions' || storeName === 'workCertificates') {
+              store.createIndex(storeName === 'positionFunctions' ? 'position' : 'employeeId', storeName === 'positionFunctions' ? 'position' : 'employeeId', { unique: false });
             } else if (storeName === 'workerAssignments') {
               store.createIndex('workerId', 'workerId', { unique: false });
             } else if (storeName === 'cnasPayments' || storeName === 'casnosPayments') {
@@ -314,7 +317,7 @@ class SariDB {
     if(!await this.getById('workerAssignments','wa-demo'))await this.save('workerAssignments',{id:'wa-demo',workerId:'occ-demo',workerName:'Karim Bouzid',title:'Inventaire physique — Dépôt Central Alger',descriptionHtml:'<p>Comptage physique des lots de consommables (2 jours) et rapprochement avec le stock théorique.</p>',startDate:'2026-08-17',endDate:'2026-08-18',amount:7000,irgRate:0.15,irgAmount:1050,netAmount:5950,invoiceReference:'',paymentMethod:'',paymentDate:'',status:'completed',createdAt:new Date().toISOString()});
     // 312 Payslip template library (Section 299/312): modern bordered default + 3 additional designs,
     // each with a configurable header (company logo) and footer (address + document reference).
-    const header306=`<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid {{accent}};padding-bottom:8px;margin-bottom:14px">{{documentLogo}}<div style="text-align:right"><b style="font-size:15px">{{companyName}}</b><br><small>{{companyFiscal}}</small></div></div>`;
+    const header306=`<div class="modern-hr-header" dir="{{documentDirection}}"><div class="modern-hr-company">{{documentLogo}}<div><b>{{companyName}}</b><small>{{companyFiscal}}</small></div></div><div class="modern-hr-title"><b>FICHE DE PAIE</b><span>{{employeeHeader}}</span><small>{{documentReference}}</small></div></div>`;
     const footer306=`<div style="display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:6px;margin-top:14px;font-size:10px"><span>{{companyFooter}}</span><span><b>{{documentReference}}</b></span></div>`;
     const tplDesigns=[
       {id:'doc-tpl-payslip-modern',name:'Fiche de paie moderne',nameI18n:{fr:'Fiche de paie moderne',ar:'قسيمة راتب عصرية',en:'Modern payslip'},accent:'#009CC5',isDefault:true,band:'#0f172a',bandText:'#ffffff'},
@@ -336,11 +339,30 @@ class SariDB {
       {id:'leave',kind:'field',field:'leaveBalance',content:'Solde congés',x:35,y:700,w:350,h:40},
       {id:'payment',kind:'field',field:'paymentDetails',content:'Paiement',x:409,y:700,w:350,h:40}
     ]});}
+    for(const id of ['doc-tpl-payslip-modern','doc-tpl-payslip-clinical','doc-tpl-payslip-amber','doc-tpl-payslip-midnight']){const template=await this.getById('documentTemplates',id);if(template&&Number(template.hrHeaderVersion||0)<2){template.headerHtml=header306;template.footerHtml=footer306;template.hrHeaderVersion=2;await this.rawPut('documentTemplates',template);}}
+    for(const id of ['doc-tpl-payslip-modern','doc-tpl-payslip-clinical','doc-tpl-payslip-amber','doc-tpl-payslip-midnight']){const template=await this.getById('documentTemplates',id);if(template&&Number(template.compactLayoutVersion||0)<2){const layout={earnings:{y:246,h:248},deductions:{y:246,h:248},cnas:{y:508,h:72},net:{y:508,h:72},leave:{y:594,h:38},payment:{y:594,h:38}};template.elements=(template.elements||[]).map(element=>layout[element.id]?{...element,...layout[element.id]}:element);template.compactLayoutVersion=2;await this.rawPut('documentTemplates',template);}}
+    const consultationHtml=`<div class="payslip-consultation-print consultation-v4" dir="{{documentDirection}}"><header class="consultation-v4-header"><section class="consultation-v4-company"><div class="consultation-v4-logo">{{documentLogo}}</div><div><strong>{{companyName}}</strong><div class="consultation-v4-fiscal">{{companyFiscal}}</div></div></section><section class="consultation-v4-title"><h1>FICHE DE PAIE</h1><b>{{documentReference}}</b><p>{{employeePeriodHeader}}</p><small class="consultation-v4-period">{{payPeriodRange}}</small><small class="consultation-v4-notice">{{noticeDateValue}}</small></section></header><section class="payslip-consult-metrics consultation-v4-metrics"><div class="consult-metric">{{baseSalaryCard}}</div><div class="consult-metric">{{grossSalaryCard}}</div><div class="consult-metric">{{totalDeductionsCard}}</div><div class="consult-metric consult-metric-net">{{netPayableCard}}</div></section><section class="consultation-v4-details"><div class="payslip-info-panel consultation-v4-employee"><h3>Informations du salarié</h3>{{employeeIdentity}}</div><div class="payslip-info-panel compact-pay-table"><h3>Gains</h3>{{earningsTable}}</div><div class="payslip-info-panel compact-pay-table"><h3>Retenues</h3>{{deductionsTable}}</div></section><section class="consultation-v4-work"><div class="consult-metric">{{workedDaysCard}}</div><div class="consult-metric">{{workedHoursCard}}</div><div class="consult-metric">{{leaveBalanceCard}}</div><div class="consult-metric">{{paymentCard}}</div></section>{{payslipNotes}}<footer class="consultation-v4-footer"><div><b>{{companyName}}</b><small>{{companyFooter}}</small><code>{{documentReference}}</code></div>{{authenticityQR}}</footer></div>`;
+    const consultationTemplate=await this.getById('documentTemplates','doc-tpl-payslip-consultation');if(!consultationTemplate)await this.save('documentTemplates',{id:'doc-tpl-payslip-consultation',name:'Fiche identique à la consultation',nameI18n:{fr:'Style consultation',ar:'نمط المعاينة',en:'Consultation style'},type:'payslip',paperFormat:'A4',templateMode:'html',fontFamily:"'IBM Plex Mono', 'IBM Plex Sans Arabic', monospace",isDefault:false,htmlContent:consultationHtml,consultationStyleVersion:6,versions:[]});else if(Number(consultationTemplate.consultationStyleVersion||0)<6){consultationTemplate.htmlContent=consultationHtml;consultationTemplate.templateMode='html';consultationTemplate.fontFamily="'IBM Plex Mono', 'IBM Plex Sans Arabic', monospace";consultationTemplate.consultationStyleVersion=6;consultationTemplate.headerHtml='';consultationTemplate.footerHtml='';await this.rawPut('documentTemplates',consultationTemplate);}
     const classicTpl=await this.getById('documentTemplates','doc-tpl-payslip-classic');if(classicTpl&&(await this.getById('documentTemplates','doc-tpl-payslip-modern'))){classicTpl.isDefault=false;if(!classicTpl.headerHtml)classicTpl.headerHtml=header306;if(!classicTpl.footerHtml)classicTpl.footerHtml=footer306;await this.rawPut('documentTemplates',classicTpl);}
     // 310 Fiscal identifiers per trade register (multiple RC support)
-    if((await this.getAll('tradeRegisters')).length===0)await this.save('tradeRegisters',{id:'trade-register-main',registerNumber:'16/00-0987654B19',legalName:'SARI SYSTÈME',legalForm:'SARL',activity:'Distribution de matériel médical et consommables',address:'Lotissement Medical, Bab Ezzouar, 16024 Alger',nif:'001616098765432',nai:'1602409876',nis:'001616012345678',issueDate:'2019-01-01',status:'active',notesHtml:''});
+    if((await this.getAll('tradeRegisters')).length===0)await this.save('tradeRegisters',{id:'trade-register-main',registerKind:'principal',isDefault:true,registerNumber:'16/00-0987654B19',legalName:'SARI SYSTÈME',legalForm:'SARL',activity:'Distribution de matériel médical et consommables',address:'Lotissement Medical, Bab Ezzouar, 16024 Alger',nif:'001616098765432',nai:'1602409876',nis:'001616012345678',issueDate:'2019-01-01',status:'active',notesHtml:''});
+    const registers=await this.getAll('tradeRegisters');if(registers.length&&!registers.some(x=>x.registerKind==='principal')){registers[0].registerKind='principal';await this.rawPut('tradeRegisters',registers[0]);}if(registers.length&&!registers.some(x=>x.isDefault)){const principal=registers.find(x=>x.registerKind==='principal')||registers[0];principal.isDefault=true;await this.rawPut('tradeRegisters',principal);}
     // 309.4 Holiday source configuration (default: automatic religious calculation)
     if(!await this.getById('settings','holiday-config'))await this.save('settings',{id:'holiday-config',religiousSource:'auto',autoFetchServer:true,importMapping:{csv:{date:'date',fr:'name_fr',ar:'name_ar',en:'name_en',isFixed:'is_fixed',notes:'notes'},json:{date:'date',fr:'name.fr',ar:'name.ar',en:'name.en',isFixed:'isFixed',notes:'notes'}},updatedAt:new Date().toISOString()});
+    // 319/321 — reusable position responsibilities and certificate types.
+    const functionSeeds=[
+      {id:'fn-stock-1',position:'Gestionnaire stocks',title:'Assurer la réception, le stockage et la traçabilité des lots',description:'Contrôler les mouvements, dates de péremption et conditions de conservation.',isActive:true,order:1},
+      {id:'fn-sales-1',position:'Commerciale B2B',title:'Développer et suivre le portefeuille clients',description:'Préparer les offres, assurer le suivi commercial et respecter la confidentialité.',isActive:true,order:1}
+    ];for(const row of functionSeeds)if(!await this.getById('positionFunctions',row.id))await this.save('positionFunctions',row);
+    const certificateSeeds=[
+      {id:'cert-with-salary',name:{fr:'Attestation avec salaire',ar:'شهادة عمل مع الراتب',en:'Certificate with salary'},includeSalary:true,includeFunctions:false,isActive:true},
+      {id:'cert-without-salary',name:{fr:'Attestation sans salaire',ar:'شهادة عمل بدون راتب',en:'Certificate without salary'},includeSalary:false,includeFunctions:false,isActive:true},
+      {id:'cert-with-functions',name:{fr:'Attestation avec fonctions et tâches',ar:'شهادة عمل مع المهام',en:'Certificate with job functions'},includeSalary:false,includeFunctions:true,isActive:true}
+    ];for(const row of certificateSeeds)if(!await this.getById('certificateTemplates',row.id))await this.save('certificateTemplates',row);
+    // 323–331 configurable HR document/content templates.
+    if(!await this.getById('contractTemplates','contract-template-algeria-default'))await this.save('contractTemplates',{id:'contract-template-algeria-default',name:'Contrat algérien standard',contractType:'CDI',description:'Modèle notarial conforme aux clauses SARI',clausesHtml:'<p>Les clauses légales et les fonctions du poste sont injectées automatiquement.</p>',isActive:true,isDefault:true,createdAt:new Date().toISOString()});
+    if(!await this.getById('conflictDeclarationTemplates','conflict-template-default'))await this.save('conflictDeclarationTemplates',{id:'conflict-template-default',name:'Déclaration standard de conflits d’intérêts',isActive:true,isDefault:true,steps:[{id:'identity',title:'Identification'},{id:'questions',title:'Questions'},{id:'commitments',title:'Engagements'}],questions:[{id:'external',label:'Exercez-vous une activité externe ?',inputType:'text',required:false},{id:'conflict',label:'Avez-vous un intérêt susceptible de créer un conflit ?',inputType:'checkbox',required:true}],commitments:[{id:'ethics',label:'Conduite éthique et loyale'},{id:'confidentiality',label:'Confidentialité'},{id:'noConflicts',label:'Absence de conflit non déclaré'}],createdAt:new Date().toISOString()});
+    const positions=[{id:'position-stock',name:'Gestionnaire stocks',department:'Logistique',isActive:true},{id:'position-sales',name:'Commerciale B2B',department:'Commercial',isActive:true},{id:'position-director',name:'Directrice générale',department:'Direction',isActive:true}];for(const row of positions)if(!await this.getById('jobPositions',row.id))await this.save('jobPositions',row);
     // 304.5 Portal access policy default (restriction disabled until an Administrator enables it)
     const settings=await this.getById('settings','app-settings')||{id:'app-settings'};
     if(!settings.portalAccessPolicy){settings.portalAccessPolicy={enabled:false,blockedModules:['payslips','tasks','documents','messages'],exemptRoles:['admin'],messageI18n:{fr:'Votre espace est restreint tant que le parcours d’intégration (règlement, CGU, signature et déclaration) n’est pas terminé.',ar:'مساحتك مقيدة حتى إتمام مسار الاندماج (النظام الداخلي، الشروط العامة، التوقيع والتصريح).',en:'Your workspace is restricted until the onboarding process (rules, terms, signature and declaration) is completed.'}};await this.save('settings',settings);}
@@ -374,9 +396,17 @@ class SariDB {
     });
   }
 
+  async migrateGedDocumentsToDisk(){const documents=await this.rawGetAll('documents');let migrated=0;for(const document of documents){let stored=document;if(document.data&&!document.storagePath)stored=await this.persistDocumentToDisk(document);else if(document.storagePath&&Number(document.fileNamingVersion||0)<2)stored=await this.syncDocumentDiskMetadata({...document,fileNamingVersion:2},{...document,fileCode:'__legacy__'});if(stored.storageMode==='disk'&&JSON.stringify(stored)!==JSON.stringify(document)){stored.fileNamingVersion=2;await this.rawPut('documents',stored);migrated++;}}if(migrated)console.info(`[GED] ${migrated} document(s) migrated/renamed in the local GED folder.`);return migrated;}
+  documentFileCode(data={}){const name=String(data.name||'document').replace(/\.[^.]+$/,'');return String(data.referenceCode||data.code||data.fileCode||name||data.id||'GED').trim();}
+  async persistDocumentToDisk(data){if(!data?.data)return data;try{const response=await fetch('/api/ged/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:data.id,name:data.name,fileCode:this.documentFileCode(data),documentType:data.documentType||data.category||'autre',mimeType:data.mimeType,data:data.data})});if(!response.ok)throw Error((await response.json()).error||'GED disk write failed');const result=await response.json();return{...data,data:'',storagePath:result.storagePath,diskPath:result.diskPath,fileName:result.fileName,fileCode:result.fileCode||this.documentFileCode(data),size:result.size||data.size,storageMode:'disk',fileNamingVersion:2};}catch(error){console.warn('[GED] Disk storage unavailable; retaining offline IndexedDB content.',error);return{...data,storageMode:'indexeddb-fallback'};}}
+  async syncDocumentDiskMetadata(data,existing){if(!existing?.storagePath)return data;const fileCode=this.documentFileCode(data),documentType=data.documentType||data.category||'autre';if(fileCode===existing.fileCode&&documentType===(existing.documentType||existing.category||'autre')&&data.name===existing.name)return data;try{const response=await fetch('/api/ged/files',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storagePath:existing.storagePath,id:data.id,name:data.name,fileCode,documentType})});if(!response.ok)throw Error((await response.json()).error||'GED disk rename failed');const result=await response.json();return{...data,storagePath:result.storagePath,diskPath:result.diskPath,fileName:result.fileName,fileCode:result.fileCode,storageMode:'disk',fileNamingVersion:2};}catch(error){console.warn('[GED] Disk rename failed',error);return data;}}
+  async removeDocumentFromDisk(record){if(!record?.storagePath)return;try{await fetch('/api/ged/files',{method:'DELETE',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storagePath:record.storagePath})});}catch(error){console.warn('[GED] Disk delete failed',error);}}
+
   async save(storeName, data) {
     await this.init();
-    if(storeName!=='recordSequences'){const existing=data.id?await this.getById(storeName,data.id):null;if(existing?.numericId)data.numericId=existing.numericId;else if(!Number.isInteger(data.numericId)||data.numericId<1)data.numericId=await this.nextNumericId(storeName);if(this.usesReferenceOrder(storeName))data=await this.resequenceReferenceStore(storeName,data,data.order);else await this.applyDerivedReference(storeName,data);}
+    const existing=storeName!=='recordSequences'&&data.id?await this.getById(storeName,data.id):null;
+    if(storeName==='documents')data=data.data?await this.persistDocumentToDisk(data):await this.syncDocumentDiskMetadata(data,existing);
+    if(storeName!=='recordSequences'){if(existing?.numericId)data.numericId=existing.numericId;else if(!Number.isInteger(data.numericId)||data.numericId<1)data.numericId=await this.nextNumericId(storeName);if(this.usesReferenceOrder(storeName))data=await this.resequenceReferenceStore(storeName,data,data.order);else await this.applyDerivedReference(storeName,data);}
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -390,6 +420,7 @@ class SariDB {
   async delete(storeName, id) {
     await this.init();
     const existing=await this.getById(storeName,id);
+    if(storeName==='documents'&&existing?.storagePath)await this.removeDocumentFromDisk(existing);
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -443,7 +474,7 @@ class SariDB {
       'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals',
       'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory',
       'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages',
-      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings', 'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips'
+      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings', 'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips', 'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates', 'positionFunctions', 'workCertificates', 'certificateTemplates', 'contractTemplates', 'conflictDeclarationTemplates', 'jobPositions'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -1166,7 +1197,7 @@ class SariDB {
       taxRate: 0.19,
       companyName: 'SARI Système',
       defaultWarehouseId: 'wh-alger',
-      verificationBaseUrl: 'http://sari-systeme.com/code',
+      verificationBaseUrl: 'https://sari-systeme.com/verification',
       verificationSecret: 'SARI-CHANGE-ME'
     };
 

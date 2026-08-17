@@ -1,10 +1,10 @@
 {
-  "name": "SARI Système – Medical Equipment & Consumables Distribution Management System",
-  "short_name": "SARI Système",
-  "description": "Medical Equipment & Consumables Distribution Management System for Algeria (Bilingual AR/FR/EN, Offline-First PWA)",
-  "start_url": "/index.html",
+  "name": "SARI Système ERP",
+  "short_name": "SARI ERP",
+  "description": "ERP mobile et tablette pour inventaire, ventes, achats et documents SARI Système",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
+  "background_color": "#009CC5",
   "theme_color": "#009CC5",
   "orientation": "any",
   "icons": [
@@ -27,28 +27,61 @@
       "short_name": "Inventory",
       "description": "View Medical Equipment & Consumable Inventory",
       "url": "/index.html#inventory",
-      "icons": [{ "src": "/assets/icon-192.svg", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/assets/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "POS & B2B Orders",
       "short_name": "Sales / POS",
       "description": "Create a new medical sales order or POS transaction",
       "url": "/index.html#sales",
-      "icons": [{ "src": "/assets/icon-192.svg", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/assets/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Tenders (Appels d'Offres)",
       "short_name": "Tenders",
       "description": "Manage public and private hospital consultations and tenders",
       "url": "/index.html#tenders",
-      "icons": [{ "src": "/assets/icon-192.svg", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/assets/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Import & Shipments",
       "short_name": "Imports",
       "description": "Track international shipments, customs, and landed costs",
       "url": "/index.html#import-export",
-      "icons": [{ "src": "/assets/icon-192.svg", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/assets/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
     }
+  ],
+  "scope": "/",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "lang": "fr",
+  "dir": "auto",
+  "categories": [
+    "business",
+    "productivity",
+    "finance"
   ]
 }

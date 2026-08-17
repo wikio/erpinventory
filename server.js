@@ -24,7 +24,7 @@ const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff',
+  '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff': 'font/woff',
   '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.eot': 'application/vnd.ms-fontobject',
   '.webmanifest': 'application/manifest+json'
 };
@@ -135,7 +135,29 @@ function clearSessionCookie(req, res) {
   res.setHeader('Set-Cookie', `sari_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
 }
 
+const GED_ROOT=path.join(__dirname,'GED');
+function safeGedPart(value='file'){const clean=String(value).normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'_').replace(/^[_ .]+|[_ .]+$/g,'').slice(0,140);return clean||'file';}
+function gedFileFromUrl(storagePath=''){const parsed=new URL(String(storagePath),'http://localhost'),parts=parsed.pathname.split('/').filter(Boolean);if(parts[0]!=='api'||parts[1]!=='ged'||parts[2]!=='file'||parts.length!==5)throw Error('Invalid GED storage path');const folder=safeGedPart(decodeURIComponent(parts[3])),file=safeGedPart(decodeURIComponent(parts[4])),target=path.resolve(GED_ROOT,folder,file);if(!target.startsWith(path.resolve(GED_ROOT)+path.sep))throw Error('Invalid GED path');return{folder,file,target};}
+function gedTarget({documentType='autre',name='document',id='',fileCode=''}){const folder=safeGedPart(documentType),original=safeGedPart(name),extension=path.extname(original),base=path.basename(original,extension),code=safeGedPart(fileCode||base||'GED').toUpperCase(),suffix=safeGedPart(id||crypto.randomUUID()),file=`${code}-${suffix}${extension}`,directory=path.join(GED_ROOT,folder),target=path.resolve(directory,file);if(!target.startsWith(path.resolve(GED_ROOT)+path.sep))throw Error('Invalid GED target');return{folder,file,directory,target};}
+
+function verificationHash(code=''){const bytes=new TextEncoder().encode(String(code||''));let h1=0xdeadbeef^bytes.length,h2=0x41c6ce57^bytes.length;for(const value of bytes){h1=Math.imul(h1^value,2654435761);h2=Math.imul(h2^value,1597334677);}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return `${(h2>>>0).toString(16).padStart(8,'0')}${(h1>>>0).toString(16).padStart(8,'0')}`.toUpperCase();}
+function verificationDocumentType(code=''){const prefix=String(code).toUpperCase();if(prefix.includes('PAY'))return'Fiche de paie';if(prefix.includes('CTT'))return'Contrat de travail';if(prefix.includes('FAC'))return'Facture';if(prefix.includes('DV'))return'Devis';if(prefix.includes('LIV'))return'Bon de livraison';if(prefix.includes('REC'))return'Bon de réception';return'Document SARI';}
+
 async function handleApi(req, res, pathname) {
+  if(pathname==='/api/verification'&&req.method==='GET'){const params=new URL(req.url,'http://localhost').searchParams,code=String(params.get('code')||''),hash=String(params.get('hash')||'').toUpperCase(),expected=verificationHash(code);if(!code||!hash)return json(res,400,{valid:false,reason:'Code ou hash manquant'});if(hash!==expected)return json(res,200,{valid:false,code,reason:'Hash invalide : document altéré ou QR inconnu'});return json(res,200,{valid:true,code,hash,documentType:verificationDocumentType(code),company:'SARI Système',verifiedAt:new Date().toISOString(),reason:'Code et signature de vérification valides'});}
+  if(pathname==='/api/ged/files'&&req.method==='POST'){
+    if(!getSession(req))return json(res,401,{error:'Authentication required'});
+    try{const body=await readJson(req,20*1024*1024),match=String(body.data||'').match(/^data:([^;,]+)?(?:;base64)?,(.*)$/s);if(!match)throw Error('Invalid GED data');const {folder,file,directory,target}=gedTarget(body),buffer=Buffer.from(match[2],String(body.data).includes(';base64,')?'base64':'utf8');fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(target,buffer);return json(res,201,{storagePath:`/api/ged/file/${encodeURIComponent(folder)}/${encodeURIComponent(file)}`,diskPath:path.relative(__dirname,target).split(path.sep).join('/'),fileName:file,fileCode:safeGedPart(body.fileCode||path.basename(body.name||'document',path.extname(body.name||''))).toUpperCase(),size:buffer.length});}catch(error){return json(res,400,{error:error.message});}
+  }
+  if(pathname==='/api/ged/files'&&req.method==='PATCH'){
+    if(!getSession(req))return json(res,401,{error:'Authentication required'});try{const body=await readJson(req),current=gedFileFromUrl(body.storagePath),next=gedTarget(body);fs.mkdirSync(next.directory,{recursive:true});if(current.target!==next.target&&fs.existsSync(current.target))fs.renameSync(current.target,next.target);return json(res,200,{storagePath:`/api/ged/file/${encodeURIComponent(next.folder)}/${encodeURIComponent(next.file)}`,diskPath:path.relative(__dirname,next.target).split(path.sep).join('/'),fileName:next.file,fileCode:safeGedPart(body.fileCode||path.basename(body.name||'document',path.extname(body.name||''))).toUpperCase()});}catch(error){return json(res,400,{error:error.message});}
+  }
+  if(pathname==='/api/ged/files'&&req.method==='DELETE'){
+    if(!getSession(req))return json(res,401,{error:'Authentication required'});try{const body=await readJson(req),file=gedFileFromUrl(body.storagePath);if(fs.existsSync(file.target))fs.unlinkSync(file.target);return json(res,200,{deleted:true});}catch(error){return json(res,400,{error:error.message});}
+  }
+  if(pathname.startsWith('/api/ged/file/')&&req.method==='GET'){
+    if(!getSession(req))return json(res,401,{error:'Authentication required'});try{const file=gedFileFromUrl(pathname);if(!fs.existsSync(file.target))return json(res,404,{error:'GED file not found'});const content=fs.readFileSync(file.target),type=MIME_TYPES[path.extname(file.target).toLowerCase()]||'application/octet-stream';res.writeHead(200,{'Content-Type':type,'Content-Length':content.length,'Cache-Control':'private, max-age=300','Content-Disposition':`inline; filename="${file.file.replace(/"/g,'')}"`});return res.end(content);}catch(error){return json(res,400,{error:error.message});}
+  }
   if (pathname === '/api/content/reload' && req.method === 'POST') {
     if (!requireAdmin(req)) return json(res, 403, { error: 'Administrator access required' });
     try { return json(res, 200, { reloadedAt: new Date().toISOString(), content: fileContent.snapshot() }); }
@@ -312,7 +334,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
 
   let pathname;
   try {

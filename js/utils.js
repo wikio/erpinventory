@@ -16,13 +16,13 @@ const SariUtils = {
     return c.toDataURL('image/png');
   },
 
-  /** Render a QR code into an image data URL (used for PDF/print and template merge fields). */
-  qrImageDataUrl(textData, size = 88) {
-    if (typeof document === 'undefined') return '';
-    const c = document.createElement('canvas');
-    this.drawQRCode(c, textData, size);
-    return c.toDataURL('image/png');
+  /** Render a standards-compliant QR as a resolution-independent SVG data URL. */
+  qrSvgDataUrl(textData,size=88) {
+    const value=this.normalizeVerificationUrl(textData),encoder=window.SariQRCode;if(!encoder?.create)return'';const qr=encoder.create(value,{errorCorrectionLevel:'M'}),modules=qr.modules.size,data=qr.modules.data,quiet=4,total=modules+quiet*2;let path='';
+    for(let row=0;row<modules;row++){let col=0;while(col<modules){if(!data[row*modules+col]){col++;continue;}const start=col;while(col<modules&&data[row*modules+col])col++;const length=col-start;path+=`M${start+quiet} ${row+quiet}h${length}v1h-${length}z`;}}
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Number(size)||88}" height="${Number(size)||88}" viewBox="0 0 ${total} ${total}" shape-rendering="crispEdges" role="img" aria-label="QR URL"><rect width="100%" height="100%" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   },
+  qrImageDataUrl(textData,size=88) { return this.qrSvgDataUrl(textData,size); },
 
   drawBarcode(canvasEl, codeText, width = 200, height = 80) {
     if (!canvasEl) return;
@@ -74,14 +74,15 @@ const SariUtils = {
    */
   drawQRCode(canvasEl, textData, size = 120) {
     if (!canvasEl) return;
-    const ctx=canvasEl.getContext('2d'), modules=29, quiet=4, total=modules+quiet*2, cell=Math.max(1,Math.floor(size/total)), actual=cell*total;
-    canvasEl.width=actual;canvasEl.height=actual;canvasEl.dataset.encodedValue=String(textData||'');ctx.fillStyle='#fff';ctx.fillRect(0,0,actual,actual);
-    const matrix=Array.from({length:modules},()=>Array(modules).fill(null));
-    const finder=(row,col)=>{for(let y=-1;y<=7;y++)for(let x=-1;x<=7;x++){if(row+y<0||col+x<0||row+y>=modules||col+x>=modules)continue;matrix[row+y][col+x]=(x>=0&&x<=6&&y>=0&&y<=6&&(x===0||x===6||y===0||y===6||(x>=2&&x<=4&&y>=2&&y<=4)));}};
-    finder(0,0);finder(0,modules-7);finder(modules-7,0);for(let i=8;i<modules-8;i++){matrix[6][i]=i%2===0;matrix[i][6]=i%2===0;}
-    const bytes=new TextEncoder().encode(String(textData||'SARI-SYSTEME')),bits=[];for(const b of bytes)for(let i=7;i>=0;i--)bits.push((b>>i)&1);let seed=0x811c9dc5;for(const b of bytes){seed^=b;seed=Math.imul(seed,0x01000193);}
-    let bit=0;for(let row=0;row<modules;row++)for(let col=0;col<modules;col++)if(matrix[row][col]===null){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;matrix[row][col]=Boolean((bits[bit++%Math.max(bits.length,1)]||0)^((seed>>>0)&1)^((row+col)%3===0));}
-    ctx.fillStyle='#000';for(let row=0;row<modules;row++)for(let col=0;col<modules;col++)if(matrix[row][col])ctx.fillRect((col+quiet)*cell,(row+quiet)*cell,cell,cell);
+    const value=this.normalizeVerificationUrl(textData),encoder=window.SariQRCode;
+    if(!encoder?.create)throw new Error('Standards-compliant QR encoder unavailable');
+    const qr=encoder.create(value,{errorCorrectionLevel:'M'}),modules=qr.modules.size,data=qr.modules.data,quiet=4,total=modules+quiet*2,cell=Math.max(2,Math.floor(Number(size||120)/total)),actual=cell*total,ctx=canvasEl.getContext('2d');
+    canvasEl.width=actual;canvasEl.height=actual;canvasEl.dataset.encodedValue=value;canvasEl.dataset.qrType='URL';ctx.imageSmoothingEnabled=false;ctx.fillStyle='#fff';ctx.fillRect(0,0,actual,actual);ctx.fillStyle='#000';
+    for(let row=0;row<modules;row++)for(let col=0;col<modules;col++)if(data[row*modules+col])ctx.fillRect((col+quiet)*cell,(row+quiet)*cell,cell,cell);
+  },
+  normalizeVerificationUrl(value='') {
+    const raw=String(value||'').trim();if(!raw)return typeof location!=='undefined'?new URL('/verification',location.origin).href:'https://sari-systeme.com/verification';
+    try{return new URL(raw).href;}catch(_){try{return new URL(raw,typeof location!=='undefined'?location.origin:'https://sari-systeme.com').href;}catch(__){return `https://${raw.replace(/^\/+/, '')}`;}}
   },
 
   /**
@@ -192,12 +193,12 @@ const SariUtils = {
   async createPDFBlob(elementId,paperFormat='A4') {
     const element=document.getElementById(elementId);if(!element)throw Error('Printable element not found');
     await window.SariVendors?.loadPdf();if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined')throw Error('PDF engine unavailable');
-    const canvas=await this.elementToCanvas(element,paperFormat),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=8,contentW=pageW-margin*2,ratio=contentW/canvas.width,imageH=canvas.height*ratio,image=canvas.toDataURL('image/jpeg',.95),capacity=pageH-margin*2;
-    let consumed=0,page=0;while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');consumed+=capacity;}
+    const showPagination=element.dataset.showPagination!=='false',canvas=await this.elementToCanvas(element,paperFormat),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=12,contentW=pageW-margin*2,ratio=contentW/canvas.width,imageH=canvas.height*ratio,image=canvas.toDataURL('image/jpeg',.95),capacity=pageH-margin*2;
+    let consumed=0,page=0,totalPages=Math.max(1,Math.ceil(imageH/capacity));while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');if(showPagination){pdf.setFillColor(255,255,255);pdf.rect(0,pageH-10,pageW,10,'F');pdf.setFontSize(8);pdf.setTextColor(100);pdf.text(`Page ${page} sur ${totalPages}`,pageW/2,pageH-4,{align:'center'});}consumed+=capacity;}
     return pdf.output('blob');
   },
 
-  async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4') {
+  async downloadPDF(elementId, filename='sari-document.pdf', paperFormat='A4', returnBlob=false) {
     const element=document.getElementById(elementId);if(!element)return;
     try { await window.SariVendors?.loadPdf(); } catch (error) { console.warn('[PDF] Lazy engine load failed', error); }
     if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined'){window.app?.showToast('Moteur PDF indisponible : ouverture de l’impression PDF.','warning');window.print();return;}
@@ -216,19 +217,21 @@ const SariUtils = {
     let headerCanvas=null,footerCanvas=null;
     if(headerEl)headerCanvas=await this.elementToCanvas(headerEl,paperFormat).catch(()=>null);
     if(footerEl)footerCanvas=await this.elementToCanvas(footerEl,paperFormat).catch(()=>null);
-    const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),marginX=10,topMargin=10,bottomMargin=18,headerH=headerCanvas?(headerCanvas.height/(headerCanvas.width||1))*(pageW-marginX*2):0,footerH=footerCanvas?(footerCanvas.height/(footerCanvas.width||1))*(pageW-marginX*2):0,contentW=pageW-marginX*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-topMargin-bottomMargin-footerH,continuationCapacity=pageH-topMargin-bottomMargin-headerH-footerH,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),headerImg=headerCanvas?.toDataURL('image/png'),footerImg=footerCanvas?.toDataURL('image/png'),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
+    const format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),marginX=10,topMargin=10,bottomMargin=26,headerGap=12,footerGap=14,headerH=headerCanvas?(headerCanvas.height/(headerCanvas.width||1))*(pageW-marginX*2):0,footerH=footerCanvas?(footerCanvas.height/(footerCanvas.width||1))*(pageW-marginX*2):0,contentW=pageW-marginX*2,ratio=contentW/canvas.width,imgH=canvas.height*ratio,firstCapacity=pageH-topMargin-bottomMargin-headerH-footerH-headerGap-footerGap,continuationCapacity=pageH-topMargin-bottomMargin-headerH-footerH-headerGap-footerGap,totalPages=imgH<=firstCapacity?1:1+Math.ceil((imgH-firstCapacity)/continuationCapacity),img=canvas.toDataURL('image/jpeg',.95),headerImg=headerCanvas?.toDataURL('image/png'),footerImg=footerCanvas?.toDataURL('image/png'),reference=element.dataset.reference||filename.replace(/\.pdf$/i,''),company=element.dataset.company||'SARI Système',currency=element.dataset.currency||'DZD',total=new Intl.NumberFormat(i18n.currentLang==='ar'?'ar-DZ':'fr-DZ',{style:'currency',currency}).format(Number(element.dataset.total||0));
+    const showPagination=element.dataset.showPagination!=='false';
     let consumed=0;
     for(let page=1;page<=totalPages;page++){
-      if(page>1)pdf.addPage(format,'portrait');const continuation=page>1,contentTop=topMargin+headerH,capacity=continuation?continuationCapacity:firstCapacity;
+      if(page>1)pdf.addPage(format,'portrait');const continuation=page>1,contentTop=topMargin+headerH+headerGap,capacity=continuation?continuationCapacity:firstCapacity;
       pdf.addImage(img,'JPEG',marginX,contentTop-consumed,contentW,imgH,undefined,'FAST');
-      pdf.setFillColor(255,255,255);pdf.rect(0,0,pageW,topMargin,'F');pdf.rect(0,pageH-bottomMargin-footerH,pageW,bottomMargin+footerH,'F');
+      pdf.setFillColor(255,255,255);pdf.rect(0,0,pageW,topMargin,'F');pdf.rect(0,pageH-bottomMargin-footerH-footerGap,pageW,bottomMargin+footerH+footerGap,'F');
       // Repeating header block on every page.
       if(headerImg)pdf.addImage(headerImg,'PNG',marginX,topMargin,contentW,headerH,undefined,'FAST');
       // Repeating footer block on every page.
       if(footerImg)pdf.addImage(footerImg,'PNG',marginX,pageH-bottomMargin-footerH,contentW,footerH,undefined,'FAST');
       if(!headerImg&&continuation){pdf.setTextColor(15,23,42);pdf.setFontSize(9);pdf.setFont('helvetica','bold');pdf.text(`${company} — Total: ${total} — ${reference} — Page ${page}/${totalPages}`,marginX,topMargin+5);pdf.setDrawColor(0,156,197);pdf.line(marginX,topMargin+8,pageW-marginX,topMargin+8);}
-      pdf.setFontSize(8);pdf.setFont('helvetica','normal');pdf.setTextColor(100);pdf.text(`${reference} • ${page}/${totalPages}`,pageW-marginX,pageH-bottomMargin,{align:'right'});consumed+=capacity;
+      if(showPagination){pdf.setFillColor(255,255,255);pdf.rect(0,pageH-bottomMargin+1,pageW,bottomMargin-1,'F');pdf.setFontSize(8);pdf.setFont('helvetica','normal');pdf.setTextColor(100);pdf.text(`Page ${page} sur ${totalPages}`,pageW/2,pageH-5,{align:'center'});}consumed+=capacity;
     }
+    if(returnBlob)return pdf.output('blob');
     pdf.save(filename);
   },
 
@@ -282,24 +285,17 @@ const SariUtils = {
   async openPrintWindow(elementId,paperFormat='A4',title='SARI Système Document'){const source=document.getElementById(elementId);if(!source)return;const clone=source.cloneNode(true);clone.querySelectorAll('.no-print,.hidden').forEach(node=>node.remove());const sourceCanvases=source.querySelectorAll('canvas'),cloneCanvases=clone.querySelectorAll('canvas');cloneCanvases.forEach((canvas,index)=>{try{const src=sourceCanvases[index]||canvas;const image=document.createElement('img');image.src=src.toDataURL?src.toDataURL('image/png'):'';image.className=canvas.className;image.style.cssText=canvas.style.cssText;image.style.maxWidth='100%';if(canvas.width)image.width=canvas.width;if(canvas.height)image.height=canvas.height;canvas.replaceWith(image);}catch(_){canvas.remove();}});const assets=await Promise.race([this.collectPrintAssets().catch(()=>''),new Promise(res=>setTimeout(()=>res(''),1500))]),popup=window.open('','_blank','width=1000,height=900');if(!popup)return app?.showToast?.('Autorisez les fenêtres contextuelles pour imprimer.','warning');popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title>${assets}<style>@page{size:${paperFormat==='Letter'?'Letter':'A4'};margin:10mm}html,body{margin:0!important;padding:0!important;background:#fff!important}body{font-family:'Plus Jakarta Sans','IBM Plex Sans Arabic',Arial,sans-serif}.print-window-document{width:100%;max-width:none;margin:0;padding:0;box-shadow:none;border:0}.document-continuation-header{display:table-row}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}.doc-body{padding-top:28mm;padding-bottom:18mm}@media print{html,body{width:100%!important;height:auto!important}body *{visibility:visible!important}.print-window-document,.print-window-document *{visibility:visible!important}.print-window-document{display:block!important;position:static!important}.sari-tile{box-shadow:none!important;border:0!important}.doc-header{position:fixed;top:0;left:0;right:0;margin:0!important;padding:8mm 10mm!important}.doc-footer{position:fixed;bottom:0;left:0;right:0;margin:0!important;padding:8mm 10mm!important}.doc-header,.doc-footer{background:#fff!important}}</style></head><body><main class="print-window-document">${clone.innerHTML}</main></body></html>`);popup.document.close();setTimeout(()=>{popup.focus();popup.print();},900);},
   printElement(elementId, title = 'SARI Système Document') { this.openPrintWindow(elementId,'A4',title); },
 
-  /**
-   * Build a verification/QR content URL from an admin-defined pattern.
-   * Supported placeholders: {code} (reference), {reference}, {sku}, {barcode},
-   * {hash} / {hashed_key}, {id} / {numericId}. Unknown placeholders are left intact.
-   */
+  /** Build the canonical verification URL: verification-base / code / auto-hash. */
+  verificationHash(code='') {
+    const text=String(code||''),bytes=new TextEncoder().encode(text);let h1=0xdeadbeef^bytes.length,h2=0x41c6ce57^bytes.length;
+    for(const value of bytes){h1=Math.imul(h1^value,2654435761);h2=Math.imul(h2^value,1597334677);}
+    h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+    return `${(h2>>>0).toString(16).padStart(8,'0')}${(h1>>>0).toString(16).padStart(8,'0')}`.toUpperCase();
+  },
   buildVerificationUrl(pattern, data = {}) {
-    const base = String(pattern || 'http://sari-systeme.com/verification/{code}/{hash}');
-    const map = {
-      '{code}': data.code ?? data.referenceCode ?? data.reference ?? '',
-      '{reference}': data.referenceCode ?? data.reference ?? data.code ?? '',
-      '{sku}': data.sku ?? '',
-      '{barcode}': data.barcode ?? data.sku ?? '',
-      '{hash}': data.hash ?? '',
-      '{hashed_key}': data.hash ?? '',
-      '{id}': data.id ?? '',
-      '{numericId}': data.numericId ?? data.id ?? ''
-    };
-    return base.replace(/\{(code|reference|sku|barcode|hash|hashed_key|id|numericId)\}/g, (token) => encodeURIComponent(String(map[token] ?? '')));
+    const code=String(data.code??data.referenceCode??data.reference??data.id??'document'),hash=this.verificationHash(code),map={code,reference:code,sku:String(data.sku??code),barcode:String(data.barcode??code),hash,hashed_key:hash,id:String(data.id??code),numericId:String(data.numericId??data.id??code)},tokenPattern=/\{(code|reference|sku|barcode|hash|hashed_key|id|numericId)\}/g;
+    let configured=String(pattern||'http://sarisysteme.com/verification/{code}/{hash}').trim(),hasCode=/\{(?:code|reference)\}/.test(configured),hasHash=/\{(?:hash|hashed_key)\}/.test(configured),url=configured.replace(tokenPattern,(_,key)=>encodeURIComponent(map[key]??''));
+    if(!hasCode)url=`${url.replace(/\/$/,'')}/${encodeURIComponent(code)}`;if(!hasHash)url=`${url.replace(/\/$/,'')}/${hash}`;return this.normalizeVerificationUrl(url);
   },
 
   /**

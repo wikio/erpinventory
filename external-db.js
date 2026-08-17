@@ -35,7 +35,9 @@ const STORE_TABLES = Object.freeze({
   workedHolidays: 'worked_holidays', paymentTypes: 'payment_types',
   employmentContracts: 'employment_contracts', ruleAcceptances: 'rule_acceptances',
   conflictDeclarations: 'conflict_declarations', workRules: 'work_rules',
-  occasionalWorkers: 'occasional_workers', workerAssignments: 'worker_assignments', onboardingStates: 'onboarding_states'
+  occasionalWorkers: 'occasional_workers', workerAssignments: 'worker_assignments', onboardingStates: 'onboarding_states',
+  positionFunctions: 'position_functions', workCertificates: 'work_certificates', certificateTemplates: 'certificate_templates',
+  contractTemplates: 'contract_templates', conflictDeclarationTemplates: 'conflict_declaration_templates', jobPositions: 'job_positions'
 });
 
 const FOREIGN_TABLES = Object.freeze({

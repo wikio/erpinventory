@@ -1,3 +1,4 @@
+import '../signature-pad.js';
 /**
  * Employee self-service portal: internal messaging, HR summary, and the
  * guided onboarding workflow (Sections 304.2–304.4): reading/accepting the
@@ -6,15 +7,16 @@
  */
 const EmployeePortalModule = {
   state: {
-    employee: null, career: [], missions: [], documents: [], conversations: [], messages: [],
+    portalTab: 'profile', payslipMonth: '', payslipFrom: '', payslipTo: '', employee: null, career: [], missions: [], documents: [], conversations: [], messages: [],
     employees: [], attendance: [], performance: [], salaryHistory: [], activeConversation: '',
     contracts: [], acceptances: [], declarations: [], rules: [],
-    leaveRequests: [], leaveTypes: [], holidays: [], schedule: null,
+    leaveRequests: [], leaveTypes: [], holidays: [], schedule: null, workCertificates: [], certificateTemplates: [], portalSettings: {}, positionFunctions: [], payslips: [],
   },
   t(key, fallback) { return i18n.t(key, fallback); },
   async loadData() {
-    const [employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays, schedule] = await Promise.all(['employees', 'careerRecords', 'missions', 'documents', 'conversations', 'messages', 'attendance', 'performanceRecords', 'salaryHistory', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'leaveRequests', 'leaveTypes', 'publicHolidays', 'settings'].map((store) => sariDB.getAll(store)));
-    Object.assign(this.state, { employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays });
+    const [employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays, schedule, workCertificates, certificateTemplates, portalSettings, positionFunctions, payslips] = await Promise.all(['employees', 'careerRecords', 'missions', 'documents', 'conversations', 'messages', 'attendance', 'performanceRecords', 'salaryHistory', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'leaveRequests', 'leaveTypes', 'publicHolidays', 'settings', 'workCertificates', 'certificateTemplates', 'settings', 'positionFunctions', 'payslips'].map((store) => sariDB.getAll(store)));
+    Object.assign(this.state, { employees, career, missions, documents, conversations, messages, attendance, performance, salaryHistory, contracts, acceptances, declarations, rules, leaveRequests, leaveTypes, holidays, workCertificates, certificateTemplates, positionFunctions, payslips });
+    this.state.portalSettings = portalSettings.find((record) => record.id === 'app-settings') || {};
     this.state.employee = this.state.employees.find((employee) => employee.userId === auth.currentUser.id) || null;
     this.state.schedule = schedule.find((record) => record.id === 'work-schedule') || window.SariCore.leave.defaultSchedule;
     this.state.conversations = this.state.conversations.filter((conversation) => (conversation.participantUserIds || []).includes(auth.currentUser.id));
@@ -39,14 +41,19 @@ const EmployeePortalModule = {
         ${this.state.employee ? `<p class="font-mono-tech text-sm text-sari-blue">${SariUtils.escapeHtml(this.state.employee.referenceCode || this.state.employee.id)}</p>` : ''}
         <p class="text-sm text-slate-500">${i18n.t('personalSpaceDescription', 'Carrière, informations RH, missions, documents et messagerie interne.')}</p></section>
       ${onboarding ? this.onboardingHtml(onboarding) : ''}
-      ${this.profileActionsHtml()}${this.hrHtml()}
-      ${this.state.employee ? this.contractsHtml() : ''}
-      ${this.state.employee ? this.leavesHtml() : ''}
-      ${this.messagingHtml()}
+      ${this.portalMenuHtml()}
+      ${this.state.portalTab==='profile'?`${this.profileActionsHtml()}${this.hrHtml()}`:''}
+      ${this.state.portalTab==='contracts'&&this.state.employee ? this.contractsHtml() : ''}
+      ${this.state.portalTab==='leaves'&&this.state.employee ? this.leavesHtml() : ''}
+      ${this.state.portalTab==='documents'&&this.state.employee ? this.certificatesHtml() : ''}
+      ${this.state.portalTab==='payslips'&&this.state.employee ? this.portalPayslipsHtml() : ''}
+      ${this.state.portalTab==='messages'?this.messagingHtml():''}
       <div id="portal-modal"></div></div>`;
     if (typeof lucide !== 'undefined') lucide.createIcons();
     this.markRead();
   },
+
+  portalMenuHtml(){const tabs=[['profile','contact-round',this.t('portalProfileCareer','Mon profil & carrière')],['leaves','calendar-clock',this.t('portalMyLeave','Mes congés')],['payslips','receipt-text',this.t('portalMyPayslips','Mes fiches de paie')],['contracts','file-signature',this.t('portalMyContracts','Mes contrats')],['documents','folder-user',this.t('portalMyDocuments','Mes documents & attestations')],['messages','messages-square',this.t('portalMessages','Messages')]];return `<nav class="sari-tile p-2 flex flex-wrap gap-2">${tabs.map(([id,icon,label])=>`<button onclick="EmployeePortalModule.state.portalTab='${id}';EmployeePortalModule.render()" class="sari-btn px-4 py-2 text-xs ${this.state.portalTab===id?'bg-sari-blue text-white':'hover:bg-slate-100'}"><i data-lucide="${icon}"></i>${label}</button>`).join('')}</nav>`;},
 
   /* ─────────────── 304.2/304.4 Onboarding alert + guided stepper ─────────────── */
   stepKeyLabel(key) {
@@ -162,6 +169,22 @@ const EmployeePortalModule = {
     const onboarding = this.onboarding();
     this.openWizard(onboarding.pending[0] || '');
   },
+  portalContractBody(contract) {
+    const tasks = this.state.positionFunctions.filter((x) => x.position === contract.position && x.isActive !== false);
+    const company = this.state.portalSettings.companyName || 'SARI Système';
+    const articles = [
+      ['Objet', `Engagement de ${contract.employeeName} par ${company} au poste de ${contract.position}.`],
+      ['Nature et durée', `${contract.type}, du ${i18n.formatDate(contract.startDate)}${contract.endDate ? ` au ${i18n.formatDate(contract.endDate)}` : ' sans limitation de durée'}.`],
+      ['Temps de travail et rémunération', `${contract.weeklyHours || 40} heures par semaine; salaire de base brut ${i18n.formatCurrency(contract.baseSalary || 0)}.`],
+      ['Fonctions et tâches', tasks.length ? tasks.map((x) => `${x.title}${x.description ? ` — ${x.description}` : ''}`).join('; ') : `Fonctions normalement attachées au poste de ${contract.position}.`],
+      ['Obligations de l’entreprise', 'Fournir le travail et les moyens, payer la rémunération, déclarer le salarié, préserver sa santé, sa sécurité, sa dignité, ses repos, congés et droits collectifs.'],
+      ['Obligations du salarié', 'Exécuter loyalement les tâches, respecter les horaires, la sécurité et le règlement intérieur, préserver le matériel, la confidentialité et éviter les conflits d’intérêts.'],
+      ['Congés et protection sociale', 'Les congés, absences et prestations sociales sont régis par la législation algérienne, la CNAS et les procédures internes.'],
+      ['Discipline, rupture et différends', 'Toute sanction ou rupture respecte la loi n° 90-11 relative aux relations de travail, les garanties applicables, la conciliation et les juridictions algériennes compétentes.'],
+      ['Clauses particulières', contract.clausesHtml || 'Néant.'],
+    ];
+    return `<div class="contract-document p-5 border rounded-xl"><p><b>Parties :</b> ${SariUtils.escapeHtml(company)} (« l’Entreprise ») et ${SariUtils.escapeHtml(contract.employeeName)} (« le Salarié »).</p><p>Contrat soumis à la loi algérienne n° 90-11 du 21 avril 1990, modifiée et complétée.</p>${articles.map(([title,body],i)=>`<section class="contract-article"><h4>Article ${i+1} — ${title}</h4><div>${title === 'Clauses particulières' ? RichTextEditor.sanitize(body) : SariUtils.escapeHtml(body)}</div></section>`).join('')}</div>`;
+  },
   async openContractSigning(contractId) {
     const contract = this.state.contracts.find((item) => item.id === contractId); if (!contract) return;
     const modal = document.getElementById('portal-modal');
@@ -171,25 +194,32 @@ const EmployeePortalModule = {
           <h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(contract.title)}</h3>
           <p class="text-xs text-slate-500">${SariUtils.escapeHtml(contract.type || '')} • ${i18n.formatDate(contract.startDate)} • ${i18n.formatCurrency(contract.baseSalary)} • ${contract.weeklyHours || '—'}h/${this.t('week', 'sem')} • ${this.t('trialPeriodMonths', 'Essai')} : ${contract.trialPeriodMonths ?? 0} ${this.t('monthsShort', 'mois')}</p></div>
         <button type="button" onclick="EmployeePortalModule.closeWizard()"><i data-lucide="x"></i></button></header>
-      <div class="rich-content text-sm mt-4 max-h-64 overflow-y-auto p-3 border rounded-xl">${RichTextEditor.sanitize(contract.clausesHtml || '<p>—</p>')}</div>
+      <div class="mt-4 max-h-[45vh] overflow-y-auto">${this.portalContractBody(contract)}</div>
       <label class="flex items-start gap-2 text-xs mt-4 cursor-pointer"><input type="checkbox" required class="mt-0.5"><span>${this.t('acceptContractCheckbox', 'J’ai lu et compris les clauses de mon contrat et je les accepte sans réserve.')}</span></label>
-      <label class="doc-label mt-3">${this.t('fullName', 'Nom complet (vaut signature électronique)')}<input id="ctt-sign-name" class="doc-input" value="${SariUtils.escapeHtml(`${this.state.employee.firstName} ${this.state.employee.lastName}`)}" required></label>
+      <div class="grid md:grid-cols-2 gap-3 mt-3"><label class="doc-label">${this.t('fullName', 'Nom complet')}<input id="ctt-sign-name" class="doc-input" value="${SariUtils.escapeHtml(`${this.state.employee.firstName} ${this.state.employee.lastName}`)}" required></label><label class="doc-label">Qualité / rôle<input id="ctt-sign-role" class="doc-input" value="Salarié" required></label><label class="doc-label">Lieu de signature<input id="ctt-sign-place" class="doc-input" value="Alger" required></label>${SariSignaturePad.field('employee-sign-pad')}</div>
       <button class="sari-btn px-5 py-2 mt-4 bg-sari-blue text-white w-full">${this.t('signContract', 'Signer mon contrat')}</button></form></div>`;
-    window.SariIcons?.hydrate();
+    window.SariIcons?.hydrate(); setTimeout(() => SariSignaturePad.mount('employee-sign-pad'), 0);
   },
   async signContract(event, contractId) {
     event.preventDefault();
     const contract = this.state.contracts.find((item) => item.id === contractId);
     const name = document.getElementById('ctt-sign-name')?.value.trim();
     if (!contract || !name) return app.showToast(this.t('nameRequired', 'Veuillez saisir votre nom complet.'), 'warning');
-    contract.status = 'signed';
-    contract.signature = { name, userId: auth.currentUser.id, signedAt: new Date().toISOString(), device: navigator.userAgent?.slice(0, 80) || 'Portail SARI' };
-    contract.signedAt = new Date().toISOString();
+    const drawing = SariSignaturePad.value('employee-sign-pad');
+    if (!drawing) return app.showToast('La signature manuscrite est obligatoire.', 'warning');
+    const signedAt = new Date().toISOString();
+    contract.employeeSignature = { fullName: name, name, role: document.getElementById('ctt-sign-role').value.trim() || 'Salarié', place: document.getElementById('ctt-sign-place').value.trim(), signedAt, drawing, userId: auth.currentUser.id, device: navigator.userAgent?.slice(0, 80) || 'Portail SARI' };
+    contract.signature = contract.employeeSignature;
+    contract.status = contract.companySignature?.signedAt ? 'signed' : 'sent';
+    if (contract.status === 'signed') contract.signedAt = signedAt;
     await sariDB.save('employmentContracts', contract);
+    if (contract.status === 'signed') {
+      try { const module = await window.SariModuleLoader?.load('contracts'); await ContractsModule.load(); await ContractsModule.archiveSignedContract(contract); } catch (error) { console.warn('[Contract] GED archive failed', error); }
+    }
     this.state.contracts = [...this.state.contracts.filter((item) => item.id !== contractId), contract];
     await sariDB.save('notifications', { id: `notif-${crypto.randomUUID()}`, type: 'contract', targetUserId: null, title: this.t('contractSignedTitle', 'Contrat signé'), titleI18n: { fr: 'Contrat signé', ar: 'عقد موقع', en: 'Contract signed' }, message: `${contract.referenceCode || contract.id} — ${name}`, isRead: false, createdAt: new Date().toISOString() });
     await app.updateNotificationsBadge();
-    app.showToast(this.t('contractSigned', 'Contrat signé électroniquement. Félicitations !'), 'success');
+    app.showToast(contract.status === 'signed' ? 'Contrat signé par les deux parties et archivé dans la GED.' : 'Votre signature est enregistrée; la signature de l’entreprise reste attendue.', 'success');
     // Section 313 — immediate visual refresh of the onboarding stepper.
     await this.render();
     const onboarding = this.onboarding();
@@ -197,7 +227,8 @@ const EmployeePortalModule = {
   },
   startDeclaration() {
     const employeeId = this.state.employee?.id; if (!employeeId) return;
-    window.SariModuleLoader?.load('contracts').then(() => {
+    window.SariModuleLoader?.load('contracts').then(async () => {
+      await ContractsModule.load();
       ContractsModule.state.employees = this.state.employees;
       ContractsModule.state.declarations = this.state.declarations;
       ContractsModule.openDeclarationEditor(employeeId, {
@@ -210,6 +241,12 @@ const EmployeePortalModule = {
         title: `${this.state.employee.firstName} ${this.state.employee.lastName}`,
       });
     }).catch((error) => console.warn('[Portal] contracts module unavailable', error));
+  },
+
+  portalPayslipsHtml(){const employeeId=this.state.employee.id,month=this.state.payslipMonth,from=this.state.payslipFrom?this.state.payslipFrom.slice(0,7):'',to=this.state.payslipTo?this.state.payslipTo.slice(0,7):'';const rows=this.state.payslips.filter(row=>row.employeeId===employeeId&&(!month||row.period===month)&&(!from||row.period>=from)&&(!to||row.period<=to)).sort((a,b)=>String(b.period).localeCompare(String(a.period)));return `<section class="sari-tile p-5"><header><h3 class="font-extrabold flex gap-2"><i data-lucide="receipt-text" class="text-sari-blue"></i>${this.t('portalMyPayslips','Mes fiches de paie')}</h3><p class="text-xs text-slate-500">${this.t('portalPayslipHelp','Consultez et filtrez vos fiches par mois ou plage de dates.')}</p></header><div class="grid md:grid-cols-3 gap-2 mt-4 p-3 border rounded-xl bg-slate-50 dark:bg-slate-800"><label class="doc-label">${this.t('month','Mois')}<input type="month" class="doc-input" value="${month}" onchange="EmployeePortalModule.state.payslipMonth=this.value;EmployeePortalModule.render()"></label><label class="doc-label">${this.t('fromDate','Du')}<input type="date" class="doc-input" value="${this.state.payslipFrom}" onchange="EmployeePortalModule.state.payslipFrom=this.value;EmployeePortalModule.render()"></label><label class="doc-label">${this.t('toDate','Au')}<input type="date" class="doc-input" value="${this.state.payslipTo}" onchange="EmployeePortalModule.state.payslipTo=this.value;EmployeePortalModule.render()"></label></div><div class="space-y-2 mt-4">${rows.map(row=>{const doc=this.state.documents.find(d=>d.id===row.generatedDocumentId)||(this.state.documents.find(d=>(d.links||[]).some(link=>link.recordType==='payslip'&&link.recordId===row.id)));return `<article class="p-3 border rounded-xl flex flex-col md:flex-row justify-between gap-3"><div><b>${SariUtils.escapeHtml(row.period||'—')}</b><small class="block font-mono-tech text-sari-blue">${SariUtils.escapeHtml(row.referenceCode||row.id)}</small><span class="text-xs">${this.t('netPayable','Net à payer')} : <strong class="text-green-700">${i18n.formatCurrency(row.netPayable)}</strong></span></div><div class="flex flex-wrap gap-1"><button type="button" onclick="EmployeePortalModule.viewMyPayslip('${row.id}')" class="doc-action"><i data-lucide="eye"></i>${this.t('view','Voir')}</button>${doc?`<button onclick="EmployeePortalModule.printCertificate('${doc.id}')" class="doc-action"><i data-lucide="printer"></i>${this.t('print','Imprimer')}</button><button onclick="DocumentManager.download('${doc.id}')" class="doc-action"><i data-lucide="download"></i>${this.t('download','Télécharger')}</button>`:''}</div></article>`}).join('')||`<p class="text-xs text-slate-400">${this.t('noPayslip','Aucune fiche de paie.')}</p>`}</div></section>`;},
+  async viewMyPayslip(id){
+    const row=this.state.payslips.find(item=>item.id===id&&item.employeeId===this.state.employee?.id);if(!row)return app.showToast(this.t('accessDenied','Accès interdit.'),'error');
+    try{await window.SariModuleLoader?.load('payslips');await PayslipsModule.loadData();await PayslipsModule.view(id);}catch(error){console.error('[Portal payslip consultation]',error);app.showToast(this.t('payslipConsultationFailed','Impossible d’ouvrir la consultation de la fiche de paie.'),'error');}
   },
 
   /* ──────────────────────────────── My contracts list ──────────────────────────────── */
@@ -226,57 +263,103 @@ const EmployeePortalModule = {
   },
   async viewContract(contractId) {
     const contract = this.state.contracts.find((item) => item.id === contractId); if (!contract) return;
+    const employeeSignature = contract.employeeSignature || contract.signature;
+    const signature = (item, role) => item?.signedAt ? `<div class="contract-signature-card"><b>${SariUtils.escapeHtml(item.role || role)}</b><p>${SariUtils.escapeHtml(item.fullName || item.name || '')}<br>${SariUtils.escapeHtml(item.place || '—')} • ${new Date(item.signedAt).toLocaleString()}</p>${item.drawing ? `<img src="${item.drawing}" alt="Signature">` : ''}</div>` : `<div class="contract-signature-card"><b>${role}</b><p>Signature en attente</p></div>`;
     const modal = document.getElementById('portal-modal');
-    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3"><article class="sari-tile w-full max-w-3xl max-h-[94vh] overflow-y-auto p-6">
-      <header class="flex justify-between border-b pb-3"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${contract.referenceCode || contract.id}</span>
-        <h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(contract.title)}</h3></div>
-        <button onclick="EmployeePortalModule.closeWizard()"><i data-lucide="x"></i></button></header>
-      <div class="rich-content text-sm mt-4">${RichTextEditor.sanitize(contract.clausesHtml || '<p>—</p>')}</div>
-      ${contract.signature?.signedAt ? `<p class="text-xs text-green-600 mt-3">✓ ${this.t('signedOn', 'Signé le')} ${i18n.formatDate(contract.signature.signedAt)} — ${SariUtils.escapeHtml(contract.signature.name || '')}</p>` : ''}</article></div>`;
+    modal.innerHTML = `<div class="fixed inset-0 z-[120] sari-modal-backdrop grid place-items-center p-3"><article class="sari-tile w-full max-w-4xl max-h-[94vh] overflow-y-auto p-6"><header class="flex flex-wrap justify-between gap-3 border-b pb-3 no-print"><div><span class="sari-badge bg-sari-blue/10 text-sari-blue">${contract.referenceCode || contract.id}</span><h3 class="text-xl font-extrabold mt-2">${SariUtils.escapeHtml(contract.title)}</h3></div><div class="flex gap-2"><button onclick="EmployeePortalModule.printMyContract('${contract.id}','print')" class="sari-btn px-3 bg-slate-200"><i data-lucide="printer"></i>Imprimer</button><button onclick="EmployeePortalModule.printMyContract('${contract.id}','download')" class="sari-btn px-3 bg-sari-lime text-slate-900"><i data-lucide="file-down"></i>PDF</button><button onclick="EmployeePortalModule.closeWizard()"><i data-lucide="x"></i></button></div></header>${this.portalContractBody(contract)}<section class="contract-signatures">${signature(contract.companySignature,'Représentant de l’entreprise')}${signature(employeeSignature,'Salarié')}</section></article></div>`;
     window.SariIcons?.hydrate();
   },
+
+  async printMyContract(contractId,mode='download'){try{await window.SariModuleLoader?.load('contracts');await ContractsModule.load();await ContractsModule.printContract(contractId,mode);}catch(error){console.error('[Portal contract print]',error);app.showToast('Impossible de générer le contrat.','error');}},
 
   /* ──────────────────────────────── My leave summary ──────────────────────────────── */
   leaveBalanceInfo() {
     const annual = this.state.leaveTypes.find((type) => type.code === 'annual' && type.deductsBalance !== false);
     if (!annual) return null;
     const year = new Date().getFullYear();
-    const used = this.state.leaveRequests.filter((record) => record.employeeId === this.state.employee.id && this.state.leaveTypes.find((type) => type.id === record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
+    const used = this.state.leaveRequests.filter((record) => record.employeeId === this.state.employee.id && this.state.leaveTypes.find((type) => type.id === record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel' && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
     return { total: Number(annual.daysPerYear) || 30, used };
+  },
+  leaveTypeName(typeId) {
+    const type = this.state.leaveTypes.find((item) => item.id === typeId);
+    return type?.name?.[i18n.currentLang] || type?.name?.fr || type?.code || typeId;
+  },
+  leaveStatusLabel(status) {
+    return ({ draft: 'Brouillon', submitted: 'En attente', approved: 'Approuvée', rejected: 'Rejetée', cancelled: 'Annulée', taken: 'Prise' })[status] || status;
   },
   leavesHtml() {
     const balance = this.leaveBalanceInfo();
-    const requests = this.state.leaveRequests.filter((record) => record.employeeId === this.state.employee.id).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+    const requests = this.state.leaveRequests.filter((record) => record.employeeId === this.state.employee.id).sort((a, b) => String(b.requestedAt || b.startDate).localeCompare(String(a.requestedAt || a.startDate)));
     return `<section class="sari-tile p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-extrabold flex gap-2"><i data-lucide="calendar-clock" class="text-sari-lime-dark"></i>${this.t('myLeaves', 'Mes congés')}</h3>
-      <button onclick="EmployeePortalModule.newLeaveRequest()" class="doc-action text-sari-blue font-bold"><i data-lucide="plus"></i>${this.t('requestLeave', 'Demander un congé')}</button></div>
+      <button onclick="EmployeePortalModule.openLeaveEditor()" class="doc-action text-sari-blue font-bold"><i data-lucide="plus"></i>${this.t('requestLeave', 'Demander un congé')}</button></div>
       ${balance ? `<div class="p-3 rounded-xl border bg-slate-50 dark:bg-slate-800 mb-3 flex items-center justify-between"><span class="text-xs">${this.t('annualBalance', 'Solde congé annuel')}</span><b class="font-mono-tech">${balance.total - balance.used} / ${balance.total} ${this.t('daysShort', 'j')}</b></div>` : ''}
-      <div class="space-y-2">${requests.slice(0, 6).map((record) => `<div class="p-2 rounded-lg border flex justify-between gap-2"><div><b class="text-xs">${SariUtils.escapeHtml(this.state.leaveTypes.find((type) => type.id === record.typeId)?.name?.[i18n.currentLang] || this.state.leaveTypes.find((type) => type.id === record.typeId)?.name?.fr || record.typeId)}</b><small class="block font-mono-tech text-[10px]">${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)} • ${record.durationDays ?? '—'} ${this.t('daysShort', 'j')}</small></div><span class="sari-badge text-[9px] ${record.status === 'approved' || record.status === 'taken' ? 'text-green-600' : record.status === 'rejected' ? 'text-red-600' : ''}">${record.status}</span></div>`).join('') || `<p class="text-xs text-slate-400">${this.t('noLeaveYet', 'Aucune demande de congé.')}</p>`}</div></section>`;
+      <div class="space-y-2">${requests.map((record) => { const pending = ['draft', 'submitted'].includes(record.status); const approved = ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel'; return `<div class="p-3 rounded-lg border flex flex-col md:flex-row justify-between gap-2"><div><b class="text-xs">${SariUtils.escapeHtml(this.leaveTypeName(record.typeId))}${record.requestKind ? ` • ${SariUtils.escapeHtml(({postpone:'Report',modify:'Modification',cancel:'Annulation'})[record.requestKind] || record.requestKind)}` : ''}</b><small class="block font-mono-tech text-[10px]">${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)} • ${record.durationDays ?? '—'} ${this.t('daysShort', 'j')}</small>${record.changeReason ? `<small class="block text-slate-500">Motif : ${SariUtils.escapeHtml(record.changeReason)}</small>` : ''}</div><div class="flex flex-wrap items-center gap-1"><span class="sari-badge text-[9px] ${approved ? 'text-green-600' : record.status === 'rejected' ? 'text-red-600' : ''}">${SariUtils.escapeHtml(this.leaveStatusLabel(record.status))}</span>
+        <button title="Voir" aria-label="Voir" onclick="EmployeePortalModule.viewLeave('${record.id}')" class="doc-action"><i data-lucide="eye"></i></button>
+        ${pending ? `<button title="Modifier" aria-label="Modifier" onclick="EmployeePortalModule.openLeaveEditor('${record.id}')" class="doc-action text-sari-blue"><i data-lucide="pencil"></i></button><button title="Supprimer" aria-label="Supprimer" onclick="EmployeePortalModule.deleteLeave('${record.id}')" class="doc-action text-red-600"><i data-lucide="trash-2"></i></button>` : ''}
+        ${approved ? `<button title="Reporter" aria-label="Reporter" onclick="EmployeePortalModule.openLeaveChange('${record.id}','postpone')" class="doc-action"><i data-lucide="calendar-sync"></i></button><button title="Modifier" aria-label="Demander une modification" onclick="EmployeePortalModule.openLeaveChange('${record.id}','modify')" class="doc-action"><i data-lucide="file-pen-line"></i></button><button title="Annuler" aria-label="Demander l’annulation" onclick="EmployeePortalModule.openLeaveChange('${record.id}','cancel')" class="doc-action text-red-600"><i data-lucide="calendar-x-2"></i></button>` : ''}</div></div>`; }).join('') || `<p class="text-xs text-slate-400">${this.t('noLeaveYet', 'Aucune demande de congé.')}</p>`}</div></section>`;
   },
-  async newLeaveRequest() {
+  async viewLeave(id) {
+    const record = this.state.leaveRequests.find((item) => item.id === id); if (!record) return;
+    const linked = this.state.leaveRequests.filter((item) => item.parentRequestId === id);
+    await DialogManager.alert(`${this.leaveTypeName(record.typeId)}\n${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)}\n${record.durationDays || 0} jour(s)\nStatut : ${this.leaveStatusLabel(record.status)}\nMotif : ${record.reason || '—'}${linked.length ? `\n\nDemandes de changement : ${linked.map((x) => this.leaveStatusLabel(x.status)).join(', ')}` : ''}`, { title: record.referenceCode || 'Demande de congé', icon: 'eye' });
+  },
+  async openLeaveEditor(id = '') {
+    const old = id ? this.state.leaveRequests.find((item) => item.id === id) : null;
+    if (old && !['draft', 'submitted'].includes(old.status)) return app.showToast('Une demande approuvée ne peut plus être modifiée directement.', 'warning');
     const types = this.state.leaveTypes.filter((type) => type.isActive !== false);
-    const values = await DialogManager.form(this.t('requestLeave', 'Demander un congé'), [
-      { name: 'typeId', label: this.t('leaveType', 'Type de congé'), type: 'select', options: types.map((type) => ({ value: type.id, label: type.name?.[i18n.currentLang] || type.name?.fr || type.code })) },
-      { name: 'startDate', label: this.t('startDate', 'Date début'), type: 'date', required: true },
-      { name: 'endDate', label: this.t('endDate', 'Date fin'), type: 'date', required: true },
-      { name: 'reason', label: this.t('justification', 'Motif'), type: 'textarea' },
+    const values = await DialogManager.form(id ? 'Modifier ma demande' : this.t('requestLeave', 'Demander un congé'), [
+      { name: 'typeId', label: this.t('leaveType', 'Type de congé'), type: 'select', value: old?.typeId, options: types.map((type) => ({ value: type.id, label: type.name?.[i18n.currentLang] || type.name?.fr || type.code })) },
+      { name: 'startDate', label: this.t('startDate', 'Date début'), type: 'date', value: old?.startDate, required: true },
+      { name: 'endDate', label: this.t('endDate', 'Date fin'), type: 'date', value: old?.endDate, required: true },
+      { name: 'reason', label: this.t('justification', 'Motif'), type: 'textarea', value: old?.reason || '' },
     ]);
     if (!values) return;
     if (values.endDate < values.startDate) return app.showToast(this.t('endBeforeStart', 'La date de fin précède la date de début.'), 'error');
     const type = this.state.leaveTypes.find((item) => item.id === values.typeId);
-    const record = {
-      id: `lv-${crypto.randomUUID()}`, employeeId: this.state.employee.id,
-      employeeName: `${this.state.employee.firstName} ${this.state.employee.lastName}`,
-      department: this.state.employee.department || '', typeId: values.typeId, isPaid: type?.isPaid !== false,
-      startDate: values.startDate, endDate: values.endDate,
-      durationDays: window.SariCore.leave.paidWorkingDaysBetween(values.startDate, values.endDate, this.state.schedule, this.state.holidays),
-      status: 'submitted', reason: values.reason, requestedAt: new Date().toISOString(),
-    };
-    await sariDB.save('leaveRequests', record);
-    await sariDB.save('notifications', { id: `notif-${crypto.randomUUID()}`, type: 'leave', targetUserId: null, title: this.t('newLeaveRequestTitle', 'Nouvelle demande de congé'), titleI18n: { fr: 'Nouvelle demande de congé', ar: 'طلب إجازة جديد', en: 'New leave request' }, message: `${this.state.employee.firstName} ${this.state.employee.lastName} — ${i18n.formatDate(values.startDate)} → ${i18n.formatDate(values.endDate)}`, isRead: false, createdAt: new Date().toISOString() });
-    const loader = window.SariModuleLoader;
-    if (loader?.has('leaves')) loader.load('leaves').then(() => LeaveModule.reconcileAdjustments()).catch(() => {});
-    app.showToast(this.t('leaveSubmitted', 'Demande transmise au service RH.'), 'success');
-    await this.render();
+    const record = { ...(old || {}), id: old?.id || `lv-${crypto.randomUUID()}`, employeeId: this.state.employee.id, employeeName: `${this.state.employee.firstName} ${this.state.employee.lastName}`, department: this.state.employee.department || '', typeId: values.typeId, isPaid: type?.isPaid !== false, startDate: values.startDate, endDate: values.endDate, durationDays: window.SariCore.leave.paidWorkingDaysBetween(values.startDate, values.endDate, this.state.schedule, this.state.holidays), status: old?.status || 'submitted', reason: values.reason, requestedAt: old?.requestedAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await sariDB.save('leaveRequests', record); await this.notifyLeave(record, old ? 'Demande de congé modifiée' : 'Nouvelle demande de congé');
+    app.showToast(old ? 'Demande mise à jour.' : this.t('leaveSubmitted', 'Demande transmise au service RH.'), 'success'); await this.render();
+  },
+  newLeaveRequest() { return this.openLeaveEditor(); },
+  async deleteLeave(id) {
+    const record = this.state.leaveRequests.find((item) => item.id === id); if (!record || !['draft', 'submitted'].includes(record.status)) return app.showToast('Seule une demande en attente peut être supprimée.', 'warning');
+    if (!await DialogManager.confirm('Supprimer définitivement cette demande en attente ?')) return;
+    await sariDB.delete('leaveRequests', id); app.showToast('Demande supprimée.', 'success'); await this.render();
+  },
+  async openLeaveChange(id, kind) {
+    const parent = this.state.leaveRequests.find((item) => item.id === id);
+    if (!parent || !['approved', 'taken'].includes(parent.status)) return app.showToast('Cette action est réservée aux congés approuvés.', 'warning');
+    const labels = { postpone: 'Demander le report', modify: 'Demander une modification', cancel: 'Demander l’annulation' };
+    const fields = [];
+    if (kind !== 'cancel') fields.push({ name: 'startDate', label: 'Nouvelle date de début', type: 'date', value: parent.startDate, required: true }, { name: 'endDate', label: 'Nouvelle date de fin', type: 'date', value: parent.endDate, required: true });
+    if (kind === 'modify') fields.unshift({ name: 'typeId', label: 'Nouveau type', type: 'select', value: parent.typeId, options: this.state.leaveTypes.filter((x) => x.isActive !== false).map((x) => ({ value: x.id, label: this.leaveTypeName(x.id) })) });
+    fields.push({ name: 'changeReason', label: 'Motif obligatoire de la demande', type: 'textarea', required: true });
+    const values = await DialogManager.form(labels[kind], fields); if (!values) return;
+    if (!String(values.changeReason || '').trim()) return app.showToast('Le motif est obligatoire.', 'warning');
+    const startDate = values.startDate || parent.startDate, endDate = values.endDate || parent.endDate;
+    if (endDate < startDate) return app.showToast('La date de fin précède la date de début.', 'error');
+    const request = { ...parent, id: `lv-change-${crypto.randomUUID()}`, referenceCode: '', numericId: undefined, order: undefined, parentRequestId: parent.id, requestKind: kind, typeId: values.typeId || parent.typeId, startDate, endDate, durationDays: kind === 'cancel' ? parent.durationDays : window.SariCore.leave.paidWorkingDaysBetween(startDate, endDate, this.state.schedule, this.state.holidays), status: 'submitted', reason: parent.reason, changeReason: String(values.changeReason).trim(), requestedAt: new Date().toISOString(), decidedAt: null, decidedBy: null };
+    await sariDB.save('leaveRequests', request); await this.notifyLeave(request, labels[kind]); app.showToast('Demande de changement transmise pour approbation.', 'success'); await this.render();
+  },
+  async notifyLeave(record, title) {
+    await sariDB.save('notifications', { id: `notif-${crypto.randomUUID()}`, type: 'leave', targetUserId: null, title, titleI18n: { fr: title, ar: title, en: title }, message: `${record.employeeName} — ${i18n.formatDate(record.startDate)} → ${i18n.formatDate(record.endDate)}${record.changeReason ? ` • ${record.changeReason}` : ''}`, isRead: false, createdAt: new Date().toISOString() });
+  },
+
+  /* ───────────────────────────── Work certificates (321) ───────────────────────────── */
+  certificatesHtml() {
+    const rows=this.state.workCertificates.filter(item=>item.employeeId===this.state.employee.id),employeeDocs=this.state.documents.filter(doc=>(doc.links||[]).some(link=>link.recordType==='employee'&&link.recordId===this.state.employee.id)&&!rows.some(row=>row.generatedDocumentId===doc.id));
+    const actions=docId=>`<div class="flex flex-wrap gap-1"><button onclick="DocumentManager.preview('${docId}')" class="doc-action"><i data-lucide="eye"></i>${this.t('view','Consulter')}</button><button onclick="EmployeePortalModule.printCertificate('${docId}')" class="doc-action"><i data-lucide="printer"></i>${this.t('print','Imprimer')}</button><button onclick="DocumentManager.download('${docId}')" class="doc-action"><i data-lucide="download"></i>${this.t('download','Télécharger')}</button></div>`;
+    return `<div class="space-y-4"><section class="sari-tile p-5"><div class="flex justify-between"><div><h3 class="font-extrabold flex gap-2"><i data-lucide="file-badge-2" class="text-sari-blue"></i>${this.t('myWorkCertificates','Mes attestations de travail')}</h3><p class="text-xs text-slate-500">${this.t('certificateConsultHelp','Consultez la version mise en page, imprimez-la ou téléchargez le PDF signé.')}</p></div><button onclick="EmployeePortalModule.requestCertificate()" class="doc-action text-sari-blue"><i data-lucide="file-plus-2"></i>${this.t('request','Demander')}</button></div><div class="grid md:grid-cols-2 gap-3 mt-4">${rows.map(row=>`<article class="p-4 border rounded-xl bg-gradient-to-br from-white to-teal-50 dark:from-slate-900 dark:to-slate-800"><div class="flex gap-3"><span class="w-11 h-11 rounded-xl bg-teal-600 text-white grid place-items-center"><i data-lucide="file-check-2"></i></span><div><b>${SariUtils.escapeHtml(row.title||this.t('workCertificate','Attestation de travail'))}</b><small class="block text-slate-500">${i18n.formatDate(row.requestedAt)} • ${SariUtils.escapeHtml(row.status)}</small></div></div>${row.generatedDocumentId?`<div class="mt-4"><button onclick="EmployeePortalModule.viewMyCertificate('${row.id}')" class="sari-btn px-4 py-2 bg-sari-blue text-white text-xs"><i data-lucide="panel-top-open"></i>${this.t('styledConsultation','Consultation stylée')}</button><div class="mt-2">${actions(row.generatedDocumentId)}</div></div>`:'<p class="text-xs text-sari-amber mt-3">Document signé en attente.</p>'}</article>`).join('')||`<p class="text-xs text-slate-400">${this.t('noCertificate','Aucune attestation demandée.')}</p>`}</div></section><section class="sari-tile p-5"><h3 class="font-extrabold flex gap-2"><i data-lucide="folder-open" class="text-sari-blue"></i>${this.t('myOtherDocuments','Mes autres documents')}</h3><div class="space-y-2 mt-3">${employeeDocs.map(doc=>`<article class="p-3 border rounded-xl flex flex-col md:flex-row justify-between gap-2"><div><b>${SariUtils.escapeHtml(doc.name)}</b><small class="block text-slate-500">${SariUtils.escapeHtml(doc.documentType||'Document')} • ${i18n.formatDate(doc.createdAt)}</small></div>${actions(doc.id)}</article>`).join('')||`<p class="text-xs text-slate-400">${this.t('noOtherDocument','Aucun autre document.')}</p>`}</div></section></div>`;
+  },
+  async viewMyCertificate(id){const row=this.state.workCertificates.find(item=>item.id===id&&item.employeeId===this.state.employee?.id);if(!row)return app.showToast(this.t('accessDenied','Accès interdit.'),'error');try{await window.SariModuleLoader?.load('contracts');await ContractsModule.load();await ContractsModule.viewCertificate(id);}catch(error){console.error('[Portal certificate]',error);if(row.generatedDocumentId)await DocumentManager.preview(row.generatedDocumentId);}},
+  async printCertificate(documentId){const doc=await sariDB.getById('documents',documentId);if(!doc?.data)return app.showToast('Document indisponible.','warning');const url=await DocumentManager.createObjectUrl(doc),win=window.open(url,'_blank');if(!win)return app.showToast('Autorisez les fenêtres contextuelles.','warning');setTimeout(()=>{try{win.print()}catch(_){}},900);setTimeout(()=>URL.revokeObjectURL(url),60000);},
+  async requestCertificate() {
+    const templates = this.state.certificateTemplates.filter((item) => item.isActive !== false);
+    const values = await DialogManager.form('Demander une attestation de travail', [{ name: 'templateId', label: 'Type d’attestation', type: 'select', options: templates.map((x) => ({ value: x.id, label: x.name?.[i18n.currentLang] || x.name?.fr || x.name || x.id })) }, { name: 'reason', label: 'Motif de la demande', type: 'textarea', required: true }]); if (!values) return;
+    const automatic = this.state.portalSettings.certificateAutoGeneration === true;
+    const record = { id: `cert-${crypto.randomUUID()}`, employeeId: this.state.employee.id, employeeName: `${this.state.employee.firstName} ${this.state.employee.lastName}`, templateId: values.templateId, title: 'Attestation de travail', reason: values.reason, status: automatic ? 'generated' : 'requested', requestedAt: new Date().toISOString(), generationMode: automatic ? 'automatic' : 'manual' };
+    await sariDB.save('workCertificates', record); await this.notifyLeave({ ...record, startDate: record.requestedAt, endDate: record.requestedAt }, 'Nouvelle demande d’attestation de travail');
+    app.showToast(automatic ? 'Attestation générée automatiquement; signature du responsable en attente.' : 'Demande d’attestation transmise.', 'success'); await this.render();
   },
 
   /* ──────────────────────────────── Profile / HR / messaging ──────────────────────────────── */

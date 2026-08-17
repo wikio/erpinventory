@@ -70,6 +70,8 @@ class SariApp {
         return false;
       }
 
+      await window.sariDB?.migrateGedDocumentsToDisk?.();
+
       if (window.i18n) await window.i18n.init();
       await window.UICopy?.persistCatalog();
       await window.DynamicI18n?.init();
@@ -81,9 +83,14 @@ class SariApp {
         const response = await fetch('/api/content/config/site.json', { credentials: 'same-origin' });
         if (response.ok) portableSettings = (await response.json()).content || {};
       } catch (_) { /* offline: IndexedDB settings remain authoritative */ }
-      this.applyBranding({ ...(brandingSettings || {}), ...portableSettings });
+      // The value saved by “Raison sociale / nom de société” is authoritative.
+      // Portable defaults may fill missing fields but must never overwrite local Company settings.
+      this.applyBranding({ ...portableSettings, ...(brandingSettings || {}) });
 
       if (window.auth?.loadPermissions) await window.auth.loadPermissions();
+      this.configureAdaptiveLayer();
+      await window.SariScanner?.init?.();
+      this.renderMobileBottomNav();
       window.auth?.hideLogin();
       if (window.syncController) await window.syncController.init();
 
@@ -108,25 +115,21 @@ class SariApp {
     return this.workspacePromise;
   }
 
+  cachedBranding(){try{return JSON.parse(localStorage.getItem('sari_branding_identity')||'{}')||{};}catch(_){return{};}}
+  applyCachedBranding(){this.applyBranding(this.cachedBranding());}
+
   applyBranding(settings = {}) {
-    const img = document.getElementById('sari-site-logo');
-    const fallback = document.getElementById('sari-default-logo');
-    if (img) {
-      img.src = settings.siteLogo || '';
-      img.classList.toggle('hidden', !settings.siteLogo);
-    }
-    if (fallback) fallback.classList.toggle('hidden', Boolean(settings.siteLogo));
-    const values = {
-      'sidebar-company-name': settings.companyName,
-      'footer-company-name': settings.companyName,
-      'sidebar-company-nif': settings.nif,
-      'sidebar-company-address': settings.address,
-      'footer-company-address': settings.address
-    };
-    for (const [id, value] of Object.entries(values)) {
-      const element = document.getElementById(id);
-      if (element && value) element.textContent = value;
-    }
+    const cached=this.cachedBranding(),has=(key)=>Object.prototype.hasOwnProperty.call(settings,key),logo=has('siteLogo')?settings.siteLogo:(cached.siteLogo||localStorage.getItem('sari_site_logo')||''),companyName=has('companyName')&&settings.companyName?settings.companyName:(cached.companyName||'SARI SYSTÈME'),companySubtitle=has('companySubtitle')&&settings.companySubtitle?settings.companySubtitle:(cached.companySubtitle||'Distribution Matériel Médical & Consommables');
+    document.querySelectorAll('[data-sari-site-logo]').forEach(img=>{img.src=logo;img.classList.toggle('hidden',!logo);});
+    document.querySelectorAll('[data-sari-default-logo]').forEach(fallback=>fallback.classList.toggle('hidden',Boolean(logo)));
+    const favicon=document.getElementById('sari-favicon'),apple=document.getElementById('sari-apple-touch-icon'),defaultIcon='/assets/icon-192.svg';
+    if(favicon){favicon.href=logo||defaultIcon;favicon.type=logo.startsWith('data:image/png')?'image/png':logo.startsWith('data:image/jpeg')?'image/jpeg':logo.startsWith('data:image/webp')?'image/webp':'image/svg+xml';}
+    if(apple)apple.href=logo||defaultIcon;
+    if(logo)localStorage.setItem('sari_site_logo',logo);else localStorage.removeItem('sari_site_logo');
+    localStorage.setItem('sari_branding_identity',JSON.stringify({siteLogo:logo,companyName,companySubtitle,updatedAt:Date.now()}));
+    const values = {'login-company-name':companyName,'login-company-subtitle':companySubtitle,'header-company-name':companyName,'header-company-subtitle':companySubtitle,'sidebar-company-name':companyName,'footer-company-name':companyName,'sidebar-company-nif':settings.nif,'sidebar-company-address':settings.address,'footer-company-address':settings.address};
+    for (const [id,value] of Object.entries(values)){const element=document.getElementById(id);if(element&&value){element.textContent=value;if(['login-company-name','login-company-subtitle','header-company-name','header-company-subtitle'].includes(id))element.title=String(value);}}
+    document.title=`${companyName} — ${companySubtitle}`;
   }
 
   registerServiceWorker() {
@@ -285,6 +288,13 @@ class SariApp {
     });
   }
 
+  toggleTopbarOverflow(event){event?.stopPropagation?.();const menu=document.getElementById('topbar-overflow-menu'),trigger=document.getElementById('topbar-overflow-trigger');if(!menu)return;const open=menu.classList.contains('hidden');menu.classList.toggle('hidden',!open);trigger?.setAttribute('aria-expanded',String(open));if(open&&!this._topbarOverflowBound){this._topbarOverflowBound=true;document.addEventListener('click',click=>{if(!click.target.closest('.topbar-overflow-wrap'))this.closeTopbarOverflow();});document.addEventListener('keydown',key=>{if(key.key==='Escape')this.closeTopbarOverflow();});}}
+  closeTopbarOverflow(){document.getElementById('topbar-overflow-menu')?.classList.add('hidden');document.getElementById('topbar-overflow-trigger')?.setAttribute('aria-expanded','false');}
+
+  configureAdaptiveLayer(){const apply=()=>{const width=window.innerWidth,form=width<=640?'mobile':width<=1023?'tablet':'desktop';document.body.dataset.formFactor=form;const sidebar=document.getElementById('mobile-sidebar');if(form==='tablet')sidebar?.classList.add('sidebar-collapsed');else if(form==='desktop'&&localStorage.getItem('sari_sidebar_collapsed')!=='true')sidebar?.classList.remove('sidebar-collapsed');this.renderMobileBottomNav();};apply();if(!this._adaptiveBound){this._adaptiveBound=true;window.addEventListener('resize',SariUtils.debounce?SariUtils.debounce(apply,150):apply);}}
+  mobileShortcutCandidates(){return[['dashboard','layout-dashboard','dashboard','Tableau'],['inventory','package','inventory','Stock'],['sales','shopping-cart','sales','Ventes'],['purchases','receipt-text','purchases','Achats'],['tasks','square-kanban','tasks','Tâches'],['portal','contact-round','portal','Mon espace']];}
+  renderMobileBottomNav(){const nav=document.getElementById('sari-mobile-bottom-nav');if(!nav)return;const permitted=this.mobileShortcutCandidates().filter(([, ,permission])=>!window.auth||window.auth.can(this.permissionForModule(permission),'view')),preferred=permitted.filter(([module])=>module==='dashboard'||module===this.activeModule||!['tasks','portal'].includes(module)),items=[...new Map([...preferred,...permitted].map(item=>[item[0],item])).values()].slice(0,window.SariScanner?.available?4:5);nav.innerHTML=items.map(([module,icon,,fallback])=>`<button type="button" data-mobile-nav="${module}" class="${this.activeModule===module?'active':''}" onclick="app.navigate('${module}')" title="${SariUtils.escapeHtml(i18n?.t?.(module,fallback)||fallback)}"><i data-lucide="${icon}"></i><span>${i18n?.t?.(module,fallback)||fallback}</span></button>`).join('')+(window.SariScanner?.available?`<button type="button" class="mobile-scan-action" onclick="SariScanner.open()"><i data-lucide="scan-line"></i><span>${i18n?.t?.('scan','Scanner')||'Scanner'}</span></button>`:'');window.SariIcons?.hydrate();}
+
   async navigate(moduleName, updateHash = true) {
     if (!(moduleName in this.modules)) moduleName = 'dashboard';
 
@@ -301,6 +311,7 @@ class SariApp {
     if (window.auth && await this.isOnboardingBlocked(moduleName)) return;
 
     this.activeModule = moduleName;
+    this.renderMobileBottomNav();
     if (updateHash && window.location.hash !== `#${moduleName}`) {
       window.location.hash = `#${moduleName}`;
     }
@@ -715,6 +726,7 @@ class SariApp {
 const app = new SariApp();
 if (typeof window !== 'undefined') {
   window.app = app;
+  app.applyCachedBranding();
   window.addEventListener('DOMContentLoaded', () => app.init());
 }
 

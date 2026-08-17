@@ -11,12 +11,14 @@ class AuthController {
     this.employee = null;
   }
 
+  async loadLoginBranding(){window.app?.applyCachedBranding?.();try{await window.sariDB?.init();const settings=await window.sariDB?.getById('settings','app-settings');if(settings)window.app?.applyBranding?.(settings);}catch(error){console.warn('[Auth] Login branding unavailable',error);}}
   async loadPublicAuthSettings(){try{const response=await fetch('/api/auth/public-settings',{cache:'no-store'}),settings=await response.json(),demo=document.getElementById('auth-demo-accounts');if(demo)demo.classList.toggle('hidden',settings.showDemoAccounts===false||settings.demoAccountsEnabled===false);}catch(_){}}
   async forgotPassword(){const values=await DialogManager.form('Demande de réinitialisation',[{name:'identifier',label:'Identifiant ou email',required:true}],{message:'La demande sera placée dans la file Administrateur. Aucun mot de passe ne sera modifié automatiquement.',confirmText:'Envoyer la demande'});if(!values)return;const response=await fetch('/api/auth/password-reset-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}),result=await response.json();this.setLoginError(response.ok?'Demande enregistrée. Un Administrateur doit maintenant la traiter.':result.error||'Demande impossible.');}
   async handleActionToken(){const params=new URLSearchParams(location.search),token=params.get('reset')||params.get('activation');if(!token)return;const validation=await fetch('/api/auth/token/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).then(response=>response.json()).catch(()=>({valid:false}));if(!validation.valid){this.showLogin('Le lien d’activation/réinitialisation est invalide ou expiré.');return;}const values=await DialogManager.form(validation.purpose==='activation'?'Activer le compte':'Réinitialiser le mot de passe',[{name:'password',label:'Nouveau mot de passe',type:'password',required:true},{name:'confirmation',label:'Confirmer le mot de passe',type:'password',required:true}],{confirmText:'Enregistrer'});if(!values)return;if(values.password!==values.confirmation||values.password.length<10){this.showLogin('Les mots de passe doivent être identiques et contenir au moins 10 caractères.');return;}const response=await fetch('/api/auth/token/consume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,password:values.password})}),result=await response.json();history.replaceState({},'',location.pathname);this.showLogin(response.ok?'Mot de passe enregistré. Vous pouvez vous connecter.':result.error||'Lien invalide.');}
 
   async init() {
     this.setupProfileMenu();
+    await this.loadLoginBranding();
     await this.loadPublicAuthSettings();
     await this.handleActionToken();
     // A short-lived session hint prevents the empty login form flashing while

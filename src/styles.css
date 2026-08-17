@@ -21,3 +21,103 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Sections 320–321 — accessible mouse/touch signature capture and print blocks */
+.signature-pad-frame{position:relative;margin-top:.35rem;border:1px solid #94a3b8;border-radius:.75rem;background:#fff;overflow:hidden;min-height:150px}
+.signature-pad-canvas{display:block;width:100%;height:150px;touch-action:none;cursor:crosshair;background:linear-gradient(to bottom,transparent 80%,#cbd5e1 80%,#cbd5e1 81%,transparent 81%)}
+.signature-pad-clear{position:absolute;right:.5rem;top:.5rem;display:flex;gap:.3rem;align-items:center;padding:.3rem .55rem;border-radius:.5rem;background:#f1f5f9;color:#475569;font-size:.7rem;font-weight:700}
+.contract-document{background:#fff;color:#172033;font-family:Georgia,"Times New Roman",serif;line-height:1.55}
+.contract-document .contract-article{margin:1rem 0;break-inside:avoid}
+.contract-document .contract-article h4{text-transform:uppercase;font-weight:800;text-align:center;margin-bottom:.35rem}
+.contract-signatures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1.5rem;break-inside:avoid}
+.contract-signature-card{border:2px solid #0f766e;border-radius:.5rem;padding:.75rem;min-height:180px;background:#f8fafc}
+.contract-signature-card img{height:72px;max-width:100%;object-fit:contain;margin:.5rem auto}
+@media(max-width:640px){.contract-signatures{grid-template-columns:1fr}}
+@media print{.contract-document{box-shadow:none!important;border:0!important}.contract-signatures{grid-template-columns:1fr 1fr}.signature-pad-clear{display:none}}
+
+/* Sections 334–335 — unobtrusive HR authenticity mark and contract print rhythm */
+.hr-authenticity-qr{display:flex;align-items:center;justify-content:flex-end;gap:.55rem;margin:1rem 0;color:#475569;font-family:"Plus Jakarta Sans",Arial,sans-serif;font-size:9px;break-inside:avoid}
+.hr-authenticity-qr img{width:78px;height:78px;object-fit:contain;background:#fff;padding:3px;border:1px solid #cbd5e1;border-radius:6px}
+.contract-document{font-family:"Plus Jakarta Sans","IBM Plex Sans Arabic",Arial,sans-serif!important;font-size:12px;line-height:1.72;padding-top:34px!important;padding-bottom:46px!important}
+.contract-document>h1{color:#0f766e;letter-spacing:.025em}
+.contract-document .contract-article{margin:1.25rem 0;padding:.75rem 1rem;border-left:3px solid #0f766e;background:#f8fafc;border-radius:0 .5rem .5rem 0}
+.contract-document .contract-article h4{color:#0f766e;font-family:"Plus Jakarta Sans",Arial,sans-serif;letter-spacing:.02em;text-align:left}
+@media print{.contract-document{padding-top:32mm!important;padding-bottom:26mm!important}.contract-document .doc-header{margin-bottom:10mm!important}.contract-document .doc-footer{margin-top:10mm!important}}
+
+/* Modern HR document shell: generous safe areas, dynamic LTR/RTL header and sortable editors. */
+.modern-hr-header{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 18px;margin-bottom:32px;border-bottom:4px solid #0f766e;background:linear-gradient(135deg,#f0fdfa 0%,#fff 72%);border-radius:10px 10px 0 0;color:#0f172a;font-family:"Plus Jakarta Sans","IBM Plex Sans Arabic",Arial,sans-serif}
+.modern-hr-header.rtl,.modern-hr-header[dir="rtl"]{flex-direction:row-reverse;text-align:right;background:linear-gradient(225deg,#f0fdfa 0%,#fff 72%)}
+.modern-hr-company{display:flex;align-items:center;gap:12px;min-width:0}.modern-hr-header[dir="rtl"] .modern-hr-company{flex-direction:row-reverse}
+.modern-hr-company img{width:72px;height:56px;object-fit:contain}.modern-hr-company b{display:block;font-size:16px;color:#0f766e}.modern-hr-company small{display:block;font-size:9px;line-height:1.5;color:#475569}
+.modern-hr-title{text-align:right;display:flex;flex-direction:column}.modern-hr-header[dir="rtl"] .modern-hr-title{text-align:left}.modern-hr-title>b{font-size:15px;letter-spacing:.04em}.modern-hr-title span{font-weight:700;color:#0f766e}.modern-hr-title small{font-family:"IBM Plex Mono",monospace;color:#64748b}
+.contract-template-top,.contract-template-notes{margin:22px 0;padding:16px;border:1px solid #99f6e4;border-radius:9px;background:#f0fdfa}.contract-template-notes{margin-bottom:34px;background:#f8fafc;border-color:#cbd5e1}
+.advanced-sort-list{display:flex;flex-direction:column;gap:12px}.advanced-sort-item{padding:14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.04)}.advanced-sort-item:active{border-color:#0f766e;box-shadow:0 8px 22px rgba(15,118,110,.15)}.advanced-sort-item>header{display:flex;align-items:center;gap:8px;margin-bottom:10px}.drag-handle{cursor:grab;color:#0f766e;flex:none}
+.print-doc-area>.document-shell,.contract-document{padding-top:12mm!important;padding-bottom:18mm!important}.doc-body{padding-top:8mm;padding-bottom:12mm}
+@media print{.modern-hr-header{margin-bottom:14mm!important}.doc-body{padding-top:12mm!important;padding-bottom:20mm!important}.contract-document{padding-top:38mm!important;padding-bottom:30mm!important}.hr-authenticity-qr{margin-bottom:12mm}}
+
+/* Ordered drag/drop template fields and balanced configurable-question controls. */
+.sort-order-indicator{display:flex!important;justify-content:flex-start!important;align-items:center;gap:6px;margin:-4px 0 10px!important;padding-bottom:8px;border-bottom:1px dashed #cbd5e1}
+.config-question-row{display:grid!important;grid-template-columns:minmax(320px,1fr) 145px auto;gap:10px;align-items:center}
+.config-question-row>input{width:100%;min-width:0}.question-type-select{width:145px!important;min-width:145px!important}
+.advanced-sort-item[draggable="true"]{transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.advanced-sort-item[draggable="true"]:hover{border-color:#5eead4;box-shadow:0 8px 24px rgba(15,118,110,.1)}
+@media(max-width:720px){.config-question-row{grid-template-columns:1fr}.question-type-select{width:100%!important}.modern-hr-header{align-items:flex-start;flex-direction:column}.modern-hr-header[dir="rtl"]{flex-direction:column}.modern-hr-title,.modern-hr-header[dir="rtl"] .modern-hr-title{text-align:start}}
+.contract-document{max-width:760px;margin:0 auto;font-size:11px;line-height:1.52}
+.contract-document .contract-article{margin:.75rem 0;padding:.55rem .8rem}
+.contract-document .contract-article h4{margin-bottom:.2rem;font-size:11px}
+@media print{.contract-document{font-size:10.5px;line-height:1.45;max-width:180mm;padding-top:12mm!important;padding-bottom:18mm!important}.contract-document .contract-article{margin:2.5mm 0;padding:2.5mm 3mm}.modern-hr-header{margin-bottom:16mm!important}}
+
+/* Professional advanced HTML editor used by HR documents and templates. */
+.rich-editor-toolbar-advanced{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:8px;background:#f8fafc;border:1px solid #cbd5e1;border-bottom:0;border-radius:9px 9px 0 0;position:sticky;top:0;z-index:3}
+.rich-editor-toolbar-advanced button{width:32px;height:30px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;color:#334155}.rich-editor-toolbar-advanced button:hover{background:#e2e8f0;border-color:#cbd5e1;color:#0f766e}.rich-editor-toolbar-advanced button svg{width:15px;height:15px}
+.rich-editor-toolbar-advanced select{height:30px;max-width:120px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;padding:0 6px;font-size:11px}.toolbar-separator{width:1px;height:24px;background:#cbd5e1;margin:0 2px}
+.rich-editor-pro{min-height:180px;padding:14px;border:1px solid #cbd5e1;border-radius:0 0 9px 9px;background:#fff;line-height:1.6}.rich-editor-pro img{cursor:pointer}.rich-editor-pro img.selected-rich-image{outline:3px solid #14b8a6;outline-offset:3px}.rich-editor-pro table{margin:12px 0}.rich-editor-pro blockquote{border-left:4px solid #14b8a6;padding-left:12px;color:#475569}
+.custom-placeholder{display:inline-flex;gap:4px;align-items:center;margin-left:auto}.custom-placeholder input{height:28px;min-width:180px;border:1px solid #cbd5e1;border-radius:6px;padding:0 7px;font-family:"IBM Plex Mono",monospace;font-size:10px}.custom-placeholder button{display:flex;align-items:center;gap:3px}
+
+/* Extra PDF safe zones: prevent body clipping against repeating HR headers/footers. */
+.doc-header,.document-print-header{padding-bottom:7mm!important}.doc-footer,.document-print-footer{padding-top:6mm!important}.doc-body{padding-top:16mm!important;padding-bottom:22mm!important}
+@media print{.modern-hr-header{margin-bottom:18mm!important}.contract-document{padding-top:16mm!important;padding-bottom:24mm!important}.contract-document .doc-header{margin-bottom:18mm!important}.contract-document .doc-footer{margin-top:16mm!important}}
+
+/* Per-template HR design controls and a pagination-only reserved band. */
+.contract-document .modern-hr-header{border-bottom-color:var(--hr-accent,#0f766e)}.contract-document .modern-hr-company b,.contract-document .modern-hr-title span,.contract-document>h1,.contract-document .contract-article h4{color:var(--hr-accent,#0f766e)}.contract-document .contract-article{border-left-color:var(--hr-accent,#0f766e)}
+.custom-hr-template-header{margin-bottom:14mm;padding-bottom:7mm;border-bottom:3px solid var(--hr-accent,#0f766e);break-after:avoid}.custom-hr-template-footer{margin-top:12mm;padding-top:6mm;border-top:1px solid #cbd5e1;break-before:avoid}
+.pdf-pagination-band{min-height:10mm;display:flex;align-items:flex-end;justify-content:center;font-size:9px;color:#64748b}
+
+/* Payslip consultation print variant: compact one-page hierarchy with protected QR/footer. */
+.payslip-consultation-print{width:100%;max-width:190mm;min-height:265mm;margin:0 auto;background:#fff;box-sizing:border-box}.payslip-consultation-print .consult-metric{display:flex;min-height:54px;flex-direction:column;justify-content:center;padding:9px 10px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc}.payslip-consultation-print .consult-metric small{font-size:9px;color:#64748b}.payslip-consultation-print .consult-metric b{font-size:13px;margin-top:3px}.payslip-consultation-print .consult-metric-net{border-color:#86efac;background:#dcfce7;color:#166534}.payslip-consultation-print .payslip-info-panel{padding:9px;min-height:245px}.payslip-consultation-print .payslip-info-panel h3{font-size:11px;margin-bottom:6px}.payslip-consultation-print .compact-pay-table table{font-size:9px!important}.payslip-consultation-print .compact-pay-table th,.payslip-consultation-print .compact-pay-table td{padding:3px 4px!important}.payslip-consultation-print .hr-authenticity-qr{margin:0}.payslip-consultation-print .hr-authenticity-qr img{width:68px;height:68px}
+.doc-footer,.document-print-footer{box-sizing:border-box;padding-bottom:4mm!important;overflow:visible!important;min-height:12mm}.custom-hr-template-footer{margin-bottom:4mm!important}
+@media print{.payslip-consultation-print{min-height:0;max-height:250mm;padding:6mm!important}.payslip-consultation-print .payslip-info-panel{min-height:225px}.doc-footer,.document-print-footer{padding-bottom:5mm!important;margin-bottom:3mm!important}}
+
+/* Consultation payslip v4 — framed, friendly, compact and guaranteed one-page layout. */
+.payslip-consultation-print.consultation-v4{width:190mm;height:270mm;min-height:270mm;max-height:270mm;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:6mm;background:#fff;color:#222;font-family:"Plus Jakarta Sans",Arial,sans-serif;font-size:10px}
+.consultation-v4-header{display:grid;grid-template-columns:1.18fr .82fr;min-height:34mm;border:2px solid #222;border-radius:8px;overflow:hidden;background:#fff}
+.consultation-v4-company{display:flex;align-items:center;gap:4mm;padding:4mm}.consultation-v4-logo{width:25mm;flex:none}.consultation-v4-logo img{display:block;max-width:25mm!important;max-height:20mm!important;object-fit:contain}.consultation-v4-company strong{display:block;font-size:14px;color:#111}.consultation-v4-fiscal{margin-top:2mm;font-size:8px;line-height:1.45;color:#475569}
+.consultation-v4-title{padding:3mm;border-left:1px solid #cbd5e1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}.consultation-v4-title h1{display:inline-block;margin:0 0 2.5mm;padding:2.5mm 4mm;border-radius:4px;background:#222;color:#fff;font-size:17px;line-height:1;letter-spacing:.05em}.consultation-v4-title>b{font-family:"IBM Plex Mono",monospace;font-size:10px}.consultation-v4-title p{margin:1.5mm 0 0;font-size:9px;font-weight:700;color:#334155}
+.consultation-v4-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin-top:3mm}.consultation-v4 .consult-metric{min-height:15mm;padding:2mm 2.5mm}.consultation-v4 .consult-metric small{font-size:8px}.consultation-v4 .consult-metric b{font-size:11px}
+.consultation-v4-details{display:grid;grid-template-columns:.85fr 1.08fr 1.08fr;gap:2mm;margin-top:3mm;min-height:105mm;max-height:105mm}.consultation-v4-details .payslip-info-panel{min-height:0;height:105mm;overflow:hidden;padding:2.5mm;border-radius:7px}.consultation-v4-details .payslip-info-panel h3{margin:0 0 2mm;font-size:10px}.consultation-v4-employee{font-size:8.5px;line-height:1.55}.consultation-v4 .compact-pay-table table{font-size:7.5px!important}.consultation-v4 .compact-pay-table th,.consultation-v4 .compact-pay-table td{padding:1.2mm 1mm!important;line-height:1.2}
+.consultation-v4-work{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin-top:3mm}.consultation-v4-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:5mm;min-height:25mm;margin-top:auto;padding-top:3mm;border-top:1.5px solid #222}.consultation-v4-footer>div:first-child{display:flex;flex-direction:column;gap:1mm}.consultation-v4-footer small{font-size:8px;color:#64748b}.consultation-v4-footer code{font-size:8px}.consultation-v4-footer .hr-authenticity-qr{margin:0}.consultation-v4-footer .hr-authenticity-qr img{width:17mm;height:17mm}
+[dir="rtl"] .consultation-v4-title{border-left:0;border-right:1px solid #cbd5e1;align-items:flex-end}.consultation-v4[dir="rtl"]{text-align:right}
+@media print{.payslip-consultation-print.consultation-v4{width:186mm!important;height:265mm!important;min-height:265mm!important;max-height:265mm!important;padding:5mm!important}.consultation-v4-details{min-height:100mm;max-height:100mm}.consultation-v4-details .payslip-info-panel{height:100mm}}
+
+/* Payslip v5 employee address, detailed period, notice date and optional note. */
+.consultation-v4-title .consultation-v4-period,.consultation-v4-title .consultation-v4-notice{display:block;margin-top:1mm;font-size:7.5px;line-height:1.25;color:#475569}.consultation-v4-notes{max-height:18mm;overflow:hidden;margin-top:2mm;padding:2mm 3mm;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;font-size:8px;line-height:1.35}.consultation-v4-notes>b{display:block;margin-bottom:1mm;font-size:8.5px}.consultation-v4-notes p{margin:0}
+
+/* Compact footer proximity and requested PDF typography. */
+.print-doc-area,.payslip-consultation-print,.contract-document{font-family:"IBM Plex Mono","IBM Plex Sans Arabic",monospace!important}
+.payslip-consultation-print.consultation-v4{height:auto;min-height:0;max-height:250mm;font-family:"IBM Plex Mono","IBM Plex Sans Arabic",monospace!important}
+.consultation-v4-footer{margin-top:2mm!important;min-height:22mm}
+@media print{.payslip-consultation-print.consultation-v4{height:auto!important;min-height:0!important;max-height:250mm!important}.consultation-v4-footer{margin-top:2mm!important}}
+
+/* Normalized PDF table typography: readable values and consistent cell rhythm. */
+.print-doc-area .payslip-grid-table{width:100%!important;table-layout:fixed;border-collapse:collapse;font-family:"IBM Plex Mono","IBM Plex Sans Arabic",monospace!important;font-size:9.5px!important;line-height:1.35!important}
+.print-doc-area .payslip-grid-table tr{height:6.6mm;min-height:6.6mm}
+.print-doc-area .payslip-grid-table th,.print-doc-area .payslip-grid-table td{box-sizing:border-box;padding:1.6mm 1.8mm!important;font-size:9.5px!important;line-height:1.35!important;vertical-align:middle!important;overflow-wrap:anywhere}
+.print-doc-area .payslip-grid-table td:first-child,.print-doc-area .payslip-grid-table th:first-child{width:58%;font-weight:500;text-align:start}
+.print-doc-area .payslip-grid-table td:last-child,.print-doc-area .payslip-grid-table th:last-child{width:42%;font-size:10.5px!important;font-weight:700!important;text-align:end!important;white-space:nowrap;font-variant-numeric:tabular-nums lining-nums}
+.print-doc-area .payslip-grid-table thead th{height:7mm;background:#e2e8f0!important;font-size:10px!important;font-weight:700!important;letter-spacing:.02em}
+.print-doc-area .payslip-grid-table tfoot th{height:7.2mm;background:#f1f5f9!important;font-size:10px!important;font-weight:800!important}
+.consultation-v4 .compact-pay-table table{font-size:9.5px!important}.consultation-v4 .compact-pay-table th,.consultation-v4 .compact-pay-table td{padding:1.6mm 1.8mm!important;font-size:9.5px!important;line-height:1.35!important}.consultation-v4 .compact-pay-table td:last-child,.consultation-v4 .compact-pay-table th:last-child{font-size:10.5px!important}
+@media print{.print-doc-area .payslip-grid-table th,.print-doc-area .payslip-grid-table td{padding:1.5mm 1.6mm!important;line-height:1.3!important}.print-doc-area .payslip-grid-table tr{height:6.3mm}}
+
+/* Scannable standards-compliant URL QR sizing and quiet-zone preservation. */
+.hr-authenticity-qr img{image-rendering:pixelated;background:#fff!important;padding:2mm!important;box-sizing:border-box}
+.consultation-v4-footer .hr-authenticity-qr img{width:20mm!important;height:20mm!important;padding:1.5mm!important}

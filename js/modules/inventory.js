@@ -531,7 +531,7 @@ const InventoryModule = {
   async openBarcodeModal(productId) {
     const p = await window.sariDB.getById('products', productId);
     if (!p) return;
-    const labelConfig=await sariDB.getById('barcodeLabelSettings','default')||{},appSettings=await sariDB.getById('settings','app-settings')||{},productCode=p.referenceCode||p.sku,hash=labelConfig.includeHash?await DocumentSecurity.hash(productCode):'',pattern=labelConfig.qrPattern||String(appSettings.verificationBaseUrl||'http://sari-systeme.com/code')+'/{code}'+(labelConfig.includeHash?'-{hash}':''),qrContent=SariUtils.buildVerificationUrl(pattern,{code:productCode,referenceCode:productCode,sku:p.sku,barcode:p.barcode||p.sku,hash,numericId:p.numericId,id:p.id});
+    const labelConfig=await sariDB.getById('barcodeLabelSettings','default')||{},appSettings=await sariDB.getById('settings','app-settings')||{},productCode=p.referenceCode||p.sku,hash=labelConfig.includeHash?await DocumentSecurity.hash(productCode):'',pattern=labelConfig.qrPattern||String(appSettings.verificationBaseUrl||'https://sari-systeme.com/verification'),qrContent=SariUtils.buildVerificationUrl(pattern,{code:productCode,referenceCode:productCode,sku:p.sku,barcode:p.barcode||p.sku,hash,numericId:p.numericId,id:p.id});
 
     const modalEl = document.getElementById('inv-barcode-modal');
     if (!modalEl) return;
