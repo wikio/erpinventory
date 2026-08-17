@@ -5,7 +5,8 @@
  */
 
 class SariDB {
-  constructor(dbName = 'SariSystemeDB', version = 19) {
+  // Previous schema marker retained for migration diagnostics: version = 19
+  constructor(dbName = 'SariSystemeDB', version = 20) {
     this.dbName = dbName;
     this.version = version;
     this.db = null;
@@ -68,7 +69,7 @@ class SariDB {
           'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations',
           'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'recordSequences', 'barcodeLabelSettings',
           'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips',
-          'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates'
+          'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates', 'positionFunctions', 'workCertificates', 'certificateTemplates'
         ];
 
         stores.forEach((storeName) => {
@@ -126,6 +127,8 @@ class SariDB {
             } else if (storeName === 'workedHolidays') {
               store.createIndex('employeeId', 'employeeId', { unique: false });
               store.createIndex('holidayId', 'holidayId', { unique: false });
+            } else if (storeName === 'positionFunctions' || storeName === 'workCertificates') {
+              store.createIndex(storeName === 'positionFunctions' ? 'position' : 'employeeId', storeName === 'positionFunctions' ? 'position' : 'employeeId', { unique: false });
             } else if (storeName === 'workerAssignments') {
               store.createIndex('workerId', 'workerId', { unique: false });
             } else if (storeName === 'cnasPayments' || storeName === 'casnosPayments') {
@@ -341,6 +344,16 @@ class SariDB {
     if((await this.getAll('tradeRegisters')).length===0)await this.save('tradeRegisters',{id:'trade-register-main',registerNumber:'16/00-0987654B19',legalName:'SARI SYSTÈME',legalForm:'SARL',activity:'Distribution de matériel médical et consommables',address:'Lotissement Medical, Bab Ezzouar, 16024 Alger',nif:'001616098765432',nai:'1602409876',nis:'001616012345678',issueDate:'2019-01-01',status:'active',notesHtml:''});
     // 309.4 Holiday source configuration (default: automatic religious calculation)
     if(!await this.getById('settings','holiday-config'))await this.save('settings',{id:'holiday-config',religiousSource:'auto',autoFetchServer:true,importMapping:{csv:{date:'date',fr:'name_fr',ar:'name_ar',en:'name_en',isFixed:'is_fixed',notes:'notes'},json:{date:'date',fr:'name.fr',ar:'name.ar',en:'name.en',isFixed:'isFixed',notes:'notes'}},updatedAt:new Date().toISOString()});
+    // 319/321 — reusable position responsibilities and certificate types.
+    const functionSeeds=[
+      {id:'fn-stock-1',position:'Gestionnaire stocks',title:'Assurer la réception, le stockage et la traçabilité des lots',description:'Contrôler les mouvements, dates de péremption et conditions de conservation.',isActive:true,order:1},
+      {id:'fn-sales-1',position:'Commerciale B2B',title:'Développer et suivre le portefeuille clients',description:'Préparer les offres, assurer le suivi commercial et respecter la confidentialité.',isActive:true,order:1}
+    ];for(const row of functionSeeds)if(!await this.getById('positionFunctions',row.id))await this.save('positionFunctions',row);
+    const certificateSeeds=[
+      {id:'cert-with-salary',name:{fr:'Attestation avec salaire',ar:'شهادة عمل مع الراتب',en:'Certificate with salary'},includeSalary:true,includeFunctions:false,isActive:true},
+      {id:'cert-without-salary',name:{fr:'Attestation sans salaire',ar:'شهادة عمل بدون راتب',en:'Certificate without salary'},includeSalary:false,includeFunctions:false,isActive:true},
+      {id:'cert-with-functions',name:{fr:'Attestation avec fonctions et tâches',ar:'شهادة عمل مع المهام',en:'Certificate with job functions'},includeSalary:false,includeFunctions:true,isActive:true}
+    ];for(const row of certificateSeeds)if(!await this.getById('certificateTemplates',row.id))await this.save('certificateTemplates',row);
     // 304.5 Portal access policy default (restriction disabled until an Administrator enables it)
     const settings=await this.getById('settings','app-settings')||{id:'app-settings'};
     if(!settings.portalAccessPolicy){settings.portalAccessPolicy={enabled:false,blockedModules:['payslips','tasks','documents','messages'],exemptRoles:['admin'],messageI18n:{fr:'Votre espace est restreint tant que le parcours d’intégration (règlement, CGU, signature et déclaration) n’est pas terminé.',ar:'مساحتك مقيدة حتى إتمام مسار الاندماج (النظام الداخلي، الشروط العامة، التوقيع والتصريح).',en:'Your workspace is restricted until the onboarding process (rules, terms, signature and declaration) is completed.'}};await this.save('settings',settings);}
@@ -443,7 +456,7 @@ class SariDB {
       'purchaseDocuments', 'documentLinks', 'paymentMethods', 'banks', 'bankAccounts', 'coupons', 'referrals',
       'taxRecords', 'g50Payments', 'attendance', 'performanceRecords', 'salaryHistory', 'taskHistory',
       'clientTypes', 'supplierTypes', 'bankTypes', 'countries', 'productCategories', 'salesStages',
-      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings', 'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips'
+      'productLots', 'stockMovements', 'inventoryCounts', 'importProfiles', 'apiTokens', 'apiEndpoints', 'logisticsStatuses', 'incoterms', 'paymentTransactions', 'reportAnnotations', 'entityTranslations', 'translationTexts', 'gedCategories', 'gedModules', 'gedTags', 'gedTypes', 'configurableOptions', 'userProfiles', 'barcodeLabelSettings', 'cnasDeclarations', 'cnasPayments', 'casnosDeclarations', 'casnosPayments', 'shareholders', 'shareholderHistory', 'companyRegisters', 'socialAccounts', 'companyMinutes', 'tradeRegisters', 'tradeRegisterHistory', 'commerceRequests', 'payslips', 'leaveTypes', 'publicHolidays', 'leaveRequests', 'workedHolidays', 'paymentTypes', 'employmentContracts', 'ruleAcceptances', 'conflictDeclarations', 'workRules', 'occasionalWorkers', 'workerAssignments', 'onboardingStates', 'positionFunctions', 'workCertificates', 'certificateTemplates'
     ];
     const exportData = {
       exportedAt: new Date().toISOString(),

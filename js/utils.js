@@ -193,7 +193,7 @@ const SariUtils = {
     const element=document.getElementById(elementId);if(!element)throw Error('Printable element not found');
     await window.SariVendors?.loadPdf();if(!window.jspdf?.jsPDF||typeof html2canvas==='undefined')throw Error('PDF engine unavailable');
     const canvas=await this.elementToCanvas(element,paperFormat),format=paperFormat==='Letter'?'letter':'a4',pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format,compress:true}),pageW=pdf.internal.pageSize.getWidth(),pageH=pdf.internal.pageSize.getHeight(),margin=8,contentW=pageW-margin*2,ratio=contentW/canvas.width,imageH=canvas.height*ratio,image=canvas.toDataURL('image/jpeg',.95),capacity=pageH-margin*2;
-    let consumed=0,page=0;while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');consumed+=capacity;}
+    let consumed=0,page=0,totalPages=Math.max(1,Math.ceil(imageH/capacity));while(consumed<imageH){if(page++)pdf.addPage(format,'portrait');pdf.addImage(image,'JPEG',margin,margin-consumed,contentW,imageH,undefined,'FAST');pdf.setFillColor(255,255,255);pdf.rect(0,pageH-8,pageW,8,'F');pdf.setFontSize(8);pdf.setTextColor(100);pdf.text(`Page ${page}/${totalPages}`,pageW-margin,pageH-3,{align:'right'});consumed+=capacity;}
     return pdf.output('blob');
   },
 
