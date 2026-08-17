@@ -132,7 +132,7 @@ const LeaveModule = {
 
   /* ─────────────────────────── 300.1 Payslip auto-adjustment ─────────────────────────── */
   leaveBalanceUsed(employeeId, year) {
-    return this.state.records.filter((record) => record.employeeId === employeeId && this.type(record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
+    return this.state.records.filter((record) => record.employeeId === employeeId && this.type(record.typeId)?.deductsBalance !== false && ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel' && String(record.startDate).startsWith(String(year))).reduce((sum, record) => sum + (Number(record.durationDays) || window.SariCore.leave.paidWorkingDaysBetween(record.startDate, record.endDate, this.state.schedule, this.state.holidays) || 0), 0);
   },
   balanceFor(employeeId, typeId) {
     const type = this.type(typeId); if (!type || type.deductsBalance === false || !Number(type.daysPerYear)) return null;
@@ -189,7 +189,7 @@ const LeaveModule = {
   async doReconcile() {
     const engine = window.SariCore.leave;
     if (!engine) return;
-    const activeLeaves = this.state.records.filter((record) => ['approved', 'taken'].includes(record.status));
+    const activeLeaves = this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel');
     const activeWorked = this.state.worked.filter((record) => record.status !== 'cancelled');
     const touched = new Set();
     // 1. Strip previously derived data.
@@ -427,7 +427,18 @@ const LeaveModule = {
     if (['approved', 'taken'].includes(record.status) && !old.decidedAt) { record.decidedBy = auth.currentUser?.name || auth.currentUser?.username || 'SARI'; record.decidedAt = new Date().toISOString(); }
     const blocking = this.state.alerts.filter((alert) => alert.severity === 'error' && alert.code === 'balance_exceeded');
     if (blocking.length && record.status !== 'draft') return app.showToast(this.t('fixBlockingAlerts', 'Corrigez les alertes bloquantes (solde dépassé) ou laissez la demande en brouillon.'), 'error');
+    // Section 315: approving a linked change atomically supersedes the old
+    // approved leave. A rejected change leaves the original untouched.
+    if (record.parentRequestId && ['approved', 'taken'].includes(record.status) && !['approved', 'taken'].includes(old.status)) {
+      const parent = await sariDB.getById('leaveRequests', record.parentRequestId);
+      if (parent) {
+        parent.status = 'cancelled'; parent.supersededBy = record.id; parent.updatedAt = new Date().toISOString();
+        parent.cancellationReason = record.changeReason; await sariDB.save('leaveRequests', parent);
+      }
+      record.changeAppliedAt = new Date().toISOString();
+    }
     await sariDB.save('leaveRequests', record);
+    this.state.records = await sariDB.getAll('leaveRequests');
     await this.reconcileAdjustments();
     this.closeEditor();
     app.showToast(this.t('leaveSaved', 'Demande de congé enregistrée et fiches de paie synchronisées.'), 'success');
@@ -464,7 +475,7 @@ const LeaveModule = {
 
   /* ──────────────────────────────── 302 Leave calendar ──────────────────────────────── */
   activeLeaveOn(date) {
-    return this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && date >= record.startDate && date <= record.endDate);
+    return this.state.records.filter((record) => ['approved', 'taken'].includes(record.status) && record.requestKind !== 'cancel' && date >= record.startDate && date <= record.endDate);
   },
   calendarHtml() {
     const [year, month] = this.state.month.split('-').map(Number);
@@ -472,7 +483,10 @@ const LeaveModule = {
     const engine = window.SariCore.leave;
     // Section 307 — Sunday-first week with the configured weekend days always
     // displayed last (recomputed from the live work-schedule configuration).
-    const dayOrder = engine.weekColumnOrder(this.state.schedule);
+    const configuredDayOrder = engine.weekColumnOrder(this.state.schedule);
+    // Section 322: keep labels, dates and colours in strict chronological order.
+    // Friday/Saturday are therefore adjacent at the end of the Sunday-first week.
+    const dayOrder = [0, 1, 2, 3, 4, 5, 6];
     const workingSet = new Set(this.state.schedule?.workingDays?.length ? this.state.schedule.workingDays : [0, 1, 2, 3, 4]);
     const dayLabels = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayFallbacks = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];

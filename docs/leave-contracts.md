@@ -36,3 +36,13 @@
 ## Data model & wiring
 
 New IndexedDB stores (schema v19): `leaveTypes`, `publicHolidays`, `leaveRequests`, `workedHolidays`, `paymentTypes`, `employmentContracts`, `ruleAcceptances`, `conflictDeclarations`, `workRules`, `occasionalWorkers`, `workerAssignments`, `onboardingStates`. Reference codes `CONG`, `CTT`, `OCC`; GED modules `leaveRequest`, `employmentContract`, `workerAssignment`; MySQL migration `sql/migrations/009_leave_contracts_onboarding.sql`; external connector mappings in `external-db.js`. Pure calculation logic lives in `src/core/leave.ts` (exported as `SariCore.leave`) and is unit-tested in `tests/leave-management.test.ts`.
+
+## 315–322. Leave lifecycle, dual contract signatures and work certificates
+
+Pending employee leave requests remain viewable, editable and deletable from the portal. Approved leave is immutable; postponement, modification and cancellation create a linked `submitted` request (`parentRequestId`, `requestKind`, mandatory `changeReason`) for a fresh approval. Portal actions use Lucide icons and enforce status checks in their handlers.
+
+Employment contracts now render as full Algerian notarial-style documents identifying the company and employee, with standard articles, obligations, reusable position tasks and framed dual signature blocks. `positionFunctions` is CRUD-managed by position and is reused by work certificates. Each party records full name, role, place, timestamp and a canvas-drawn signature. The final dual-signed paginated PDF is automatically stored in GED and linked both to `employmentContract` and `employee`.
+
+`workCertificates` and configurable `certificateTemplates` provide CRUD for salary/no-salary/task variants. Employees can request certificates in the portal; `settings/app-settings.certificateAutoGeneration` selects automatic or manual generation. A manager canvas-signs the final document, which is saved as PDF in GED and linked to the employee.
+
+The leave calendar uses an invariant Sunday-to-Saturday column sequence (`[0,1,2,3,4,5,6]`); configured workdays only change calculations/colouring, so Friday and Saturday remain successive weekend columns.

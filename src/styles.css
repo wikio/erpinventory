@@ -21,3 +21,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Sections 320–321 — accessible mouse/touch signature capture and print blocks */
+.signature-pad-frame{position:relative;margin-top:.35rem;border:1px solid #94a3b8;border-radius:.75rem;background:#fff;overflow:hidden;min-height:150px}
+.signature-pad-canvas{display:block;width:100%;height:150px;touch-action:none;cursor:crosshair;background:linear-gradient(to bottom,transparent 80%,#cbd5e1 80%,#cbd5e1 81%,transparent 81%)}
+.signature-pad-clear{position:absolute;right:.5rem;top:.5rem;display:flex;gap:.3rem;align-items:center;padding:.3rem .55rem;border-radius:.5rem;background:#f1f5f9;color:#475569;font-size:.7rem;font-weight:700}
+.contract-document{background:#fff;color:#172033;font-family:Georgia,"Times New Roman",serif;line-height:1.55}
+.contract-document .contract-article{margin:1rem 0;break-inside:avoid}
+.contract-document .contract-article h4{text-transform:uppercase;font-weight:800;text-align:center;margin-bottom:.35rem}
+.contract-signatures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1.5rem;break-inside:avoid}
+.contract-signature-card{border:2px solid #0f766e;border-radius:.5rem;padding:.75rem;min-height:180px;background:#f8fafc}
+.contract-signature-card img{height:72px;max-width:100%;object-fit:contain;margin:.5rem auto}
+@media(max-width:640px){.contract-signatures{grid-template-columns:1fr}}
+@media print{.contract-document{box-shadow:none!important;border:0!important}.contract-signatures{grid-template-columns:1fr 1fr}.signature-pad-clear{display:none}}
