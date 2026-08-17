@@ -291,7 +291,7 @@ class SariApp {
   toggleTopbarOverflow(event){event?.stopPropagation?.();const menu=document.getElementById('topbar-overflow-menu'),trigger=document.getElementById('topbar-overflow-trigger');if(!menu)return;const open=menu.classList.contains('hidden');menu.classList.toggle('hidden',!open);trigger?.setAttribute('aria-expanded',String(open));if(open&&!this._topbarOverflowBound){this._topbarOverflowBound=true;document.addEventListener('click',click=>{if(!click.target.closest('.topbar-overflow-wrap'))this.closeTopbarOverflow();});document.addEventListener('keydown',key=>{if(key.key==='Escape')this.closeTopbarOverflow();});}}
   closeTopbarOverflow(){document.getElementById('topbar-overflow-menu')?.classList.add('hidden');document.getElementById('topbar-overflow-trigger')?.setAttribute('aria-expanded','false');}
 
-  configureAdaptiveLayer(){const apply=()=>{const width=window.innerWidth,form=width<=640?'mobile':width<=1023?'tablet':'desktop';document.body.dataset.formFactor=form;const sidebar=document.getElementById('mobile-sidebar');if(form==='tablet')sidebar?.classList.add('sidebar-collapsed');else if(form==='desktop'&&localStorage.getItem('sari_sidebar_collapsed')!=='true')sidebar?.classList.remove('sidebar-collapsed');this.renderMobileBottomNav();};apply();if(!this._adaptiveBound){this._adaptiveBound=true;window.addEventListener('resize',SariUtils.debounce?SariUtils.debounce(apply,150):apply);}}
+  configureAdaptiveLayer(){const apply=()=>{const width=window.innerWidth,form=width<=640?'mobile':width<=1023?'tablet':'desktop';document.body.dataset.formFactor=form;const sidebar=document.getElementById('mobile-sidebar'),topbar=document.querySelector('.sari-topbar');if(topbar)document.documentElement.style.setProperty('--sari-topbar-height',`${Math.ceil(topbar.getBoundingClientRect().height)}px`);if(form==='tablet')sidebar?.classList.add('sidebar-collapsed');else if(form==='desktop'&&localStorage.getItem('sari_sidebar_collapsed')!=='true')sidebar?.classList.remove('sidebar-collapsed');this.enhanceResponsiveTables();this.renderMobileBottomNav();};apply();if(!this._adaptiveBound){this._adaptiveBound=true;window.addEventListener('resize',SariUtils.debounce?SariUtils.debounce(apply,150):apply);const topbar=document.querySelector('.sari-topbar');if(topbar&&globalThis.ResizeObserver){this._topbarObserver=new ResizeObserver(apply);this._topbarObserver.observe(topbar);}}}
   mobileShortcutCandidates(){return[['dashboard','layout-dashboard','dashboard','Tableau'],['inventory','package','inventory','Stock'],['sales','shopping-cart','sales','Ventes'],['purchases','receipt-text','purchases','Achats'],['tasks','square-kanban','tasks','Tâches'],['portal','contact-round','portal','Mon espace']];}
   renderMobileBottomNav(){const nav=document.getElementById('sari-mobile-bottom-nav');if(!nav)return;const permitted=this.mobileShortcutCandidates().filter(([, ,permission])=>!window.auth||window.auth.can(this.permissionForModule(permission),'view')),preferred=permitted.filter(([module])=>module==='dashboard'||module===this.activeModule||!['tasks','portal'].includes(module)),items=[...new Map([...preferred,...permitted].map(item=>[item[0],item])).values()].slice(0,window.SariScanner?.available?4:5);nav.innerHTML=items.map(([module,icon,,fallback])=>`<button type="button" data-mobile-nav="${module}" class="${this.activeModule===module?'active':''}" onclick="app.navigate('${module}')" title="${SariUtils.escapeHtml(i18n?.t?.(module,fallback)||fallback)}"><i data-lucide="${icon}"></i><span>${i18n?.t?.(module,fallback)||fallback}</span></button>`).join('')+(window.SariScanner?.available?`<button type="button" class="mobile-scan-action" onclick="SariScanner.open()"><i data-lucide="scan-line"></i><span>${i18n?.t?.('scan','Scanner')||'Scanner'}</span></button>`:'');window.SariIcons?.hydrate();}
 
@@ -359,15 +359,18 @@ class SariApp {
   }
 
   enhanceResponsiveTables() {
-    document.querySelectorAll('table.sari-table').forEach(table => {
-      const labels = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
-      table.querySelectorAll('tbody tr').forEach(row => {
-        [...row.children].forEach((cell, index) => {
-          if (!cell.dataset.label) cell.dataset.label = labels[index] || '';
-        });
-      });
+    const width=window.innerWidth,isTablet=width>640&&width<=1023;
+    document.querySelectorAll('table.sari-table').forEach(table=>{
+      const labels=[...table.querySelectorAll('thead th')].map(cell=>cell.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach(row=>[...row.children].forEach((cell,index)=>{if(!cell.dataset.label)cell.dataset.label=labels[index]||'';}));
+      const container=table.parentElement,available=Math.min(container?.clientWidth||width,width),overflowing=table.scrollWidth>available+2;
+      table.classList.toggle('responsive-card-table',isTablet&&overflowing);
+      container?.classList.toggle('responsive-card-container',isTablet&&overflowing);
     });
+    this.enhanceInternalSubmenus();
   }
+  enhanceInternalSubmenus(){const view=document.getElementById('sari-main-view');if(!view)return;view.querySelectorAll('nav').forEach(nav=>nav.classList.add('sticky-section-tabs'));view.querySelectorAll('.sari-tile').forEach(tile=>{const directButtons=[...tile.children].filter(child=>child.tagName==='BUTTON'),tabButtons=[...tile.querySelectorAll(':scope > button[onclick*="setTab"],:scope > button[onclick*="state.tab"]')];if(directButtons.length>=2&&tabButtons.length>=2)tile.classList.add('sticky-section-tabs');});}
+
 
   enhanceSearchInputs() {
     document.querySelectorAll('input[onkeydown*="searchKeyHandler"]').forEach(input => {
