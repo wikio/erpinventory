@@ -58,12 +58,37 @@ class SyncController {
     window.dispatchEvent(new CustomEvent('sari-network-status-changed', { detail: { online: actualStatus } }));
   }
 
+  async enqueueExternalOnly(storeName, action, payload) {
+    if(!window.sariDB||['syncQueue','recordSequences'].includes(storeName))return;
+    const item={id:`sync-ext-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,storeName,action,payload,externalOnly:true,createdAt:new Date().toISOString(),status:'pending'};await window.sariDB.save('syncQueue',item);await this.updateSyncBadge();if(this.getOnlineStatus())setTimeout(()=>this.processSyncQueue(),100);
+  }
+
   async enqueueMutation(storeName, action, payload) {
+    const before = payload?.id && window.sariDB ? await window.sariDB.getById(storeName,payload.id) : null;
+    const after = action === 'save' ? payload : null;
+    const keys = [...new Set([...Object.keys(before||{}),...Object.keys(after||{})])].filter(key=>!['data','photo','logo'].includes(key));
+    const changes = keys.filter(key=>JSON.stringify(before?.[key])!==JSON.stringify(after?.[key])).map(key=>({field:key,before:before?.[key],after:after?.[key]}));
+    if(window.sariDB && window.auth?.currentUser && !['auditLogs','syncQueue'].includes(storeName)) await window.sariDB.save('auditLogs',{id:`audit-${crypto.randomUUID()}`,user:window.auth.currentUser.name,role:window.auth.currentRole,actingUserId:window.auth.currentUser.id,action:action==='delete'?'DELETE_RECORD':before?'UPDATE_RECORD':'CREATE_RECORD',module:storeName,affectedRecordId:payload?.id||'',recordType:storeName,changes,beforeSummary:before?JSON.stringify(before).slice(0,500):'',afterSummary:after?JSON.stringify(after).slice(0,500):'',description:`${action} ${storeName} ${payload?.id||''} • ${changes.length} champ(s) modifié(s)`,timestamp:new Date().toISOString()});
+
+    // Apply the mutation to local IndexedDB immediately so list views refresh right after a save
+    // (without a page reload); the queue entry below still drives the external DB migration / offline replay.
+    let appliedPayload = payload;
+    if (typeof window !== 'undefined' && window.sariDB && !['auditLogs','syncQueue','recordSequences'].includes(storeName)) {
+      this.suppressBridge = true;
+      try {
+        if (action === 'save') appliedPayload = await window.sariDB.save(storeName, payload);
+        else if (action === 'delete') await window.sariDB.delete(storeName, payload.id);
+      } finally {
+        this.suppressBridge = false;
+      }
+    }
+
     const item = {
       id: `sync-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       storeName,
       action, // 'save' | 'delete'
-      payload,
+      payload: appliedPayload,
+      numericId: before?.numericId ?? appliedPayload?.numericId,
       createdAt: new Date().toISOString(),
       status: 'pending'
     };
@@ -99,11 +124,16 @@ class SyncController {
 
       for (const item of queueItems) {
         try {
-          // Simulate server synchronization / conflict resolution
-          if (item.action === 'save') {
-            await window.sariDB.save(item.storeName, item.payload);
+          if(item.externalOnly){
+            const endpoint=item.action==='delete'?'/api/db/delete-record':'/api/db/migrate-batch',body=item.action==='delete'?{storeName:item.storeName,numericId:item.payload.numericId}:{storeName:item.storeName,records:[item.payload]};const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw Error((await response.json()).error||'External sync failed');
+          } else if (item.action === 'save') {
+            this.suppressBridge=true;try{await window.sariDB.save(item.storeName,item.payload);}finally{this.suppressBridge=false;}
+            if(window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/migrate-batch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,records:[item.payload]})});if(!response.ok)throw Error((await response.json()).error||'External sync failed');}
           } else if (item.action === 'delete') {
-            await window.sariDB.delete(item.storeName, item.payload.id);
+            const existing=await window.sariDB.getById(item.storeName,item.payload.id);
+            const numericId=item.numericId ?? existing?.numericId;
+            if(numericId&&window.dbAdapter?.currentDriver!=='indexeddb'&&window.dbAdapter?.driverConfig?.serverManaged){const response=await fetch('/api/db/delete-record',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({storeName:item.storeName,numericId})});if(!response.ok)throw Error((await response.json()).error||'External delete failed');}
+            this.suppressBridge=true;try{await window.sariDB.delete(item.storeName,item.payload.id);}finally{this.suppressBridge=false;}
           }
           await window.sariDB.delete('syncQueue', item.id);
         } catch (err) {

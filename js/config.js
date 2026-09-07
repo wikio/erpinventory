@@ -138,6 +138,13 @@ const TRANSLATIONS = {
     appSubtitle: "Distribution Matériel Médical & Consommables • Algérie",
     dashboard: "Tableau de Bord",
     inventory: "Stock & Consommables",
+    stockSubtitle: "Gestion des dispositifs médicaux, consommables, traçabilité des lots et conformité CE / MSPRH Algérie.",
+    stockSearchLabel: "Recherche (SKU, nom, lot)", searchProducts: "Rechercher produits, références, lots ou fabricants…",
+    allCategories: "Toutes les catégories", allWarehouses: "Tous les dépôts", expiryStatus: "Statut de péremption", allProducts: "Tous les produits",
+    expiryAll: "Toutes les péremptions", expiryExpired: "Produits périmés", expiryNear: "Expiration proche (30 jours)", expiryValid: "Produits valides",
+    skuReference: "SKU / Référence", productCompliance: "Produit & conformité", categoryHeader: "Catégorie", stockHeader: "Stock actuel", warehouseHeader: "Dépôt", purchasePriceHeader: "Prix d’achat", sellingPriceHeader: "Prix de vente", lotExpiryHeader: "Lot & péremption", actionsHeader: "Actions",
+    menuOperations: "Opérations", menuCommerce: "Commerce", menuPeople: "Équipe", menuAnalytics: "Analyse & Documents", menuAdministration: "Administration", collapseMenu: "Réduire le menu",
+    companyNifLabel: "NIF", companyAddressLabel: "Adresse", footerActivity: "Distribution de matériel médical et consommables en Algérie", footerTax: "TVA 19%", footerIncoterms: "Incoterms FOB/CIF", footerThemes: "4 thèmes natifs", footerSettingsLink: "Paramètres & connecteur DB →",
     suppliers: "Fournisseurs",
     importExport: "Import / Export",
     tenders: "Appels d'Offres",
@@ -146,6 +153,23 @@ const TRANSLATIONS = {
     reports: "Rapports & Stats",
     auditLogs: "Journal d'Audit",
     settings: "Paramètres & Doc",
+    hr: "Ressources Humaines",
+    tasks: "Tâches & Kanban",
+    documents: "Gestion documentaire", gedDescription: "Archives téléversées et documents ERP classés par catégorie et tags.", gedTypesMenu: "Types", gedCategoriesMenu: "Catégories", gedModulesMenu: "Modules", gedTagsMenu: "Tags", gedAllTypes: "Tous les types GED", gedAllCategories: "Toutes les catégories", gedAllModules: "Tous les modules", gedAllTags: "Tous les tags", gedTypeLabel: "Type GED", gedTitleLabel: "Titre / nom du fichier", gedOtherType: "Autre document", inlineTranslationOn: "Mode traduction en ligne activé", inlineTranslationOff: "Mode traduction en ligne désactivé",
+    checklist: "Checklist interactive",
+    employeePortal: "Espace Collaborateur",
+    purchases: "Achats & Réceptions",
+    ged: "GED Centrale",
+    taxes: "Fiscalité Algérienne",
+    masterData: "Listes configurables",
+    inventoryOps: "Lots & Inventaires",
+    bulkImport: "Import de masse",
+    api: "API & Intégrations",
+    internalMessages: "Messagerie interne",
+    vatRates: "Taux de TVA",
+    documentNumbering: "Types & Numérotation",
+    branding: "Gestion des logos",
+    richDescription: "Description détaillée",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation
@@ -261,6 +285,13 @@ const TRANSLATIONS = {
     appSubtitle: "توزيع التجهيزات والمستلزمات الطبية • الجزائر",
     dashboard: "لوحة القيادة",
     inventory: "المخزون والمنتجات",
+    stockSubtitle: "إدارة الأجهزة والمستهلكات الطبية وتتبع الحصص والمطابقة CE / MSPRH الجزائر.",
+    stockSearchLabel: "البحث (SKU، الاسم، الحصة)", searchProducts: "البحث عن المنتجات أو المراجع أو الحصص أو المصنعين…",
+    allCategories: "كل الفئات", allWarehouses: "كل المخازن", expiryStatus: "حالة الصلاحية", allProducts: "كل المنتجات",
+    expiryAll: "كل تواريخ الصلاحية", expiryExpired: "منتجات منتهية", expiryNear: "انتهاء قريب (30 يوماً)", expiryValid: "منتجات صالحة",
+    skuReference: "SKU / المرجع", productCompliance: "المنتج والمطابقة", categoryHeader: "الفئة", stockHeader: "المخزون الحالي", warehouseHeader: "المخزن", purchasePriceHeader: "سعر الشراء", sellingPriceHeader: "سعر البيع", lotExpiryHeader: "الحصة والصلاحية", actionsHeader: "الإجراءات",
+    menuOperations: "العمليات", menuCommerce: "التجارة", menuPeople: "الفريق", menuAnalytics: "التحليل والوثائق", menuAdministration: "الإدارة", collapseMenu: "طي القائمة",
+    companyNifLabel: "الرقم الجبائي", companyAddressLabel: "العنوان", footerActivity: "توزيع المعدات والمستهلكات الطبية في الجزائر", footerTax: "ضريبة القيمة المضافة 19%", footerIncoterms: "شروط FOB/CIF", footerThemes: "4 سمات أصلية", footerSettingsLink: "الإعدادات وموصل قاعدة البيانات ←",
     suppliers: "الموردون",
     importExport: "الاستيراد والتصدير",
     tenders: "المناقصات والاستشارات",
@@ -269,6 +300,23 @@ const TRANSLATIONS = {
     reports: "التقارير والإحصائيات",
     auditLogs: "سجل الأنشطة والتدقيق",
     settings: "الإعدادات والوثائق",
+    hr: "الموارد البشرية",
+    tasks: "المهام ولوحة كانبان",
+    documents: "إدارة الوثائق", gedDescription: "الأرشيفات المحمّلة ووثائق النظام مصنفة حسب الفئة والوسوم.", gedTypesMenu: "الأنواع", gedCategoriesMenu: "الفئات", gedModulesMenu: "الوحدات", gedTagsMenu: "الوسوم", gedAllTypes: "كل أنواع الوثائق", gedAllCategories: "كل الفئات", gedAllModules: "كل الوحدات", gedAllTags: "كل الوسوم", gedTypeLabel: "نوع الوثيقة", gedTitleLabel: "العنوان / اسم الملف", gedOtherType: "وثيقة أخرى", inlineTranslationOn: "تم تفعيل وضع الترجمة المباشرة", inlineTranslationOff: "تم تعطيل وضع الترجمة المباشرة",
+    checklist: "قائمة تحقق تفاعلية",
+    employeePortal: "فضاء الموظف",
+    purchases: "المشتريات والاستلام",
+    ged: "إدارة الوثائق المركزية",
+    taxes: "الجباية الجزائرية",
+    masterData: "القوائم القابلة للتخصيص",
+    inventoryOps: "الحصص والجرد",
+    bulkImport: "الاستيراد الجماعي",
+    api: "واجهة API والتكامل",
+    internalMessages: "الرسائل الداخلية",
+    vatRates: "نسب الضريبة على القيمة المضافة",
+    documentNumbering: "أنواع وترقيم الوثائق",
+    branding: "إدارة الشعارات",
+    richDescription: "الوصف المفصل",
     helpDoc: "البنية والوثائق الإرشادية",
 
     // Header & Navigation
@@ -384,6 +432,13 @@ const TRANSLATIONS = {
     appSubtitle: "Medical Equipment & Consumables Distribution • Algeria",
     dashboard: "Dashboard",
     inventory: "Inventory & Consumables",
+    stockSubtitle: "Manage medical devices, consumables, lot traceability and CE / MSPRH Algeria compliance.",
+    stockSearchLabel: "Search (SKU, name, lot)", searchProducts: "Search products, references, lots or manufacturers…",
+    allCategories: "All categories", allWarehouses: "All warehouses", expiryStatus: "Expiry status", allProducts: "All products",
+    expiryAll: "All expiry statuses", expiryExpired: "Expired products", expiryNear: "Near expiry (30 days)", expiryValid: "Valid products",
+    skuReference: "SKU / Reference", productCompliance: "Product & compliance", categoryHeader: "Category", stockHeader: "Current stock", warehouseHeader: "Warehouse", purchasePriceHeader: "Purchase price", sellingPriceHeader: "Selling price", lotExpiryHeader: "Lot & expiry", actionsHeader: "Actions",
+    menuOperations: "Operations", menuCommerce: "Commerce", menuPeople: "Team", menuAnalytics: "Analytics & Documents", menuAdministration: "Administration", collapseMenu: "Collapse menu",
+    companyNifLabel: "Tax ID (NIF)", companyAddressLabel: "Address", footerActivity: "Medical equipment and consumables distribution in Algeria", footerTax: "VAT 19%", footerIncoterms: "FOB/CIF Incoterms", footerThemes: "4 native themes", footerSettingsLink: "Settings & DB connector →",
     suppliers: "Suppliers",
     importExport: "Import / Export",
     tenders: "Tenders & Consultations",
@@ -392,6 +447,23 @@ const TRANSLATIONS = {
     reports: "Reports & Analytics",
     auditLogs: "Audit Logs",
     settings: "Settings & Docs",
+    hr: "Human Resources",
+    tasks: "Tasks & Kanban",
+    documents: "Document Management", gedDescription: "Uploaded archives and ERP documents classified by category and tags.", gedTypesMenu: "Types", gedCategoriesMenu: "Categories", gedModulesMenu: "Modules", gedTagsMenu: "Tags", gedAllTypes: "All GED types", gedAllCategories: "All categories", gedAllModules: "All modules", gedAllTags: "All tags", gedTypeLabel: "GED type", gedTitleLabel: "Title / file name", gedOtherType: "Other document", inlineTranslationOn: "Inline translation mode enabled", inlineTranslationOff: "Inline translation mode disabled",
+    checklist: "Interactive Checklist",
+    employeePortal: "Employee Portal",
+    purchases: "Purchases & Receipts",
+    ged: "Central Document Management",
+    taxes: "Algerian Tax Management",
+    masterData: "Configurable Lists",
+    inventoryOps: "Lots & Inventory",
+    bulkImport: "Bulk Import",
+    api: "API & Integrations",
+    internalMessages: "Internal Messaging",
+    vatRates: "VAT Rates",
+    documentNumbering: "Document Types & Numbering",
+    branding: "Logo Management",
+    richDescription: "Detailed Description",
     helpDoc: "Architecture & Documentation",
 
     // Header & Navigation
@@ -502,6 +574,19 @@ const TRANSLATIONS = {
     readOnlyWarning: "You are logged in as a Read-Only Viewer. Editing actions are disabled."
   }
 };
+
+Object.assign(TRANSLATIONS.fr,{importDescription:"Suivi des expéditions maritimes/aériennes, dédouanement, coûts rendus et Incoterms.",tendersDescription:"Suivi des consultations, cahiers des charges et préparation des offres techniques et financières.",salesDescription:"Catalogue, panier, commandes B2B, factures et bons de livraison.",inventoryOpsDescription:"Stock par dépôt, lots, FEFO/FIFO, mouvements, ajustements et comptages physiques."});
+Object.assign(TRANSLATIONS.ar,{importDescription:"متابعة الشحنات البحرية والجوية والتخليص والتكاليف النهائية وشروط التجارة.",tendersDescription:"متابعة الاستشارات ودفاتر الشروط وتحضير العروض التقنية والمالية.",salesDescription:"الكتالوج والسلة وطلبيات المؤسسات والفواتير ووصولات التسليم.",inventoryOpsDescription:"المخزون حسب المستودع والحصص وحركات FEFO/FIFO والتسويات والجرد."});
+Object.assign(TRANSLATIONS.en,{importDescription:"Track sea/air shipments, customs clearance, landed costs and Incoterms.",tendersDescription:"Track consultations, specifications and technical/financial bid preparation.",salesDescription:"Catalog, cart, B2B orders, invoices and delivery notes.",inventoryOpsDescription:"Stock by warehouse, lots, FEFO/FIFO, movements, adjustments and physical counts."});
+Object.assign(TRANSLATIONS.fr,{viewOrder:"Consulter la commande",files:"pièce(s)",participants:"participant(s)",daysRecorded:"jour(s) enregistré(s)",valuesConfigured:"valeur(s) configurée(s)",expectedColumns:"Colonnes attendues :",rowsImported:"ligne(s) importée(s)",isRequired:"est obligatoire",invalidNumber:"nombre invalide",rowLabel:"Ligne",paymentTransactions:"Transactions de paiement",newOperation:"Nouvelle opération"});
+Object.assign(TRANSLATIONS.ar,{viewOrder:"عرض الطلبية",files:"ملف (ملفات)",participants:"مشارك (مشاركون)",daysRecorded:"يوم (أيام) مسجلة",valuesConfigured:"قيمة (قيم) مهيأة",expectedColumns:"الأعمدة المتوقعة:",rowsImported:"سطر (أسطر) مستوردة",isRequired:"إلزامي",invalidNumber:"رقم غير صالح",rowLabel:"سطر",paymentTransactions:"معاملات الدفع",newOperation:"عملية جديدة"});
+Object.assign(TRANSLATIONS.en,{viewOrder:"View order",files:"file(s)",participants:"participant(s)",daysRecorded:"day(s) recorded",valuesConfigured:"configured value(s)",expectedColumns:"Expected columns:",rowsImported:"row(s) imported",isRequired:"is required",invalidNumber:"invalid number",rowLabel:"Row",paymentTransactions:"Payment Transactions",newOperation:"New Operation"});
+
+// Reports page (section 203) + report customization (section 200) + misc UI
+const reportKeysFr={reportsDescription:"Évaluations des stocks, analyses de chiffre d'affaires par wilaya, coûts importations et profitabilité.",customizeReport:"Personnaliser le rapport",customizeReportHelp:"En-tête et lignes du rapport, avec champs dynamiques {reference}, {label}, {status}, {amount}, {type}, {company}, {title}, {date}.",reportHeaderTemplate:"En-tête du rapport",reportRowTemplate:"Ligne du rapport",detailedReport:"Rapport détaillé",printPDF:"Imprimer / PDF",reportTab_inventory:"Stock & Péremptions",reportTab_sales:"Ventes & Créances",reportTab_costs:"Coûts",reportTab_imports:"Importations",reportTab_tenders:"Appels d'Offres",reportTab_finance:"Rentabilité & Finances",reportTab_partners:"Clients & Fournisseurs",costFreight:"Fret / transport",costInsurance:"Assurance",costCustoms:"Douanes",costTotal:"Total logistique",costShipment:"Expédition",costSupplier:"Fournisseur",costPurchases:"Total achats locaux"};
+const reportKeysAr={reportsDescription:"تقييم المخزون وتحليلات رقم الأعمال حسب الولاية وتكاليف الاستيراد والربحية.",customizeReport:"تخصيص التقرير",customizeReportHelp:"رأس التقرير وسطوره مع حقول ديناميكية {reference}، {label}، {status}، {amount}، {type}، {company}، {title}، {date}.",reportHeaderTemplate:"رأس التقرير",reportRowTemplate:"سطر التقرير",detailedReport:"تقرير مفصل",printPDF:"طباعة / PDF",reportTab_inventory:"المخزون والصلاحيات",reportTab_sales:"المبيعات والذمم",reportTab_costs:"التكاليف",reportTab_imports:"الواردات",reportTab_tenders:"المناقصات",reportTab_finance:"الربحية والمالية",reportTab_partners:"العملاء والموردون",costFreight:"الشحن / النقل",costInsurance:"التأمين",costCustoms:"الجمارك",costTotal:"الإجمالي اللوجستي",costShipment:"الشحنة",costSupplier:"المورد",costPurchases:"إجمالي المشتريات المحلية"};
+const reportKeysEn={reportsDescription:"Stock assessments, sales analysis by wilaya, import costs and profitability.",customizeReport:"Customize Report",customizeReportHelp:"Report header and rows with dynamic fields {reference}, {label}, {status}, {amount}, {type}, {company}, {title}, {date}.",reportHeaderTemplate:"Report Header",reportRowTemplate:"Report Row",detailedReport:"Detailed Report",printPDF:"Print / PDF",reportTab_inventory:"Stock & Expirations",reportTab_sales:"Sales & Receivables",reportTab_costs:"Costs",reportTab_imports:"Imports",reportTab_tenders:"Tenders",reportTab_finance:"Profitability & Finance",reportTab_partners:"Clients & Suppliers",costFreight:"Freight / Transport",costInsurance:"Insurance",costCustoms:"Customs",costTotal:"Total Logistics",costShipment:"Shipment",costSupplier:"Supplier",costPurchases:"Total local purchases"};
+Object.assign(TRANSLATIONS.fr,reportKeysFr);Object.assign(TRANSLATIONS.ar,reportKeysAr);Object.assign(TRANSLATIONS.en,reportKeysEn);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { SARI_CONFIG, TRANSLATIONS };
